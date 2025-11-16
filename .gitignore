@@ -1,0 +1,23 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.production
+supabase/.env
+supabase/.env.production
+
+# Docker volumes data
+supabase-db-data/
+supabase-storage-data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
