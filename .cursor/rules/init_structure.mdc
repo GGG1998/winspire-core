@@ -1,0 +1,81 @@
+---
+alwaysApply: false
+---
+
+# 🧭 Winspire Platform — Repository Organization & Rules
+
+This document defines the structure, conventions, and core technologies used across the **Winspire Platform monorepo**.  
+It serves as a shared baseline for development, CI/CD automation, and release/versioning consistency.
+
+```bash
+repo/
+├─ services/              # Microservices(independent module)
+│  ├─ auth/
+│  │  ├─ cmd/auth/
+│  │  ├─ internal/
+│  │  ├─ go.mod
+│  │  └─ Makefile
+│  ├─ streamer/
+│  └─ tournament/
+│
+├─ libs/                  # shared code
+│  ├─ go/
+│  │  ├─ common/          # go.mod, logger, config, errors
+│  │  ├─ observability/   # otel, prometheus, tracing
+│  │  └─ clients/         # clients do usług
+│  └─ ts/
+│     ├─ something1/         
+│     └─ something2/        
+│
+├─ frontends/
+│  ├─ dashboard/          # pnpm workspace
+│  └─ streamer-panel/
+│
+├─ platform/
+│  ├─ terraform/
+│  │  ├─ modules/         # VPC, ECR, ECS/K8s, RDS, Redis
+│  │  └─ envs/
+│  │     ├─ dev/
+│  │     ├─ staging/
+│  │     └─ prod/
+│  ├─ k8s/
+│  │  ├─ base/
+│  │  └─ overlays/
+│  └─ ci/
+│     └─ reusable/
+│
+├─ go.work                # connect all Go modules
+├─ package.json           # pnpm workspaces
+├─ Makefile               # tool helper to join tasks (build/test/deploy)
+└─ .github/workflows/     # CI/CD pipeline
+```
+
+**Principles**
+- Each service or library is an **independent Go module** (`go.mod`).
+- Frontend apps and SDKs are **npm workspaces** (via `pnpm`).
+- Infrastructure code is **isolated per environment**.
+- Everything is **built and versioned independently** but stored together for coordination.
+
+---
+
+# 🏷️ Tagging & Versioning Rules
+
+Each component (service, library, frontend, infra) has its own version, managed via scoped Git tags.
+
+## 🔖 Tag Naming Convention
+
+Tags use the following format:
+
+```bash
+<path>/<component>/v<MAJOR>.<MINOR>.<PATCH>
+```
+
+Examples:
+
+```bash
+services/auth/v1.3.0
+services/chat/v0.9.2
+libs/ts/ui-kit/v2.0.0
+frontends/dashboard/v1.5.1
+platform/terraform/v0.8.0
+```
