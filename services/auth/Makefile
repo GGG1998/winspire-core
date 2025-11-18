@@ -16,18 +16,6 @@ test-coverage:
 run:
 	go run ./cmd/auth
 
-# Run database migrations up
-migrate-up:
-	migrate -path migrations -database "$$DATABASE_URL" up
-
-# Run database migrations down
-migrate-down:
-	migrate -path migrations -database "$$DATABASE_URL" down
-
-# Generate sqlc models
-sqlc-generate:
-	sqlc generate
-
 # Clean build artifacts
 clean:
 	rm -rf bin/

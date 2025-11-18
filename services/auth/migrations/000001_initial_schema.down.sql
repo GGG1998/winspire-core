@@ -1,1 +1,0 @@
--- No tables to drop - we rely on Supabase's built-in structures
