@@ -4,10 +4,10 @@ info:
   version: 1.0.0
   description: |
     Authentication and authorization service for Winspire platform.
-    Provides user registration, login, OAuth flows, and role-based access control.
+    Provides user registration, login, OAuth flows, and user management.
     
-    This service integrates with Supabase Auth for identity management and extends it
-    with custom RBAC capabilities.
+    This service integrates with Supabase Auth for identity management.
+    Roles are stored in user_metadata and included in JWT claims.
   contact:
     name: Winspire Platform Team
   license:
@@ -30,8 +30,6 @@ tags:
     description: Password management (reset, change)
   - name: Users
     description: User information and management
-  - name: Roles
-    description: Role-based access control operations
   - name: Health
     description: Service health and status
 
@@ -334,116 +332,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /users/me/roles:
-    get:
-      tags:
-        - Roles
-      summary: Get user roles
-      description: Returns all roles assigned to the current user
-      operationId: getUserRoles
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: User roles
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Role'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /users/{userId}/roles:
-    post:
-      tags:
-        - Roles
-      summary: Assign role to user
-      description: Assigns a role to a user (admin only)
-      operationId: assignRole
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AssignRoleRequest'
-      responses:
-        '201':
-          description: Role assigned successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Role'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          description: Insufficient permissions
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: User or role not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-    delete:
-      tags:
-        - Roles
-      summary: Remove role from user
-      description: Removes a role from a user (admin only)
-      operationId: removeRole
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: userId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: roleId
-          in: query
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '204':
-          description: Role removed successfully
-        '403':
-          description: Insufficient permissions
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: User or role not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
   /validate:
     post:
       tags:
@@ -595,43 +483,16 @@ components:
         displayName:
           type: string
           nullable: true
-        roles:
-          type: array
-          items:
-            type: string
-          description: List of role names assigned to user
+        role:
+          type: string
+          description: User role from user_metadata (e.g., 'streamer', 'user', 'admin')
+          nullable: true
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
-
-    Role:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        name:
-          type: string
-          example: streamer
-        description:
-          type: string
-          nullable: true
-        createdAt:
-          type: string
-          format: date-time
-
-    AssignRoleRequest:
-      type: object
-      required:
-        - roleId
-      properties:
-        roleId:
-          type: string
-          format: uuid
-          description: ID of role to assign
 
     ValidateTokenRequest:
       type: object

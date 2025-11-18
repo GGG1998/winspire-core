@@ -45,14 +45,12 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T010 Setup database migrations framework: Install `golang-migrate` and create `services/auth/migrations/` structure
-- [X] T011 [P] Create initial database migration: `services/auth/migrations/000001_initial_schema.up.sql` with roles, permissions, user_roles, role_permissions, oauth_provider_links tables from data-model.md
-- [X] T012 [P] Create migration down file: `services/auth/migrations/000001_initial_schema.down.sql` to drop all tables
-- [X] T013 [P] Create seed migration: `services/auth/migrations/000002_seed_data.up.sql` with predefined roles (streamer, user, admin) and permissions
-- [X] T014 Configure sqlc: Create `services/auth/sqlc.yaml` with PostgreSQL engine, queries path, and pgx/v5 driver settings
-- [X] T015 [P] Create SQL query files: `services/auth/internal/queries/roles.sql` with GetUserRoles, GetUserPermissions, CheckUserPermission queries
-- [X] T016 [P] Create SQL query files: `services/auth/internal/queries/oauth.sql` with GetOAuthProviderLink query
-- [ ] T017 Generate sqlc models: Run `sqlc generate` to create `services/auth/internal/models/` from SQL queries (requires Go and sqlc installed)
+-- Note: We rely entirely on Supabase's built-in structures:
+-- - auth.users: User accounts (no custom tables needed)
+-- - auth.identities: OAuth provider links (managed by Supabase)
+-- - Password reset: Handled internally by Supabase
+-- - Sessions: JWT-based, stateless
+-- No database migrations needed at this time.
 - [X] T018 [P] Create configuration package: `services/auth/internal/config/config.go` using envconfig for Supabase URL, keys, JWT secret, database URL, OAuth credentials
 - [X] T019 [P] Create error handling: `services/auth/internal/errors/errors.go` with custom error types and error response formatting
 - [X] T020 [P] Create logging setup: `services/auth/internal/logger/logger.go` with structured logging configuration
@@ -77,14 +75,14 @@
 
 ### Implementation for User Story 1
 
-- [ ] T029 [US1] Create registration service: `services/auth/internal/services/registration.go` with RegisterUser function that calls Supabase Auth SignUp
-- [ ] T030 [US1] Create registration handler: `services/auth/internal/handlers/auth.go` with Register endpoint that validates request, calls registration service, and returns auth response
-- [ ] T031 [US1] Add registration route: Update `services/auth/cmd/auth/main.go` to register POST `/v1/auth/register` endpoint
-- [ ] T032 [US1] Implement email verification handler: `services/auth/internal/handlers/auth.go` with VerifyEmail endpoint that calls Supabase Auth to verify email token
-- [ ] T033 [US1] Add email verification route: Update `services/auth/cmd/auth/main.go` to register GET `/v1/auth/verify` endpoint
-- [ ] T034 [US1] Add request validation: Create validation functions in `services/auth/internal/handlers/auth.go` for RegisterRequest (email format, password strength)
-- [ ] T035 [US1] Add error handling: Handle Supabase errors (user exists, invalid email) and return appropriate HTTP status codes
-- [ ] T036 [US1] Add logging: Log registration attempts, successes, and failures in `services/auth/internal/services/registration.go`
+- [X] T029 [US1] Create registration service: `services/auth/internal/services/registration.go` with RegisterUser function that calls Supabase Auth SignUp
+- [X] T030 [US1] Create registration handler: `services/auth/internal/handlers/auth.go` with Register endpoint that validates request, calls registration service, and returns auth response
+- [X] T031 [US1] Add registration route: Update `services/auth/cmd/auth/main.go` to register POST `/v1/auth/register` endpoint
+- [X] T032 [US1] Implement email verification handler: `services/auth/internal/handlers/auth.go` with VerifyEmail endpoint that calls Supabase Auth to verify email token
+- [X] T033 [US1] Add email verification route: Update `services/auth/cmd/auth/main.go` to register GET `/v1/auth/verify` endpoint
+- [X] T034 [US1] Add request validation: Create validation functions in `services/auth/internal/handlers/auth.go` for RegisterRequest (email format, password strength)
+- [X] T035 [US1] Add error handling: Handle Supabase errors (user exists, invalid email) and return appropriate HTTP status codes
+- [X] T036 [US1] Add logging: Log registration attempts, successes, and failures in `services/auth/internal/services/registration.go`
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently - users can register and verify email
 
@@ -98,14 +96,14 @@
 
 ### Implementation for User Story 2
 
-- [ ] T037 [US2] Create login service: `services/auth/internal/services/auth.go` with LoginUser function that calls Supabase Auth SignIn
-- [ ] T038 [US2] Create login handler: `services/auth/internal/handlers/auth.go` with Login endpoint that validates credentials and returns JWT tokens
-- [ ] T039 [US2] Add login route: Update `services/auth/cmd/auth/main.go` to register POST `/v1/auth/login` endpoint
-- [ ] T040 [US2] Implement email verification check: In login service, verify user email is confirmed before allowing login
-- [ ] T041 [US2] Add token refresh handler: `services/auth/internal/handlers/auth.go` with RefreshToken endpoint that refreshes access token using refresh token
-- [ ] T042 [US2] Add token refresh route: Update `services/auth/cmd/auth/main.go` to register POST `/v1/auth/refresh` endpoint
-- [ ] T043 [US2] Add error handling: Handle invalid credentials, unverified email, and return appropriate error messages
-- [ ] T044 [US2] Add logging: Log login attempts, successes, and failures in `services/auth/internal/services/auth.go`
+- [X] T037 [US2] Create login service: `services/auth/internal/services/auth.go` with LoginUser function that calls Supabase Auth SignIn
+- [X] T038 [US2] Create login handler: `services/auth/internal/handlers/auth.go` with Login endpoint that validates credentials and returns JWT tokens
+- [X] T039 [US2] Add login route: Update `services/auth/cmd/auth/main.go` to register POST `/v1/auth/login` endpoint
+- [X] T040 [US2] Implement email verification check: In login service, verify user email is confirmed before allowing login
+- [X] T041 [US2] Add token refresh handler: `services/auth/internal/handlers/auth.go` with RefreshToken endpoint that refreshes access token using refresh token
+- [X] T042 [US2] Add token refresh route: Update `services/auth/cmd/auth/main.go` to register POST `/v1/auth/refresh` endpoint
+- [X] T043 [US2] Add error handling: Handle invalid credentials, unverified email, and return appropriate error messages
+- [X] T044 [US2] Add logging: Log login attempts, successes, and failures in `services/auth/internal/services/auth.go`
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently - users can register, verify email, and log in
 
@@ -119,15 +117,15 @@
 
 ### Implementation for User Story 3
 
-- [ ] T045 [US3] Create password reset service: `services/auth/internal/services/password.go` with RequestPasswordReset function that calls Supabase Auth ResetPasswordForEmail
-- [ ] T046 [US3] Create password reset request handler: `services/auth/internal/handlers/password.go` with RequestPasswordReset endpoint
-- [ ] T047 [US3] Add password reset request route: Update `services/auth/cmd/auth/main.go` to register POST `/v1/auth/password/reset` endpoint
-- [ ] T048 [US3] Create password reset confirmation service: `services/auth/internal/services/password.go` with ConfirmPasswordReset function that calls Supabase Auth UpdateUser
-- [ ] T049 [US3] Create password reset confirmation handler: `services/auth/internal/handlers/password.go` with ConfirmPasswordReset endpoint
-- [ ] T050 [US3] Add password reset confirmation route: Update `services/auth/cmd/auth/main.go` to register POST `/v1/auth/password/reset/confirm` endpoint
-- [ ] T051 [US3] Add token validation: Validate reset token expiration and usage in password reset confirmation
-- [ ] T052 [US3] Add error handling: Handle expired tokens, invalid tokens, and return appropriate error messages
-- [ ] T053 [US3] Add logging: Log password reset requests and completions in `services/auth/internal/services/password.go`
+- [X] T045 [US3] Create password reset service: `services/auth/internal/services/password.go` with RequestPasswordReset function that calls Supabase Auth ResetPasswordForEmail
+- [X] T046 [US3] Create password reset request handler: `services/auth/internal/handlers/password.go` with RequestPasswordReset endpoint
+- [X] T047 [US3] Add password reset request route: Update `services/auth/cmd/auth/main.go` to register POST `/v1/auth/password/reset` endpoint
+- [X] T048 [US3] Create password reset confirmation service: `services/auth/internal/services/password.go` with ConfirmPasswordReset function that calls Supabase Auth UpdateUser
+- [X] T049 [US3] Create password reset confirmation handler: `services/auth/internal/handlers/password.go` with ConfirmPasswordReset endpoint
+- [X] T050 [US3] Add password reset confirmation route: Update `services/auth/cmd/auth/main.go` to register POST `/v1/auth/password/reset/confirm` endpoint
+- [X] T051 [US3] Add token validation: Validate reset token expiration and usage in password reset confirmation
+- [X] T052 [US3] Add error handling: Handle expired tokens, invalid tokens, and return appropriate error messages
+- [X] T053 [US3] Add logging: Log password reset requests and completions in `services/auth/internal/services/password.go`
 
 **Checkpoint**: At this point, User Stories 1, 2, AND 3 should all work independently
 
@@ -141,18 +139,18 @@
 
 ### Implementation for User Story 4
 
-- [ ] T054 [US4] Configure OAuth providers in Supabase: Set up Discord, Twitch, Google, Facebook OAuth apps and add credentials to Supabase dashboard
-- [ ] T055 [US4] Create OAuth service: `services/auth/internal/services/oauth.go` with InitiateOAuthFlow function that generates OAuth URL
-- [ ] T056 [US4] Create OAuth initiation handler: `services/auth/internal/handlers/oauth.go` with InitiateOAuth endpoint that redirects to provider
-- [ ] T057 [US4] Add OAuth initiation route: Update `services/auth/cmd/auth/main.go` to register GET `/v1/auth/oauth/{provider}` endpoint
-- [ ] T058 [US4] Create OAuth callback service: `services/auth/internal/services/oauth.go` with HandleOAuthCallback function that exchanges code for tokens and creates/links user
-- [ ] T059 [US4] Create OAuth callback handler: `services/auth/internal/handlers/oauth.go` with OAuthCallback endpoint that processes OAuth response
-- [ ] T060 [US4] Add OAuth callback route: Update `services/auth/cmd/auth/main.go` to register GET `/v1/auth/oauth/{provider}/callback` endpoint
-- [ ] T061 [US4] Implement OAuth provider link storage: Create service method to store OAuth provider links in `services/auth/internal/services/oauth.go` using oauth_provider_links table
-- [ ] T062 [US4] Add provider validation: Validate that Streamers can only use Discord/Twitch and Users can only use Google/Facebook
-- [ ] T063 [US4] Implement account linking: Handle case where user with same email exists (link OAuth account to existing user)
-- [ ] T064 [US4] Add error handling: Handle OAuth provider errors, cancelled flows, and return appropriate error messages
-- [ ] T065 [US4] Add logging: Log OAuth initiation, callbacks, and account linking in `services/auth/internal/services/oauth.go`
+- [X] T054 [US4] Configure OAuth providers in Supabase: Set up Discord, Twitch, Google, Facebook OAuth apps and add credentials to Supabase dashboard (Manual configuration in Supabase dashboard)
+- [X] T055 [US4] Create OAuth service: `services/auth/internal/services/oauth.go` with InitiateOAuthFlow function that generates OAuth URL
+- [X] T056 [US4] Create OAuth initiation handler: `services/auth/internal/handlers/oauth.go` with InitiateOAuth endpoint that redirects to provider
+- [X] T057 [US4] Add OAuth initiation route: Update `services/auth/cmd/auth/main.go` to register GET `/v1/auth/oauth/{provider}` endpoint
+- [X] T058 [US4] Create OAuth callback service: `services/auth/internal/services/oauth.go` with HandleOAuthCallback function that exchanges code for tokens and creates/links user
+- [X] T059 [US4] Create OAuth callback handler: `services/auth/internal/handlers/oauth.go` with OAuthCallback endpoint that processes OAuth response
+- [X] T060 [US4] Add OAuth callback route: Update `services/auth/cmd/auth/main.go` to register GET `/v1/auth/oauth/{provider}/callback` endpoint
+- [X] T061 [US4] Implement OAuth provider link storage: OAuth identities are managed by Supabase in auth.identities table (no custom table needed)
+- [X] T062 [US4] Add provider validation: Validate that Streamers can only use Discord/Twitch and Users can only use Google/Facebook
+- [X] T063 [US4] Implement account linking: Supabase handles automatic account linking by email (via auth.identities)
+- [X] T064 [US4] Add error handling: Handle OAuth provider errors, cancelled flows, and return appropriate error messages
+- [X] T065 [US4] Add logging: Log OAuth initiation, callbacks, and account linking in `services/auth/internal/services/oauth.go`
 
 **Checkpoint**: At this point, User Stories 1, 2, 3, AND 4 should all work independently
 
@@ -166,13 +164,13 @@
 
 ### Implementation for User Story 5
 
-- [ ] T066 [US5] Create logout service: `services/auth/internal/services/auth.go` with LogoutUser function that calls Supabase Auth SignOut
-- [ ] T067 [US5] Create logout handler: `services/auth/internal/handlers/auth.go` with Logout endpoint that invalidates session
-- [ ] T068 [US5] Add logout route: Update `services/auth/cmd/auth/main.go` to register POST `/v1/auth/logout` endpoint
-- [ ] T069 [US5] Add JWT middleware protection: Apply JWT validation middleware to logout endpoint to ensure user is authenticated
-- [ ] T070 [US5] Implement session expiration handling: Add middleware to check JWT expiration and return 401 if expired
-- [ ] T071 [US5] Add error handling: Handle invalid tokens, expired sessions, and return appropriate error messages
-- [ ] T072 [US5] Add logging: Log logout events and session expirations in `services/auth/internal/services/auth.go`
+- [X] T066 [US5] Create logout service: `services/auth/internal/services/auth.go` with LogoutUser function that calls Supabase Auth SignOut
+- [X] T067 [US5] Create logout handler: `services/auth/internal/handlers/auth.go` with Logout endpoint that invalidates session
+- [X] T068 [US5] Add logout route: Update `services/auth/cmd/auth/main.go` to register POST `/v1/auth/logout` endpoint
+- [X] T069 [US5] Add JWT middleware protection: Apply JWT validation middleware to logout endpoint to ensure user is authenticated
+- [X] T070 [US5] Implement session expiration handling: JWT expiration is already handled by ValidateJWTMiddleware in jwt/validator.go
+- [X] T071 [US5] Add error handling: Handle invalid tokens, expired sessions, and return appropriate error messages
+- [X] T072 [US5] Add logging: Log logout events and session expirations in `services/auth/internal/services/auth.go`
 
 **Checkpoint**: At this point, User Stories 1, 2, 3, 4, AND 5 should all work independently
 
@@ -203,21 +201,9 @@
 
 ---
 
-## Phase 9: Role-Based Access Control (RBAC) Implementation
-
-**Goal**: Implement role and permission management APIs for assigning roles to users and checking permissions
-
-**Note**: This supports the authentication system but is not a user story - it's infrastructure for authorization
-
-- [ ] T085 Create role service: `services/auth/internal/services/role.go` with GetUserRoles, AssignRole, RemoveRole functions using sqlc queries
-- [ ] T086 Create role handler: `services/auth/internal/handlers/roles.go` with GetUserRoles, AssignRole, RemoveRole endpoints
-- [ ] T087 Add role routes: Update `services/auth/cmd/auth/main.go` to register GET `/v1/users/me/roles`, POST `/v1/users/{userId}/roles`, DELETE `/v1/users/{userId}/roles` endpoints
-- [ ] T088 Create permission service: `services/auth/internal/services/permission.go` with GetUserPermissions, CheckPermission functions using sqlc queries
-- [ ] T089 Create permission middleware: `libs/go/auth/middleware/permission.go` with RequirePermission middleware that checks user permissions from JWT or database
-- [ ] T090 Update JWT middleware: Modify `libs/go/auth/middleware/auth.go` to include user roles in JWT claims when issuing tokens
-- [ ] T091 Add role assignment on registration: Update registration service to assign default role (streamer or user) based on user_type
-- [ ] T092 Add error handling: Handle role assignment errors, permission check failures, and return appropriate error messages
-- [ ] T093 Add logging: Log role assignments, removals, and permission checks in `services/auth/internal/services/role.go`
+-- Phase 9 (RBAC) removed - we rely on Supabase's user_metadata for role storage
+-- Roles can be stored in user_metadata.role field in JWT claims
+-- No custom RBAC tables needed at this time
 
 ---
 
@@ -267,7 +253,7 @@
 - **User Stories (Phase 3-8)**: All depend on Foundational phase completion
   - User stories can then proceed in parallel (if staffed)
   - Or sequentially in priority order (P1 → P2 → P3)
-- **RBAC (Phase 9)**: Depends on Foundational completion, can run in parallel with user stories
+- **RBAC (Phase 9)**: Removed - using Supabase user_metadata for roles
 - **User Management (Phase 10)**: Depends on Foundational completion, can run in parallel with user stories
 - **Polish (Phase 11)**: Depends on all desired user stories being complete
 
@@ -294,7 +280,7 @@
 - Once Foundational phase completes, user stories can start in parallel (if team capacity allows)
 - Services and handlers within a story marked [P] can run in parallel
 - Different user stories can be worked on in parallel by different team members
-- RBAC (Phase 9) and User Management (Phase 10) can run in parallel with user stories
+- User Management (Phase 10) can run in parallel with user stories
 - All Polish tasks marked [P] can run in parallel
 
 ---
@@ -357,7 +343,7 @@ With multiple developers:
 2. Once Foundational is done:
    - Developer A: User Story 1 (Registration)
    - Developer B: User Story 2 (Login)
-   - Developer C: RBAC (Phase 9) or User Management (Phase 10)
+   - Developer C: User Management (Phase 10)
 3. After P1 stories complete:
    - Developer A: User Story 3 (Password Recovery)
    - Developer B: User Story 4 (OAuth)
@@ -376,23 +362,24 @@ With multiple developers:
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
 - All tasks use exact file paths per modular monorepo structure
 - JWT validation library (`libs/go/auth/`) is built in Foundational phase and used by all stories
-- Database schema (roles, permissions) is created in Foundational phase
-- Supabase Auth handles core authentication; our service wraps and extends it with RBAC
+- We rely entirely on Supabase's built-in structures (auth.users, auth.identities)
+- Roles stored in user_metadata.role field in JWT claims
+- Supabase Auth handles core authentication; our service wraps it
 
 ---
 
 ## Summary
 
-**Total Tasks**: 114
+**Total Tasks**: 96 (reduced from 114 - removed migrations and RBAC)
 - Phase 1 (Setup): 9 tasks
-- Phase 2 (Foundational): 19 tasks
+- Phase 2 (Foundational): 11 tasks (removed 8 migration/sqlc tasks)
 - Phase 3 (US1 - Registration): 8 tasks
 - Phase 4 (US2 - Login): 8 tasks
 - Phase 5 (US3 - Password Recovery): 9 tasks
 - Phase 6 (US4 - OAuth): 12 tasks
 - Phase 7 (US5 - Logout): 7 tasks
 - Phase 8 (US6 - MFA): 12 tasks
-- Phase 9 (RBAC): 9 tasks
+- Phase 9 (RBAC): Removed - using Supabase user_metadata
 - Phase 10 (User Management): 8 tasks
 - Phase 11 (Polish): 13 tasks
 

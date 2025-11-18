@@ -11,10 +11,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/winspire/winspire-core/libs/go/auth/middleware"
 	"github.com/winspire/winspire-core/services/auth/internal/config"
 	"github.com/winspire/winspire-core/services/auth/internal/db"
 	"github.com/winspire/winspire-core/services/auth/internal/handlers"
 	"github.com/winspire/winspire-core/services/auth/internal/logger"
+	"github.com/winspire/winspire-core/services/auth/internal/services"
 	"github.com/winspire/winspire-core/services/auth/internal/supabase"
 )
 
@@ -45,16 +47,62 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize Supabase client: %v", err)
 	}
-	_ = supabaseClient // Will be used in services
 
 	// Initialize router
 	router := gin.Default()
 
+	// Initialize services
+	registrationService := services.NewRegistrationService(supabaseClient, appLogger)
+	authService := services.NewAuthService(supabaseClient, appLogger)
+	passwordService := services.NewPasswordService(supabaseClient, appLogger)
+	oauthService := services.NewOAuthService(supabaseClient, cfg.SupabaseURL, appLogger)
+
 	// Initialize handlers
 	healthHandler := handlers.NewHealthHandler()
+	authHandler := handlers.NewAuthHandler(registrationService, authService, appLogger)
+	passwordHandler := handlers.NewPasswordHandler(passwordService, appLogger)
+	oauthHandler := handlers.NewOAuthHandler(oauthService, appLogger)
 
-	// Health check endpoint
-	router.GET("/health", healthHandler.Check)
+	// API v1 routes
+	v1 := router.Group("/v1")
+	{
+		// Health check
+		router.GET("/health", healthHandler.Check)
+
+		// Authentication routes
+		auth := v1.Group("/auth")
+		{
+			auth.POST("/register", authHandler.Register)
+			auth.GET("/verify", authHandler.VerifyEmail)
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/refresh", authHandler.RefreshToken)
+			
+			// Protected routes (require JWT)
+			authProtected := auth.Group("")
+			authProtected.Use(middleware.ValidateJWTMiddleware(middleware.Config{
+				JWTSecret: cfg.SupabaseJWTSecret,
+				Issuer:    cfg.SupabaseURL,
+				Audience:  "authenticated",
+			}))
+			{
+				authProtected.POST("/logout", authHandler.Logout)
+			}
+		}
+
+		// Password management routes
+		password := v1.Group("/auth/password")
+		{
+			password.POST("/reset", passwordHandler.RequestPasswordReset)
+			password.POST("/reset/confirm", passwordHandler.ConfirmPasswordReset)
+		}
+
+		// OAuth routes
+		oauth := v1.Group("/auth/oauth")
+		{
+			oauth.GET("/:provider", oauthHandler.InitiateOAuth)
+			oauth.GET("/:provider/callback", oauthHandler.OAuthCallback)
+		}
+	}
 
 	// Create HTTP server
 	srv := &http.Server{

@@ -1,11 +1,11 @@
 # Data Model: Supabase Authentication Integration
 
-**Date**: 2025-21-18  
+**Date**: 2025-11-18  
 **Feature**: Supabase Authentication Integration
 
 ## Overview
 
-This document defines the data model for the authentication system, including entities, relationships, validation rules, and state transitions. The model integrates with Supabase Auth for identity management and extends it with custom role-based access control (RBAC).
+This document defines the data model for the authentication system. We rely entirely on Supabase's built-in structures for authentication and identity management. No custom database tables are needed.
 
 ---
 
@@ -24,7 +24,7 @@ This document defines the data model for the authentication system, including en
 - `created_at` (TIMESTAMP) - Account creation timestamp
 - `updated_at` (TIMESTAMP) - Last update timestamp
 - `user_metadata` (JSONB) - Custom user metadata
-  - `role` (STRING) - Primary role (for JWT claims)
+  - `role` (STRING) - Primary role stored in JWT claims (e.g., 'streamer', 'user', 'admin')
   - `user_type` (STRING) - 'streamer' or 'user' (determined by frontend)
   - `display_name` (STRING, optional) - User display name
 - `app_metadata` (JSONB) - Application metadata (admin-managed)
@@ -43,197 +43,62 @@ This document defines the data model for the authentication system, including en
 3. **Active** → **Deleted**: Soft delete (Supabase handles)
 
 **Relationships**:
-- One-to-many with `user_roles` (via `user_id`)
-- One-to-many with `oauth_provider_links` (via `user_id`)
-- One-to-many with `password_reset_tokens` (via `user_id`)
+- One-to-many with `auth.identities` (OAuth provider links)
 
 ---
 
-### 2. Role
+### 2. OAuth Identity (Supabase Auth)
 
-**Source**: Custom table `public.roles`  
-**Description**: Defines user roles in the system (Streamer, User, Admin, etc.)
+**Source**: Supabase `auth.identities` table (managed by Supabase)  
+**Description**: OAuth provider links managed by Supabase. Supports automatic and manual identity linking.
 
-**Fields**:
-- `id` (UUID, PRIMARY KEY, DEFAULT gen_random_uuid())
-- `name` (VARCHAR(50), UNIQUE, NOT NULL) - Role identifier (e.g., 'streamer', 'user', 'admin')
-- `description` (TEXT, optional) - Human-readable role description
-- `created_at` (TIMESTAMP, DEFAULT NOW())
-- `updated_at` (TIMESTAMP, DEFAULT NOW())
-
-**Validation Rules**:
-- `name` must be lowercase, alphanumeric with underscores
-- `name` must be unique
-- Reserved role names: 'system', 'internal' (cannot be created)
-
-**Predefined Roles**:
-- `streamer` - Users who stream content
-- `user` - Regular platform users
-- `admin` - System administrators (future)
-
-**Relationships**:
-- Many-to-many with `users` (via `user_roles`)
-- Many-to-many with `permissions` (via `role_permissions`)
-
----
-
-### 3. User Role Assignment
-
-**Source**: Custom table `public.user_roles`  
-**Description**: Maps users to their assigned roles (many-to-many relationship)
-
-**Fields**:
-- `user_id` (UUID, NOT NULL, REFERENCES auth.users(id) ON DELETE CASCADE)
-- `role_id` (UUID, NOT NULL, REFERENCES roles(id) ON DELETE CASCADE)
-- `assigned_at` (TIMESTAMP, DEFAULT NOW())
-- `assigned_by` (UUID, optional, REFERENCES auth.users(id)) - Admin who assigned the role
-- PRIMARY KEY (`user_id`, `role_id`)
+**Fields** (from Supabase):
+- `id` (UUID, PRIMARY KEY) - Identity unique identifier
+- `user_id` (UUID, NOT NULL, REFERENCES auth.users(id)) - Linked user account
+- `provider` (TEXT, NOT NULL) - OAuth provider name ('discord', 'twitch', 'google', 'facebook', etc.)
+- `identity_data` (JSONB) - Provider-specific data (provider user ID, email, etc.)
+- `created_at` (TIMESTAMP) - When identity was linked
+- `updated_at` (TIMESTAMP) - Last update timestamp
 
 **Validation Rules**:
-- User can have multiple roles
-- Cannot assign duplicate role to same user
-- `user_id` must reference existing user in `auth.users`
-- `role_id` must reference existing role
-
-**State Transitions**:
-- **Created**: Role assigned to user
-- **Deleted**: Role removed from user (triggers JWT refresh)
-
-**Relationships**:
-- Many-to-one with `users` (via `user_id`)
-- Many-to-one with `roles` (via `role_id`)
-
----
-
-### 4. Permission
-
-**Source**: Custom table `public.permissions`  
-**Description**: Defines granular permissions for resources and actions
-
-**Fields**:
-- `id` (UUID, PRIMARY KEY, DEFAULT gen_random_uuid())
-- `name` (VARCHAR(100), UNIQUE, NOT NULL) - Permission identifier (e.g., 'tournament:create', 'stream:manage')
-- `resource` (VARCHAR(50), NOT NULL) - Resource type (e.g., 'tournament', 'stream', 'user')
-- `action` (VARCHAR(50), NOT NULL) - Action type (e.g., 'create', 'read', 'update', 'delete', 'manage')
-- `description` (TEXT, optional) - Human-readable permission description
-- `created_at` (TIMESTAMP, DEFAULT NOW())
-
-**Validation Rules**:
-- `name` format: `<resource>:<action>` (e.g., 'tournament:create')
-- `name` must be unique
-- `resource` and `action` must be non-empty
-
-**Predefined Permissions**:
-- `tournament:create` - Create tournaments
-- `tournament:read` - View tournaments
-- `tournament:update` - Update tournaments
-- `tournament:delete` - Delete tournaments
-- `stream:manage` - Manage stream settings
-- `user:read` - View user profiles
-- `user:update` - Update user profiles
-
-**Relationships**:
-- Many-to-many with `roles` (via `role_permissions`)
-
----
-
-### 5. Role Permission Assignment
-
-**Source**: Custom table `public.role_permissions`  
-**Description**: Maps roles to their permissions (many-to-many relationship)
-
-**Fields**:
-- `role_id` (UUID, NOT NULL, REFERENCES roles(id) ON DELETE CASCADE)
-- `permission_id` (UUID, NOT NULL, REFERENCES permissions(id) ON DELETE CASCADE)
-- `granted_at` (TIMESTAMP, DEFAULT NOW())
-- PRIMARY KEY (`role_id`, `permission_id`)
-
-**Validation Rules**:
-- Role can have multiple permissions
-- Cannot assign duplicate permission to same role
-- Both `role_id` and `permission_id` must reference existing records
-
-**Relationships**:
-- Many-to-one with `roles` (via `role_id`)
-- Many-to-one with `permissions` (via `permission_id`)
-
----
-
-### 6. OAuth Provider Link
-
-**Source**: Custom table `public.oauth_provider_links`  
-**Description**: Links user accounts to external OAuth providers (Discord, Twitch, Google, Facebook)
-
-**Fields**:
-- `id` (UUID, PRIMARY KEY, DEFAULT gen_random_uuid())
-- `user_id` (UUID, NOT NULL, REFERENCES auth.users(id) ON DELETE CASCADE)
-- `provider` (VARCHAR(20), NOT NULL) - OAuth provider name ('discord', 'twitch', 'google', 'facebook')
-- `provider_user_id` (VARCHAR(255), NOT NULL) - User ID from OAuth provider
-- `provider_email` (TEXT, optional) - Email from OAuth provider
-- `access_token` (TEXT, optional, encrypted) - Encrypted OAuth access token
-- `refresh_token` (TEXT, optional, encrypted) - Encrypted OAuth refresh token
-- `linked_at` (TIMESTAMP, DEFAULT NOW())
-- `last_used_at` (TIMESTAMP, optional) - Last time this provider was used for login
-- UNIQUE (`provider`, `provider_user_id`)
-
-**Validation Rules**:
-- `provider` must be one of: 'discord', 'twitch', 'google', 'facebook'
-- `provider_user_id` must be unique per provider
-- User can link multiple providers
+- Provider must be a valid OAuth provider configured in Supabase
+- Automatic linking: Supabase links identities with the same verified email
+- Manual linking: Users can link identities via `linkIdentity()` API
 - Streamers can only link: 'discord', 'twitch'
 - Users can only link: 'google', 'facebook'
 
 **State Transitions**:
-- **Created**: OAuth account linked to user
+- **Created**: OAuth account linked to user (automatic or manual)
 - **Deleted**: OAuth account unlinked (user can still use email/password)
 
 **Relationships**:
-- Many-to-one with `users` (via `user_id`)
+- Many-to-one with `auth.users` (via `user_id`)
+
+**API Usage**:
+- Get identities: `supabaseClient.Auth.GetUserIdentities(userID)`
+- Link identity: `supabaseClient.Auth.LinkIdentity(provider, token)`
+- Unlink identity: `supabaseClient.Auth.UnlinkIdentity(identityID)`
+
+See: [Supabase Identity Linking Documentation](https://supabase.com/docs/guides/auth/auth-identity-linking)
 
 ---
 
-### 7. Password Reset Token
-
-**Source**: Custom table `public.password_reset_tokens` (or Supabase handles this)  
-**Description**: Temporary tokens for password recovery
-
-**Note**: Supabase may handle password reset tokens internally. If we need custom logic, we'll create this table.
-
-**Fields** (if custom implementation needed):
-- `id` (UUID, PRIMARY KEY, DEFAULT gen_random_uuid())
-- `user_id` (UUID, NOT NULL, REFERENCES auth.users(id) ON DELETE CASCADE)
-- `token` (VARCHAR(255), UNIQUE, NOT NULL) - Reset token (hashed)
-- `expires_at` (TIMESTAMP, NOT NULL) - Token expiration (typically 1 hour)
-- `used_at` (TIMESTAMP, optional) - When token was used
-- `created_at` (TIMESTAMP, DEFAULT NOW())
-
-**Validation Rules**:
-- Token expires after 1 hour (configurable)
-- Token can only be used once
-- Token must be unique
-
-**State Transitions**:
-- **Created**: Password reset requested
-- **Used**: Password reset completed
-- **Expired**: Token expired (can be cleaned up)
-
-**Relationships**:
-- Many-to-one with `users` (via `user_id`)
-
----
-
-### 8. Authentication Session
+### 3. Authentication Session
 
 **Source**: Supabase manages sessions (JWT-based)  
 **Description**: Active user sessions (stateless, stored in JWT)
 
-**Note**: Supabase uses stateless JWT sessions. We don't need a sessions table unless we need session revocation.
+**Note**: Supabase uses stateless JWT sessions. No sessions table needed.
 
 **JWT Claims** (in Supabase JWT):
 - `sub` (UUID) - User ID
 - `email` (STRING) - User email
-- `role` (STRING) - User role (from user_metadata)
+- `role` (STRING) - User role (from user_metadata.role)
 - `user_metadata` (OBJECT) - Custom user metadata
+  - `role` (STRING) - User role
+  - `user_type` (STRING) - 'streamer' or 'user'
+  - `display_name` (STRING, optional)
+- `app_metadata` (OBJECT) - Application metadata
 - `exp` (NUMBER) - Expiration timestamp
 - `iat` (NUMBER) - Issued at timestamp
 - `iss` (STRING) - Issuer (Supabase project URL)
@@ -246,68 +111,43 @@ This document defines the data model for the authentication system, including en
 
 ---
 
+### 4. Password Reset Token
+
+**Source**: Supabase handles internally  
+**Description**: Temporary tokens for password recovery
+
+**Note**: Supabase handles password reset tokens internally. No custom table needed.
+
+**Usage**:
+- Request reset: `supabaseClient.Auth.ResetPasswordForEmail(email)`
+- Confirm reset: `supabaseClient.Auth.UpdateUser(password)`
+
+---
+
 ## Database Schema
 
-### Tables in Supabase PostgreSQL
+### Supabase Built-in Tables
 
-```sql
--- Roles table
-CREATE TABLE public.roles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(50) UNIQUE NOT NULL,
-  description TEXT,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
+We rely entirely on Supabase's built-in authentication tables:
 
--- User roles (many-to-many)
-CREATE TABLE public.user_roles (
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  role_id UUID NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
-  assigned_at TIMESTAMP DEFAULT NOW(),
-  assigned_by UUID REFERENCES auth.users(id),
-  PRIMARY KEY (user_id, role_id)
-);
+1. **`auth.users`** - User accounts
+   - Managed by Supabase
+   - Contains email, password, metadata
+   - Roles stored in `user_metadata.role`
 
--- Permissions table
-CREATE TABLE public.permissions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(100) UNIQUE NOT NULL,
-  resource VARCHAR(50) NOT NULL,
-  action VARCHAR(50) NOT NULL,
-  description TEXT,
-  created_at TIMESTAMP DEFAULT NOW()
-);
+2. **`auth.identities`** - OAuth provider links
+   - Managed by Supabase
+   - Automatically tracks all OAuth providers per user
+   - Supports automatic linking by email
+   - Supports manual linking via API
 
--- Role permissions (many-to-many)
-CREATE TABLE public.role_permissions (
-  role_id UUID NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
-  permission_id UUID NOT NULL REFERENCES public.permissions(id) ON DELETE CASCADE,
-  granted_at TIMESTAMP DEFAULT NOW(),
-  PRIMARY KEY (role_id, permission_id)
-);
+3. **Password Reset Tokens** - Handled internally by Supabase
 
--- OAuth provider links
-CREATE TABLE public.oauth_provider_links (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  provider VARCHAR(20) NOT NULL CHECK (provider IN ('discord', 'twitch', 'google', 'facebook')),
-  provider_user_id VARCHAR(255) NOT NULL,
-  provider_email TEXT,
-  access_token TEXT, -- encrypted
-  refresh_token TEXT, -- encrypted
-  linked_at TIMESTAMP DEFAULT NOW(),
-  last_used_at TIMESTAMP,
-  UNIQUE (provider, provider_user_id)
-);
+4. **Sessions** - JWT-based, stateless (no table)
 
--- Indexes for performance
-CREATE INDEX idx_user_roles_user_id ON public.user_roles(user_id);
-CREATE INDEX idx_user_roles_role_id ON public.user_roles(role_id);
-CREATE INDEX idx_role_permissions_role_id ON public.role_permissions(role_id);
-CREATE INDEX idx_oauth_provider_links_user_id ON public.oauth_provider_links(user_id);
-CREATE INDEX idx_oauth_provider_links_provider ON public.oauth_provider_links(provider);
-```
+### No Custom Tables Required
+
+We do not create any custom tables. All authentication and identity management is handled by Supabase's built-in structures.
 
 ---
 
@@ -315,12 +155,7 @@ CREATE INDEX idx_oauth_provider_links_provider ON public.oauth_provider_links(pr
 
 ```
 auth.users (Supabase)
-  ├── 1:N → user_roles
-  │         └── N:1 → roles
-  │                   └── N:M → role_permissions
-  │                             └── N:1 → permissions
-  ├── 1:N → oauth_provider_links
-  └── 1:N → password_reset_tokens (if custom)
+  └── 1:N → auth.identities (OAuth provider links)
 ```
 
 ---
@@ -332,24 +167,14 @@ auth.users (Supabase)
 - Password strength requirements (Supabase)
 - Email uniqueness (Supabase)
 - User type must be 'streamer' or 'user'
+- Role stored in `user_metadata.role` (e.g., 'streamer', 'user', 'admin')
 
-### Roles
-- Role name must be unique
-- Reserved names cannot be used
-
-### User Roles
-- User can have multiple roles
-- No duplicate role assignments
-
-### Permissions
-- Permission name format: `<resource>:<action>`
-- Permission name must be unique
-
-### OAuth Links
+### OAuth Identities
 - Provider must be valid (discord, twitch, google, facebook)
-- Provider user ID must be unique per provider
-- Streamers can only link discord/twitch
-- Users can only link google/facebook
+- Automatic linking by verified email (Supabase handles)
+- Manual linking via API (Supabase handles)
+- Streamers can only link: 'discord', 'twitch'
+- Users can only link: 'google', 'facebook'
 
 ---
 
@@ -358,72 +183,105 @@ auth.users (Supabase)
 ### User Account Lifecycle
 1. **Registration** → Unverified account created
 2. **Email Verification** → Account verified, can log in
-3. **Login** → Active session (JWT issued)
-4. **Role Assignment** → Role added to user (JWT refreshed)
-5. **Role Removal** → Role removed (JWT refreshed)
-6. **Suspension** → Account suspended (via app_metadata)
-7. **Deletion** → Account soft-deleted (Supabase)
+3. **Login** → Active session (JWT issued with role in claims)
+4. **Role Update** → Update `user_metadata.role`, new JWT issued
+5. **Suspension** → Account suspended (via app_metadata)
+6. **Deletion** → Account soft-deleted (Supabase)
 
-### OAuth Link Lifecycle
-1. **OAuth Flow** → Provider account linked
-2. **Login via OAuth** → `last_used_at` updated
-3. **Unlink** → OAuth link removed (user can still use email/password)
+### OAuth Identity Lifecycle
+1. **OAuth Flow** → Identity automatically or manually linked to user
+2. **Login via OAuth** → Identity used for authentication
+3. **Unlink** → Identity removed (user can still use email/password)
 
 ---
 
 ## Data Access Patterns
 
-### Common Queries (for sqlc)
+### Using Supabase Go Client
 
-1. **Get user roles**:
-   ```sql
-   SELECT r.name, r.description
-   FROM roles r
-   JOIN user_roles ur ON r.id = ur.role_id
-   WHERE ur.user_id = :user_id
-   ```
+**Get User**:
+```go
+user, err := supabaseClient.Auth.GetUser(accessToken)
+```
 
-2. **Get user permissions** (via roles):
-   ```sql
-   SELECT DISTINCT p.name, p.resource, p.action
-   FROM permissions p
-   JOIN role_permissions rp ON p.id = rp.permission_id
-   JOIN user_roles ur ON rp.role_id = ur.role_id
-   WHERE ur.user_id = :user_id
-   ```
+**Get User Identities (OAuth providers)**:
+```go
+identities, err := supabaseClient.Auth.GetUserIdentities(userID)
+```
 
-3. **Check if user has permission**:
-   ```sql
-   SELECT EXISTS(
-     SELECT 1
-     FROM permissions p
-     JOIN role_permissions rp ON p.id = rp.permission_id
-     JOIN user_roles ur ON rp.role_id = ur.role_id
-     WHERE ur.user_id = :user_id AND p.name = :permission_name
-   )
-   ```
+**Link OAuth Identity**:
+```go
+err := supabaseClient.Auth.LinkIdentity(provider, token)
+```
 
-4. **Get OAuth provider link**:
-   ```sql
-   SELECT * FROM oauth_provider_links
-   WHERE user_id = :user_id AND provider = :provider
-   ```
+**Unlink OAuth Identity**:
+```go
+err := supabaseClient.Auth.UnlinkIdentity(identityID)
+```
+
+**Update User Role**:
+```go
+// Update user_metadata.role
+user, err := supabaseClient.Auth.UpdateUser(map[string]interface{}{
+    "user_metadata": map[string]interface{}{
+        "role": "streamer",
+    },
+})
+```
 
 ---
 
-## Migration Strategy
+## Role Management
 
-1. **Initial Migration**: Create roles, permissions, and relationship tables
-2. **Seed Data**: Insert predefined roles and permissions
-3. **Data Migration**: Assign default roles to existing users (if any)
-4. **Index Creation**: Add indexes for performance
+### Role Storage
+
+Roles are stored in `user_metadata.role` field:
+- Set during registration based on `user_type`
+- Updated via Supabase Admin API or service role key
+- Included in JWT claims automatically
+- Read from JWT in middleware (no database query needed)
+
+### Supported Roles
+
+- `streamer` - Users who stream content
+- `user` - Regular platform users  
+- `admin` - System administrators (future)
+
+### Role Assignment
+
+Roles are assigned by updating `user_metadata.role`:
+```go
+// Using service role key
+supabaseClient.Auth.Admin.UpdateUserByID(userID, map[string]interface{}{
+    "user_metadata": map[string]interface{}{
+        "role": "streamer",
+    },
+})
+```
 
 ---
 
 ## Security Considerations
 
-1. **Row Level Security (RLS)**: Supabase RLS policies should protect `auth.users` table
-2. **Encryption**: OAuth tokens should be encrypted at rest
-3. **Access Control**: Only auth service should write to role/permission tables
-4. **Audit Logging**: Log role assignments and permission changes (future)
+1. **Row Level Security (RLS)**: Supabase RLS policies protect `auth.users` and `auth.identities` tables
+2. **JWT Validation**: All services validate JWTs using Supabase JWT secret
+3. **Role-based Access**: Roles stored in JWT claims, validated in middleware
+4. **Identity Linking**: Supabase handles security for automatic and manual linking
+5. **Password Reset**: Handled securely by Supabase
 
+---
+
+## Migration Strategy
+
+**No migrations needed** - We rely entirely on Supabase's built-in structures.
+
+If custom tables are needed in the future (e.g., for advanced RBAC), they can be added via migrations at that time.
+
+---
+
+## References
+
+- [Supabase Auth Documentation](https://supabase.com/docs/guides/auth)
+- [Supabase Identity Linking](https://supabase.com/docs/guides/auth/auth-identity-linking)
+- [Supabase JWT Claims](https://supabase.com/docs/guides/auth/jwts)
+- [Supabase User Management](https://supabase.com/docs/guides/auth/managing-user-data)

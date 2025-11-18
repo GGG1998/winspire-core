@@ -1,18 +1,19 @@
--- name: GetOAuthProviderLink :one
-SELECT id, user_id, provider, provider_user_id, provider_email, linked_at, last_used_at
-FROM public.oauth_provider_links
+-- Note: OAuth provider links are managed by Supabase in auth.identities table
+-- Use Supabase Go client API methods instead of direct SQL queries:
+-- - client.Auth.GetUserIdentities() to get all linked providers
+-- - client.Auth.LinkIdentity() to link a provider
+-- - client.Auth.UnlinkIdentity() to unlink a provider
+-- See: https://supabase.com/docs/guides/auth/auth-identity-linking
+--
+-- If you need to query auth.identities directly (requires service_role key):
+-- Note: These queries are optional - prefer using Supabase Go client APIs
+
+-- name: GetOAuthIdentities :many
+SELECT id, user_id, provider, identity_data, created_at, updated_at
+FROM auth.identities
+WHERE user_id = $1;
+
+-- name: GetOAuthIdentityByProvider :one
+SELECT id, user_id, provider, identity_data, created_at, updated_at
+FROM auth.identities
 WHERE user_id = $1 AND provider = $2;
-
--- name: CreateOAuthProviderLink :one
-INSERT INTO public.oauth_provider_links (
-  user_id, provider, provider_user_id, provider_email, linked_at
-) VALUES (
-  $1, $2, $3, $4, NOW()
-)
-RETURNING id, user_id, provider, provider_user_id, provider_email, linked_at, last_used_at;
-
--- name: UpdateOAuthProviderLinkLastUsed :exec
-UPDATE public.oauth_provider_links
-SET last_used_at = NOW()
-WHERE user_id = $1 AND provider = $2;
-
