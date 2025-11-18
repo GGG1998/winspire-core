@@ -1,6 +1,10 @@
 # winspire-core
 Global loyalty &amp; engagement platform — connecting brands, creators and consumers through games and rewards.
 
+## Folder structure
+
+[Structure](.cursor/rules/init_structure.mdc)
+
 ## AI TOOL
 
 ### Spec-kit
