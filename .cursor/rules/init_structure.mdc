@@ -11,9 +11,12 @@ It serves as a shared baseline for development, CI/CD automation, and release/ve
 repo/
 ├─ services/              # Microservices(independent module)
 │  ├─ auth/
+│  │  ├─ tests
 │  │  ├─ cmd/auth/
 │  │  ├─ internal/
 │  │  ├─ go.mod
+│  │  ├─ Dockerfile
+│  │  ├─ docker-compose.dev.yml
 │  │  └─ Makefile
 │  ├─ streamer/
 │  └─ tournament/
