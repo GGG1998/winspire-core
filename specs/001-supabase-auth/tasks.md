@@ -27,15 +27,15 @@
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Create project structure: `services/auth/` and `libs/go/auth/` directories per implementation plan
-- [ ] T002 [P] Initialize Go module for auth service: `cd services/auth && go mod init github.com/winspire/winspire-core/services/auth`
-- [ ] T003 [P] Initialize Go module for auth library: `cd libs/go/auth && go mod init github.com/winspire/winspire-core/libs/go/auth`
-- [ ] T004 Create root `go.work` file and add both modules: `go work init services/auth libs/go/auth`
-- [ ] T005 [P] Create directory structure: `services/auth/cmd/auth/`, `services/auth/internal/{handlers,services,config,queries}`, `services/auth/migrations/`
-- [ ] T006 [P] Create directory structure: `libs/go/auth/{jwt,middleware,types}/`
-- [ ] T007 [P] Create `services/auth/Makefile` with build, test, and run targets
-- [ ] T008 [P] Create `services/auth/.env.example` with required environment variables
-- [ ] T009 [P] Create `services/auth/.gitignore` to exclude binaries and .env files
+- [X] T001 Create project structure: `services/auth/` and `libs/go/auth/` directories per implementation plan
+- [X] T002 [P] Initialize Go module for auth service: `cd services/auth && go mod init github.com/winspire/winspire-core/services/auth`
+- [X] T003 [P] Initialize Go module for auth library: `cd libs/go/auth && go mod init github.com/winspire/winspire-core/libs/go/auth`
+- [X] T004 Create root `go.work` file and add both modules: `go work init services/auth libs/go/auth`
+- [X] T005 [P] Create directory structure: `services/auth/cmd/auth/`, `services/auth/internal/{handlers,services,config,queries}`, `services/auth/migrations/`
+- [X] T006 [P] Create directory structure: `libs/go/auth/{jwt,middleware,types}/`
+- [X] T007 [P] Create `services/auth/Makefile` with build, test, and run targets
+- [X] T008 [P] Create `services/auth/.env.example` with required environment variables
+- [X] T009 [P] Create `services/auth/.gitignore` to exclude binaries and .env files
 
 ---
 
@@ -45,25 +45,25 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T010 Setup database migrations framework: Install `golang-migrate` and create `services/auth/migrations/` structure
-- [ ] T011 [P] Create initial database migration: `services/auth/migrations/000001_initial_schema.up.sql` with roles, permissions, user_roles, role_permissions, oauth_provider_links tables from data-model.md
-- [ ] T012 [P] Create migration down file: `services/auth/migrations/000001_initial_schema.down.sql` to drop all tables
-- [ ] T013 [P] Create seed migration: `services/auth/migrations/000002_seed_data.up.sql` with predefined roles (streamer, user, admin) and permissions
-- [ ] T014 Configure sqlc: Create `services/auth/sqlc.yaml` with PostgreSQL engine, queries path, and pgx/v5 driver settings
-- [ ] T015 [P] Create SQL query files: `services/auth/internal/queries/roles.sql` with GetUserRoles, GetUserPermissions, CheckUserPermission queries
-- [ ] T016 [P] Create SQL query files: `services/auth/internal/queries/oauth.sql` with GetOAuthProviderLink query
-- [ ] T017 Generate sqlc models: Run `sqlc generate` to create `services/auth/internal/models/` from SQL queries
-- [ ] T018 [P] Create configuration package: `services/auth/internal/config/config.go` using envconfig for Supabase URL, keys, JWT secret, database URL, OAuth credentials
-- [ ] T019 [P] Create error handling: `services/auth/internal/errors/errors.go` with custom error types and error response formatting
-- [ ] T020 [P] Create logging setup: `services/auth/internal/logger/logger.go` with structured logging configuration
-- [ ] T021 [P] Create database connection: `services/auth/internal/db/db.go` with pgx/v5 connection pool setup
-- [ ] T022 [P] Create Supabase client: `services/auth/internal/supabase/client.go` with Supabase Go client initialization
-- [ ] T023 [P] Create JWT validator: `libs/go/auth/jwt/validator.go` with Supabase JWT validation logic (signature, expiration, issuer, audience)
-- [ ] T024 [P] Create JWT parser: `libs/go/auth/jwt/parser.go` with JWT token parsing and claims extraction
-- [ ] T025 [P] Create user context types: `libs/go/auth/types/user.go` with UserID, Email, Role, UserContext structs
-- [ ] T026 [P] Create JWT middleware: `libs/go/auth/middleware/auth.go` with ValidateJWTMiddleware for Gin that extracts user context
-- [ ] T027 Create main application: `services/auth/cmd/auth/main.go` with Gin router setup, health check endpoint, and server startup
-- [ ] T028 [P] Create health handler: `services/auth/internal/handlers/health.go` with health check endpoint implementation
+- [X] T010 Setup database migrations framework: Install `golang-migrate` and create `services/auth/migrations/` structure
+- [X] T011 [P] Create initial database migration: `services/auth/migrations/000001_initial_schema.up.sql` with roles, permissions, user_roles, role_permissions, oauth_provider_links tables from data-model.md
+- [X] T012 [P] Create migration down file: `services/auth/migrations/000001_initial_schema.down.sql` to drop all tables
+- [X] T013 [P] Create seed migration: `services/auth/migrations/000002_seed_data.up.sql` with predefined roles (streamer, user, admin) and permissions
+- [X] T014 Configure sqlc: Create `services/auth/sqlc.yaml` with PostgreSQL engine, queries path, and pgx/v5 driver settings
+- [X] T015 [P] Create SQL query files: `services/auth/internal/queries/roles.sql` with GetUserRoles, GetUserPermissions, CheckUserPermission queries
+- [X] T016 [P] Create SQL query files: `services/auth/internal/queries/oauth.sql` with GetOAuthProviderLink query
+- [ ] T017 Generate sqlc models: Run `sqlc generate` to create `services/auth/internal/models/` from SQL queries (requires Go and sqlc installed)
+- [X] T018 [P] Create configuration package: `services/auth/internal/config/config.go` using envconfig for Supabase URL, keys, JWT secret, database URL, OAuth credentials
+- [X] T019 [P] Create error handling: `services/auth/internal/errors/errors.go` with custom error types and error response formatting
+- [X] T020 [P] Create logging setup: `services/auth/internal/logger/logger.go` with structured logging configuration
+- [X] T021 [P] Create database connection: `services/auth/internal/db/db.go` with pgx/v5 connection pool setup
+- [X] T022 [P] Create Supabase client: `services/auth/internal/supabase/client.go` with Supabase Go client initialization
+- [X] T023 [P] Create JWT validator: `libs/go/auth/jwt/validator.go` with Supabase JWT validation logic (signature, expiration, issuer, audience)
+- [X] T024 [P] Create JWT parser: `libs/go/auth/jwt/parser.go` with JWT token parsing and claims extraction
+- [X] T025 [P] Create user context types: `libs/go/auth/types/user.go` with UserID, Email, Role, UserContext structs
+- [X] T026 [P] Create JWT middleware: `libs/go/auth/middleware/auth.go` with ValidateJWTMiddleware for Gin that extracts user context
+- [X] T027 Create main application: `services/auth/cmd/auth/main.go` with Gin router setup, health check endpoint, and server startup
+- [X] T028 [P] Create health handler: `services/auth/internal/handlers/health.go` with health check endpoint implementation
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
