@@ -4,20 +4,20 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/winspire/winspire-core/services/auth/internal/errors"
 	"github.com/winspire/winspire-core/services/auth/internal/logger"
-	"github.com/winspire/winspire-core/services/auth/internal/supabase"
-	"github.com/supabase-community/supabase-go"
+	supabaseclient "github.com/winspire/winspire-core/services/auth/internal/supabase"
 )
 
 // AuthService handles user authentication (login, refresh)
 type AuthService struct {
-	supabaseClient *supabase.Client
+	supabaseClient *supabaseclient.Client
 	logger         *logger.Logger
 }
 
 // NewAuthService creates a new auth service
-func NewAuthService(supabaseClient *supabase.Client, appLogger *logger.Logger) *AuthService {
+func NewAuthService(supabaseClient *supabaseclient.Client, appLogger *logger.Logger) *AuthService {
 	return &AuthService{
 		supabaseClient: supabaseClient,
 		logger:         appLogger,
@@ -46,10 +46,7 @@ func (s *AuthService) LoginUser(input LoginUserInput) (*LoginUserOutput, error) 
 	// Call Supabase Auth SignIn
 	client := s.supabaseClient.GetClient()
 	
-	authResponse, err := client.Auth.SignIn(client.Context, supabase.UserCredentials{
-		Email:    input.Email,
-		Password: input.Password,
-	})
+	tokenResponse, err := client.Auth.SignInWithEmailPassword(input.Email, input.Password)
 	if err != nil {
 		s.logger.Error("Login failed for email %s: %v", input.Email, err)
 		
@@ -64,11 +61,11 @@ func (s *AuthService) LoginUser(input LoginUserInput) (*LoginUserOutput, error) 
 	}
 
 	// Check if email is verified
-	if authResponse.User == nil {
+	if tokenResponse.User.ID == (uuid.UUID{}) {
 		return nil, errors.NewError(errors.ErrorCodeInternal, "User not found in response")
 	}
 
-	if authResponse.User.EmailConfirmedAt == nil {
+	if tokenResponse.User.EmailConfirmedAt == nil {
 		s.logger.Warn("Login attempt with unverified email: %s", input.Email)
 		return nil, errors.NewError(errors.ErrorCodeEmailNotVerified, "Email address not verified. Please check your email and verify your account.")
 	}
@@ -76,33 +73,28 @@ func (s *AuthService) LoginUser(input LoginUserInput) (*LoginUserOutput, error) 
 	// Extract user metadata
 	userType := "user"
 	role := "user"
-	if authResponse.User.UserMetadata != nil {
-		if ut, ok := authResponse.User.UserMetadata["user_type"].(string); ok {
+	if tokenResponse.User.UserMetadata != nil {
+		if ut, ok := tokenResponse.User.UserMetadata["user_type"].(string); ok {
 			userType = ut
 		}
-		if r, ok := authResponse.User.UserMetadata["role"].(string); ok {
+		if r, ok := tokenResponse.User.UserMetadata["role"].(string); ok {
 			role = r
 		}
 	}
 
 	// Build session
-	var session *Session
-	if authResponse.Session != nil {
-		session = &Session{
-			AccessToken:  authResponse.Session.AccessToken,
-			RefreshToken: authResponse.Session.RefreshToken,
-			ExpiresIn:    authResponse.Session.ExpiresIn,
-		}
-	} else {
-		return nil, errors.NewError(errors.ErrorCodeInternal, "No session returned from authentication")
+	session := &Session{
+		AccessToken:  tokenResponse.AccessToken,
+		RefreshToken: tokenResponse.RefreshToken,
+		ExpiresIn:    tokenResponse.ExpiresIn,
 	}
 
 	s.logger.Info("User logged in successfully: %s (ID: %s, Role: %s)", 
-		authResponse.User.Email, authResponse.User.ID, role)
+		tokenResponse.User.Email, tokenResponse.User.ID, role)
 
 	return &LoginUserOutput{
-		UserID:   authResponse.User.ID,
-		Email:    authResponse.User.Email,
+		UserID:   tokenResponse.User.ID.String(),
+		Email:    tokenResponse.User.Email,
 		UserType: userType,
 		Role:     role,
 		Session:  session,
@@ -125,8 +117,8 @@ func (s *AuthService) RefreshToken(input RefreshTokenInput) (*RefreshTokenOutput
 
 	client := s.supabaseClient.GetClient()
 	
-	// Use Supabase Auth RefreshSession
-	authResponse, err := client.Auth.RefreshSession(client.Context, input.RefreshToken)
+	// Use Supabase Auth RefreshToken
+	tokenResponse, err := client.Auth.RefreshToken(input.RefreshToken)
 	if err != nil {
 		s.logger.Error("Token refresh failed: %v", err)
 		
@@ -139,14 +131,14 @@ func (s *AuthService) RefreshToken(input RefreshTokenInput) (*RefreshTokenOutput
 		return nil, fmt.Errorf("failed to refresh token: %w", err)
 	}
 
-	if authResponse.Session == nil {
+	if tokenResponse.AccessToken == "" {
 		return nil, errors.NewError(errors.ErrorCodeInternal, "No session returned from token refresh")
 	}
 
 	session := &Session{
-		AccessToken:  authResponse.Session.AccessToken,
-		RefreshToken: authResponse.Session.RefreshToken,
-		ExpiresIn:    authResponse.Session.ExpiresIn,
+		AccessToken:  tokenResponse.AccessToken,
+		RefreshToken: tokenResponse.RefreshToken,
+		ExpiresIn:    tokenResponse.ExpiresIn,
 	}
 
 	s.logger.Info("Token refreshed successfully")
@@ -167,10 +159,12 @@ func (s *AuthService) LogoutUser(input LogoutUserInput) error {
 
 	client := s.supabaseClient.GetClient()
 	
-	// Call Supabase Auth SignOut
+	// Call Supabase Auth Logout
 	// Note: Supabase uses stateless JWT, so logout is mainly client-side
-	// We can call SignOut to invalidate refresh tokens on the server
-	err := client.Auth.SignOut(client.Context, input.AccessToken)
+	// We can call Logout to invalidate refresh tokens on the server
+	// Logout requires authentication token, so we need to set it first
+	authenticatedClient := client.Auth.WithToken(input.AccessToken)
+	err := authenticatedClient.Logout()
 	if err != nil {
 		s.logger.Error("Logout failed: %v", err)
 		

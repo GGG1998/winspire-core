@@ -4,19 +4,20 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/winspire/winspire-core/services/auth/internal/logger"
-	"github.com/winspire/winspire-core/services/auth/internal/supabase"
-	"github.com/supabase-community/supabase-go"
+	supabaseclient "github.com/winspire/winspire-core/services/auth/internal/supabase"
+	"github.com/supabase-community/gotrue-go/types"
 )
 
 // RegistrationService handles user registration
 type RegistrationService struct {
-	supabaseClient *supabase.Client
+	supabaseClient *supabaseclient.Client
 	logger         *logger.Logger
 }
 
 // NewRegistrationService creates a new registration service
-func NewRegistrationService(supabaseClient *supabase.Client, appLogger *logger.Logger) *RegistrationService {
+func NewRegistrationService(supabaseClient *supabaseclient.Client, appLogger *logger.Logger) *RegistrationService {
 	return &RegistrationService{
 		supabaseClient: supabaseClient,
 		logger:         appLogger,
@@ -66,39 +67,50 @@ func (s *RegistrationService) RegisterUser(input RegisterUserInput) (*RegisterUs
 	// Call Supabase Auth SignUp
 	client := s.supabaseClient.GetClient()
 	
-	// Use Supabase Auth SignUp with email and password
-	authResponse, err := client.Auth.SignUp(client.Context, supabase.UserCredentials{
+	// Use Supabase Auth Signup with email and password
+	signupReq := types.SignupRequest{
 		Email:    input.Email,
 		Password: input.Password,
 		Data:     userMetadata,
-	})
+	}
+	
+	signupResponse, err := client.Auth.Signup(signupReq)
 	if err != nil {
 		s.logger.Error("Registration failed for email %s: %v", input.Email, err)
 		// Check for specific Supabase errors
 		if strings.Contains(err.Error(), "already registered") || 
-		   strings.Contains(err.Error(), "User already registered") {
+		   strings.Contains(err.Error(), "User already registered") ||
+		   strings.Contains(err.Error(), "already exists") {
 			return nil, fmt.Errorf("user already exists")
 		}
 		return nil, fmt.Errorf("failed to register user: %w", err)
 	}
 
-	// Check if email verification is required
-	requiresVerification := authResponse.User == nil || authResponse.User.EmailConfirmedAt == nil
-
+	// SignupResponse can contain either User (if autoconfirm is off) or Session (if autoconfirm is on)
+	var requiresVerification bool
 	var session *Session
-	if authResponse.Session != nil {
+	var userID string
+	var email string
+	
+	// Check if we have a Session (autoconfirm is on)
+	if signupResponse.Session.AccessToken != "" {
 		session = &Session{
-			AccessToken:  authResponse.Session.AccessToken,
-			RefreshToken: authResponse.Session.RefreshToken,
-			ExpiresIn:    authResponse.Session.ExpiresIn,
+			AccessToken:  signupResponse.Session.AccessToken,
+			RefreshToken: signupResponse.Session.RefreshToken,
+			ExpiresIn:    signupResponse.Session.ExpiresIn,
 		}
-	}
-
-	userID := ""
-	email := input.Email
-	if authResponse.User != nil {
-		userID = authResponse.User.ID
-		email = authResponse.User.Email
+		userID = signupResponse.Session.User.ID.String()
+		email = signupResponse.Session.User.Email
+		requiresVerification = signupResponse.Session.User.EmailConfirmedAt == nil
+	} else if signupResponse.User.ID != (uuid.UUID{}) {
+		// Only User (autoconfirm is off)
+		userID = signupResponse.User.ID.String()
+		email = signupResponse.User.Email
+		requiresVerification = signupResponse.User.EmailConfirmedAt == nil
+	} else {
+		userID = ""
+		email = input.Email
+		requiresVerification = true
 	}
 
 	s.logger.Info("User registered successfully: %s (ID: %s, Verified: %v)", 

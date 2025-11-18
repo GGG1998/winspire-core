@@ -13,11 +13,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/winspire/winspire-core/libs/go/auth/middleware"
 	"github.com/winspire/winspire-core/services/auth/internal/config"
-	"github.com/winspire/winspire-core/services/auth/internal/db"
 	"github.com/winspire/winspire-core/services/auth/internal/handlers"
 	"github.com/winspire/winspire-core/services/auth/internal/logger"
 	"github.com/winspire/winspire-core/services/auth/internal/services"
-	"github.com/winspire/winspire-core/services/auth/internal/supabase"
+	supabaseclient "github.com/winspire/winspire-core/services/auth/internal/supabase"
 )
 
 func main() {
@@ -35,15 +34,8 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Initialize database connection
-	database, err := db.New(cfg.DatabaseURL)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer database.Close()
-
 	// Initialize Supabase client
-	supabaseClient, err := supabase.New(cfg.SupabaseURL, cfg.SupabaseAnonKey)
+	supabaseClient, err := supabaseclient.New(cfg.SupabaseURL, cfg.SupabaseAnonKey)
 	if err != nil {
 		log.Fatalf("Failed to initialize Supabase client: %v", err)
 	}

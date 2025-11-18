@@ -12,9 +12,6 @@ type Config struct {
 	SupabaseServiceKey   string `envconfig:"SUPABASE_SERVICE_ROLE_KEY" required:"true"`
 	SupabaseJWTSecret    string `envconfig:"SUPABASE_JWT_SECRET" required:"true"`
 
-	// Database Configuration
-	DatabaseURL string `envconfig:"DATABASE_URL" required:"true"`
-
 	// Server Configuration
 	Port string `envconfig:"PORT" default:"8080"`
 	Env  string `envconfig:"ENV" default:"development"`

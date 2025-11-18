@@ -4,4 +4,3 @@ use (
 	./libs/go/auth
 	./services/auth
 )
-

@@ -2,6 +2,8 @@
 
 Authentication service for Winspire platform using Supabase Auth.
 
+> **Note:** The auth service relies entirely on Supabase Auth APIs and does not require a direct connection to PostgreSQL. A local database is still managed by Supabase, but this service communicates only with Supabase's HTTP interfaces.
+
 ## Quick Start
 
 ### 1. Prerequisites
@@ -26,6 +28,13 @@ docker-compose up -d
 cd ../services/auth
 cp .env.example .env
 # Edit .env and add your Supabase credentials
+# Required values:
+#   SUPABASE_URL
+#   SUPABASE_ANON_KEY
+#   SUPABASE_SERVICE_ROLE_KEY
+#   SUPABASE_JWT_SECRET
+#   PORT (optional, defaults to 8080)
+#   ENV  (optional, defaults to development)
 
 # 4. Install dependencies
 go mod tidy

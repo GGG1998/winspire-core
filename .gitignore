@@ -21,3 +21,5 @@ supabase-storage-data/
 .DS_Store
 Thumbs.db
 
+.gomodcache/
+.gocache/

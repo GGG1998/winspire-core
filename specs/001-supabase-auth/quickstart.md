@@ -133,15 +133,12 @@ SUPABASE_URL=http://localhost:8000
 SUPABASE_ANON_KEY=your_anon_key_here
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
 SUPABASE_JWT_SECRET=your_jwt_secret_here
-
-# Database Configuration
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres
-
 # Server Configuration
 PORT=8080
 ENV=development
 
 # Note: 
+# - No direct PostgreSQL connection is required for this service; all identity ops go through Supabase Auth.
 # - Kong gateway: port 8000 internally (kong:8000), port 8000 externally (localhost:8000)
 # - Supabase's GoTrue auth service: port 9999 internally (auth:9999 in Docker network)
 # - External access: localhost:8000/auth/v1/* (through Kong)
@@ -167,85 +164,12 @@ cd services/auth
 # Install Go dependencies
 go get github.com/gin-gonic/gin
 go get github.com/kelseyhightower/envconfig
+go get github.com/supabase-community/gotrue-go
 go get github.com/supabase-community/supabase-go
 go get github.com/golang-jwt/jwt/v5
-go get github.com/jackc/pgx/v5
-go get github.com/golang-migrate/migrate/v4
-
-# Install sqlc
-go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 ```
 
-### 7. Run Database Migrations
-
-```bash
-cd services/auth
-
-# Create initial migration
-migrate create -ext sql -dir migrations -seq initial_schema
-
-# Edit migrations/000001_initial_schema.up.sql with schema from data-model.md
-
-# Run migrations
-migrate -path migrations -database "$DATABASE_URL" up
-```
-
-### 8. Configure sqlc
-
-Create `services/auth/sqlc.yaml`:
-
-```yaml
-version: "2"
-sql:
-  - engine: "postgresql"
-    queries: "internal/queries"
-    schema: "migrations"
-    gen:
-      go:
-        package: "models"
-        out: "internal/models"
-        sql_package: "pgx/v5"
-        emit_json_tags: true
-        emit_prepared_queries: false
-        emit_interface: false
-        emit_exact_table_names: false
-```
-
-### 9. Create SQL Queries
-
-Create `services/auth/internal/queries/users.sql`:
-
-```sql
--- name: GetUserRoles :many
-SELECT r.id, r.name, r.description
-FROM roles r
-JOIN user_roles ur ON r.id = ur.role_id
-WHERE ur.user_id = $1;
-
--- name: GetUserPermissions :many
-SELECT DISTINCT p.id, p.name, p.resource, p.action
-FROM permissions p
-JOIN role_permissions rp ON p.id = rp.permission_id
-JOIN user_roles ur ON rp.role_id = ur.role_id
-WHERE ur.user_id = $1;
-
--- name: CheckUserPermission :one
-SELECT EXISTS(
-  SELECT 1
-  FROM permissions p
-  JOIN role_permissions rp ON p.id = rp.permission_id
-  JOIN user_roles ur ON rp.role_id = ur.role_id
-  WHERE ur.user_id = $1 AND p.name = $2
-) as has_permission;
-```
-
-Generate Go code:
-
-```bash
-sqlc generate
-```
-
-### 10. Build and Run
+### 7. Build and Run
 
 ```bash
 cd services/auth
@@ -278,20 +202,11 @@ services/auth/
 │   │   ├── auth_service.go
 │   │   ├── user_service.go
 │   │   └── role_service.go
-│   ├── models/              # sqlc-generated models
-│   ├── queries/             # SQL query files
-│   │   ├── users.sql
-│   │   ├── roles.sql
-│   │   └── permissions.sql
-│   └── config/              # Configuration
+│   ├── config/              # Configuration
 │       └── config.go
-├── migrations/              # Database migrations
-│   ├── 000001_initial_schema.up.sql
-│   └── 000001_initial_schema.down.sql
 ├── pkg/                     # Public packages (if any)
 ├── go.mod
 ├── go.sum
-├── sqlc.yaml
 ├── Makefile
 └── .env                     # Environment variables (gitignored)
 
@@ -315,21 +230,11 @@ libs/go/auth/
 
 1. Define endpoint in `contracts/auth-service.yaml` (OpenAPI spec)
 2. Create handler in `internal/handlers/`
-3. Implement business logic in `internal/services/`
-4. Add SQL queries if needed in `internal/queries/`
-5. Run `sqlc generate` to update models
-6. Write tests
-7. Update API documentation
+3. Implement business logic in `internal/services/` (call Supabase Auth / GoTrue APIs)
+4. Update or create tests
+5. Update API documentation and Supabase configuration if required
 
-### 2. Database Changes
-
-1. Create migration: `migrate create -ext sql -dir migrations -seq migration_name`
-2. Write `up` and `down` SQL in migration files
-3. Update queries in `internal/queries/` if needed
-4. Run `sqlc generate` to update models
-5. Test migration: `migrate -path migrations -database "$DATABASE_URL" up/down`
-
-### 3. Testing
+### 2. Testing
 
 ```bash
 # Run unit tests
@@ -342,12 +247,9 @@ go test -cover ./...
 go test -tags=integration ./...
 ```
 
-### 4. Code Generation
+### 3. Code Quality
 
 ```bash
-# Generate sqlc models
-sqlc generate
-
 # Format code
 go fmt ./...
 
@@ -489,23 +391,11 @@ resp, err := http.Post(
 - Verify credentials in `.env`
 - Check Supabase logs: `docker-compose logs -f`
 
-### Database Migration Issues
-
-- Ensure database is accessible: `psql "$DATABASE_URL"`
-- Check migration status: `migrate -path migrations -database "$DATABASE_URL" version`
-- Rollback if needed: `migrate -path migrations -database "$DATABASE_URL" down 1`
-
 ### JWT Validation Issues
 
 - Verify JWT secret matches Supabase project settings
 - Check token expiration
 - Validate token format (should be Supabase JWT)
-
-### sqlc Generation Issues
-
-- Ensure SQL queries follow sqlc syntax
-- Check `sqlc.yaml` configuration
-- Verify database schema matches queries
 
 ---
 
@@ -522,8 +412,7 @@ resp, err := http.Post(
 ## Resources
 
 - [Supabase Go Client](https://github.com/supabase-community/supabase-go)
-- [sqlc Documentation](https://docs.sqlc.dev/)
+- [GoTrue Go Client](https://github.com/supabase-community/gotrue-go)
 - [Gin Framework](https://gin-gonic.com/docs/)
 - [JWT Go Library](https://github.com/golang-jwt/jwt)
-- [golang-migrate](https://github.com/golang-migrate/migrate)
 

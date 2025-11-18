@@ -6,18 +6,18 @@ import (
 
 	"github.com/winspire/winspire-core/services/auth/internal/errors"
 	"github.com/winspire/winspire-core/services/auth/internal/logger"
-	"github.com/winspire/winspire-core/services/auth/internal/supabase"
-	"github.com/supabase-community/supabase-go"
+	supabaseclient "github.com/winspire/winspire-core/services/auth/internal/supabase"
+	"github.com/supabase-community/gotrue-go/types"
 )
 
 // PasswordService handles password reset operations
 type PasswordService struct {
-	supabaseClient *supabase.Client
+	supabaseClient *supabaseclient.Client
 	logger         *logger.Logger
 }
 
 // NewPasswordService creates a new password service
-func NewPasswordService(supabaseClient *supabase.Client, appLogger *logger.Logger) *PasswordService {
+func NewPasswordService(supabaseClient *supabaseclient.Client, appLogger *logger.Logger) *PasswordService {
 	return &PasswordService{
 		supabaseClient: supabaseClient,
 		logger:         appLogger,
@@ -35,9 +35,12 @@ func (s *PasswordService) RequestPasswordReset(input RequestPasswordResetInput) 
 
 	client := s.supabaseClient.GetClient()
 	
-	// Call Supabase Auth ResetPasswordForEmail
+	// Call Supabase Auth Recover (password reset)
 	// Note: Supabase handles sending the email and token generation
-	err := client.Auth.ResetPasswordForEmail(client.Context, input.Email, supabase.ResetPasswordOptions{})
+	recoverReq := types.RecoverRequest{
+		Email: input.Email,
+	}
+	err := client.Auth.Recover(recoverReq)
 	if err != nil {
 		s.logger.Error("Password reset request failed for email %s: %v", input.Email, err)
 		
@@ -120,15 +123,16 @@ func (s *PasswordService) ConfirmPasswordReset(input ConfirmPasswordResetInput) 
 	
 	// Try to update password using the reset token
 	// The token should be validated by Supabase
-	userAttributes := supabase.UserAttributes{
-		Password: &input.Password,
+	// We need to use the token as authentication for UpdateUser
+	passwordStr := input.Password
+	updateReq := types.UpdateUserRequest{
+		Password: &passwordStr,
 	}
 	
-	// Use the token as the session token for this update
+	// Use the token as authentication for this update
 	// Supabase will validate the reset token
-	_, err := client.Auth.UpdateUser(client.Context, userAttributes, supabase.AuthOptions{
-		Token: input.Token,
-	})
+	authenticatedClient := client.Auth.WithToken(input.Token)
+	_, err := authenticatedClient.UpdateUser(updateReq)
 	
 	if err != nil {
 		s.logger.Error("Password reset confirmation failed: %v", err)
