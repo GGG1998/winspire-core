@@ -24,7 +24,7 @@ High-level overview of the entire system architecture.
 
 ### Synchronous
 - REST APIs (OpenAPI specs)
-- GraphQL (where applicable)
+- gRpc (where applicable)
 
 ### Asynchronous
 - Event-driven (AsyncAPI/Event Schema)

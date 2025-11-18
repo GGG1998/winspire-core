@@ -89,6 +89,10 @@ get_highest_from_specs() {
         for dir in "$specs_dir"/*; do
             [ -d "$dir" ] || continue
             dirname=$(basename "$dir")
+            # Skip non-feature directories (like core/, platform/, reference/)
+            if [[ ! "$dirname" =~ ^[0-9] ]]; then
+                continue
+            fi
             number=$(echo "$dirname" | grep -o '^[0-9]\+' || echo "0")
             number=$((10#$number))
             if [ "$number" -gt "$highest" ]; then
@@ -144,6 +148,10 @@ check_existing_branches() {
     local spec_dirs=""
     if [ -d "$specs_dir" ]; then
         spec_dirs=$(find "$specs_dir" -maxdepth 1 -type d -name "[0-9]*-${short_name}" 2>/dev/null | xargs -n1 basename 2>/dev/null | sed 's/-.*//' | sort -n)
+        # Also check for directories matching pattern in subdirectories (for docs-site/docs structure)
+        if [ -z "$spec_dirs" ]; then
+            spec_dirs=$(find "$specs_dir" -mindepth 1 -maxdepth 2 -type d -name "[0-9]*-${short_name}" 2>/dev/null | xargs -n1 basename 2>/dev/null | sed 's/-.*//' | sort -n)
+        fi
     fi
     
     # Combine all sources and get the highest number
@@ -183,7 +191,11 @@ fi
 
 cd "$REPO_ROOT"
 
-SPECS_DIR="$REPO_ROOT/specs"
+# Source common functions to get specs directory function
+SCRIPT_DIR="$(CDPATH="" cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/common.sh"
+
+SPECS_DIR=$(get_specs_dir "$REPO_ROOT")
 mkdir -p "$SPECS_DIR"
 
 # Function to generate branch name with stop word filtering and length filtering
