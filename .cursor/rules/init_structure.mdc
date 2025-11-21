@@ -11,6 +11,7 @@ It serves as a shared baseline for development, CI/CD automation, and release/ve
 repo/
 ├─ services/              # Microservices(independent module)
 │  ├─ auth/
+│  │  ├─ bin
 │  │  ├─ tests
 │  │  ├─ cmd/auth/
 │  │  ├─ internal/
