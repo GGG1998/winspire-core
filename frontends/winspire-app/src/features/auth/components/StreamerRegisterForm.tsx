@@ -1,16 +1,20 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../hooks/useAuth';
+import { useCountries } from '../hooks/useCountries';
 import { Button } from '../../../shared/components/ui/button';
 import { Input, InputGroup } from '../../../shared/components/ui/input';
+import { Select } from '../../../shared/components/ui/select';
 import { Field, FieldGroup, Label, ErrorMessage as FieldErrorMessage } from '../../../shared/components/ui/fieldset';
 import { Text } from '../../../shared/components/ui/text';
-import type { StreamerRegisterData } from '../types';
+import { streamerRegisterSchema } from '../schemas';
 
 export function StreamerRegisterForm() {
   const { register: registerStreamer } = useAuth();
   const navigate = useNavigate();
+  const { countries, isLoading: countriesLoading } = useCountries();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const {
@@ -18,24 +22,35 @@ export function StreamerRegisterForm() {
     handleSubmit,
     formState: { errors },
     watch,
-  } = useForm<StreamerRegisterData & { confirmPassword: string }>();
+  } = useForm({
+    resolver: zodResolver(streamerRegisterSchema),
+    defaultValues: {
+      profileType: 'streamer' as const,
+    },
+  });
 
-  const password = watch('password');
+  const selectedCountryId = watch('country_id');
 
-  const onSubmit = async (data: StreamerRegisterData & { confirmPassword: string }) => {
+  const onSubmit = async (data: unknown) => {
     setError(null);
-    if (data.password !== data.confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-    setIsLoading(true);
-    const { confirmPassword, ...registerData } = data;
-    const result = await registerStreamer({ ...registerData, profileType: 'streamer' });
-    setIsLoading(false);
-    if (result.success) {
-      navigate('/');
-    } else {
-      setError(result.error || 'Registration failed. Please try again.');
+    try {
+      const validatedData = streamerRegisterSchema.parse(data);
+      setIsLoading(true);
+      const { confirmPassword, country_id, ...registerData } = validatedData;
+      const result = await registerStreamer({ 
+        ...registerData, 
+        profileType: 'streamer',
+        country_id: country_id && country_id !== '' ? country_id : undefined,
+      });
+      setIsLoading(false);
+      if (result.success) {
+        navigate('/');
+      } else {
+        setError(result.error || 'Registration failed. Please try again.');
+      }
+    } catch (err) {
+      setIsLoading(false);
+      setError('Validation failed. Please check your input.');
     }
   };
 
@@ -54,13 +69,7 @@ export function StreamerRegisterForm() {
             <Input
               id="email"
               type="email"
-              {...register('email', { 
-                required: 'Email is required',
-                pattern: {
-                  value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                  message: 'Invalid email address'
-                }
-              })}
+              {...register('email')}
               data-invalid={errors.email ? '' : undefined}
             />
           </InputGroup>
@@ -75,10 +84,7 @@ export function StreamerRegisterForm() {
             <Input
               id="password"
               type="password"
-              {...register('password', { 
-                required: 'Password is required',
-                minLength: { value: 6, message: 'Password must be at least 6 characters' }
-              })}
+              {...register('password')}
               data-invalid={errors.password ? '' : undefined}
             />
           </InputGroup>
@@ -93,10 +99,7 @@ export function StreamerRegisterForm() {
             <Input
               id="confirmPassword"
               type="password"
-              {...register('confirmPassword', { 
-                required: 'Please confirm your password',
-                validate: (value) => value === password || 'Passwords do not match'
-              })}
+              {...register('confirmPassword')}
               data-invalid={errors.confirmPassword ? '' : undefined}
             />
           </InputGroup>
@@ -106,12 +109,27 @@ export function StreamerRegisterForm() {
         </Field>
 
         <Field>
+          <Label htmlFor="nickname">Nickname</Label>
+          <InputGroup>
+            <Input
+              id="nickname"
+              type="text"
+              {...register('nickname')}
+              data-invalid={errors.nickname ? '' : undefined}
+            />
+          </InputGroup>
+          {errors.nickname && (
+            <FieldErrorMessage>{errors.nickname.message}</FieldErrorMessage>
+          )}
+        </Field>
+
+        <Field>
           <Label htmlFor="first_name">First Name</Label>
           <InputGroup>
             <Input
               id="first_name"
               type="text"
-              {...register('first_name', { required: 'First name is required' })}
+              {...register('first_name')}
               data-invalid={errors.first_name ? '' : undefined}
             />
           </InputGroup>
@@ -126,7 +144,7 @@ export function StreamerRegisterForm() {
             <Input
               id="last_name"
               type="text"
-              {...register('last_name', { required: 'Last name is required' })}
+              {...register('last_name')}
               data-invalid={errors.last_name ? '' : undefined}
             />
           </InputGroup>
@@ -136,52 +154,41 @@ export function StreamerRegisterForm() {
         </Field>
 
         <Field>
-          <Label htmlFor="nickname">Nickname</Label>
-          <InputGroup>
-            <Input
-              id="nickname"
-              type="text"
-              {...register('nickname', { required: 'Nickname is required' })}
-              data-invalid={errors.nickname ? '' : undefined}
-            />
-          </InputGroup>
-          {errors.nickname && (
-            <FieldErrorMessage>{errors.nickname.message}</FieldErrorMessage>
+          <Label htmlFor="country_id">Country (optional)</Label>
+          <Select
+            id="country_id"
+            {...register('country_id')}
+            data-invalid={errors.country_id ? '' : undefined}
+            disabled={countriesLoading}
+          >
+            <option value="">Select a country</option>
+            {countries.map((country) => (
+              <option key={country.id} value={country.id}>
+                {country.name}
+              </option>
+            ))}
+          </Select>
+          {errors.country_id && (
+            <FieldErrorMessage>{errors.country_id.message}</FieldErrorMessage>
           )}
         </Field>
 
-        <Field>
-          <Label htmlFor="street">Street (optional)</Label>
-          <InputGroup>
-            <Input
-              id="street"
-              type="text"
-              {...register('street')}
-            />
-          </InputGroup>
-        </Field>
-
-        <Field>
-          <Label htmlFor="city">City (optional)</Label>
-          <InputGroup>
-            <Input
-              id="city"
-              type="text"
-              {...register('city')}
-            />
-          </InputGroup>
-        </Field>
-
-        <Field>
-          <Label htmlFor="postal_code">Postal Code (optional)</Label>
-          <InputGroup>
-            <Input
-              id="postal_code"
-              type="text"
-              {...register('postal_code')}
-            />
-          </InputGroup>
-        </Field>
+        {selectedCountryId && (
+          <Field>
+            <Label htmlFor="city">City (optional)</Label>
+            <InputGroup>
+              <Input
+                id="city"
+                type="text"
+                {...register('city')}
+                data-invalid={errors.city ? '' : undefined}
+              />
+            </InputGroup>
+            {errors.city && (
+              <FieldErrorMessage>{errors.city.message}</FieldErrorMessage>
+            )}
+          </Field>
+        )}
 
         <div className="flex flex-col items-stretch gap-3">
           <Button type="submit" disabled={isLoading} color="dark/zinc">
@@ -192,4 +199,3 @@ export function StreamerRegisterForm() {
     </form>
   );
 }
-

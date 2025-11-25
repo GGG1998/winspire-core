@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from '../../../shared/components/ui/button';
 import { Input, InputGroup } from '../../../shared/components/ui/input';
 import { Field, FieldGroup, Label, ErrorMessage as FieldErrorMessage } from '../../../shared/components/ui/fieldset';
 import { Text } from '../../../shared/components/ui/text';
-import type { LoginCredentials, UserProfileType } from '../types';
+import { loginCredentialsSchema } from '../schemas';
+import type { UserProfileType } from '../types';
+import type { z } from 'zod';
 
 interface LoginFormProps {
   profileType: UserProfileType;
@@ -21,9 +24,11 @@ export function LoginForm({ profileType }: LoginFormProps) {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginCredentials>();
+  } = useForm({
+    resolver: zodResolver(loginCredentialsSchema),
+  });
 
-  const onSubmit = async (data: LoginCredentials) => {
+  const onSubmit = async (data: z.infer<typeof loginCredentialsSchema>) => {
     setError(null);
     setIsLoading(true);
     const result = await login(data, profileType);
@@ -50,7 +55,7 @@ export function LoginForm({ profileType }: LoginFormProps) {
             <Input
               id="email"
               type="email"
-              {...register('email', { required: 'Email is required' })}
+              {...register('email')}
               data-invalid={errors.email ? '' : undefined}
             />
           </InputGroup>
@@ -65,7 +70,7 @@ export function LoginForm({ profileType }: LoginFormProps) {
             <Input
               id="password"
               type="password"
-              {...register('password', { required: 'Password is required' })}
+              {...register('password')}
               data-invalid={errors.password ? '' : undefined}
             />
           </InputGroup>

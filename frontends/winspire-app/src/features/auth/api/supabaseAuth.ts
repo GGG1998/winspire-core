@@ -50,9 +50,7 @@ async function createUserProfile(userId: string, data: UserRegisterData): Promis
         first_name: data.first_name,
         last_name: data.last_name,
         nickname: data.nickname,
-        street: data.street || null,
         city: data.city || null,
-        postal_code: data.postal_code || null,
         country_id: data.country_id || null,
       })
       .select()
@@ -79,9 +77,7 @@ async function createStreamerProfile(userId: string, data: StreamerRegisterData)
         first_name: data.first_name,
         last_name: data.last_name,
         nickname: data.nickname,
-        street: data.street || null,
         city: data.city || null,
-        postal_code: data.postal_code || null,
         country_id: data.country_id || null,
       })
       .select()

@@ -5,9 +5,7 @@ export interface BaseProfile {
   first_name: string;
   last_name: string;
   nickname: string;
-  street?: string | null;
   city?: string | null;
-  postal_code?: string | null;
   country_id?: string | null;
   created_at: string;
   updated_at: string;
@@ -39,9 +37,7 @@ export interface BaseRegisterData {
   first_name: string;
   last_name: string;
   nickname: string;
-  street?: string;
   city?: string;
-  postal_code?: string;
   country_id?: string;
 }
 
