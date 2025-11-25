@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { RegisterForm } from '../components/RegisterForm';
+import { AuthLayout } from '../../../shared/components/ui/auth-layout';
+import { Heading } from '../../../shared/components/ui/heading';
+import { Text } from '../../../shared/components/ui/text';
 
 export function RegisterPage() {
   const { isAuthenticated } = useAuth();
@@ -14,12 +17,20 @@ export function RegisterPage() {
   }, [isAuthenticated, navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-      <div className="max-w-md w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 sm:p-8">
-        <h1 className="text-2xl font-bold mb-6 text-center">Register</h1>
+    <AuthLayout>
+      <div className="space-y-8">
+        <div className="space-y-2">
+          <Heading>Create your account</Heading>
+          <Text>
+            Already have an account?{' '}
+            <Link to="/auth/login" className="text-zinc-950 underline decoration-zinc-950/50 hover:decoration-zinc-950 dark:text-white dark:decoration-white/50 dark:hover:decoration-white">
+              Sign in
+            </Link>
+          </Text>
+        </div>
         <RegisterForm />
       </div>
-    </div>
+    </AuthLayout>
   );
 }
 
