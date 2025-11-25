@@ -3,6 +3,9 @@
 Auto-generated from all feature plans. Last updated: 2025-11-21
 
 ## Active Technologies
+- Go 1.22 + `net/http`, `github.com/go-chi/chi/v5`, `github.com/r3labs/sse/v2`, `github.com/jackc/pgx/v5`, `sqlc`, `redis/go-redis/v9` (001-competition-spec)
+- PostgreSQL 15 (primary), Redis (pub/sub fan-out) (001-competition-spec)
+- Go 1.25.4 + `github.com/gin-gonic/gin`, `github.com/r3labs/sse/v2`, `github.com/jackc/pgx/v5`, `sqlc`, `redis/go-redis/v9` (001-competition-spec)
 
 - (002-supabase-auth)
 
@@ -19,6 +22,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-21
 : Follow standard conventions
 
 ## Recent Changes
+- 001-competition-spec: Added Go 1.25.4 + `github.com/gin-gonic/gin`, `github.com/r3labs/sse/v2`, `github.com/jackc/pgx/v5`, `sqlc`, `redis/go-redis/v9`
+- 001-competition-spec: Added Go 1.22 + `net/http`, `github.com/go-chi/chi/v5`, `github.com/r3labs/sse/v2`, `github.com/jackc/pgx/v5`, `sqlc`, `redis/go-redis/v9`
 
 - 002-supabase-auth: Added
 

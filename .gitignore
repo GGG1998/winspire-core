@@ -23,6 +23,7 @@ Thumbs.db
 
 .gomodcache/
 .gocache/
+.gobuildcache/
 
 # Go
 *.exe
@@ -51,3 +52,5 @@ coverage/
 # Temporary files
 *.tmp
 *.swp
+
+.vscode/

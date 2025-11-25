@@ -1,9 +1,6 @@
--- Ensure uuid generation support is available locally
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
-
 -- Create countries lookup table
 CREATE TABLE IF NOT EXISTS public.countries (
-  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   iso_code VARCHAR(2) NOT NULL UNIQUE,
   created_at TIMESTAMPTZ DEFAULT NOW()

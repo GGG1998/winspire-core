@@ -1,0 +1,36 @@
+services:
+  # We use supabase for postgres in development
+  # postgres:
+  #   image: postgres:15-alpine
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_DB: competition_host
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  competition-host-stream:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/src
+    ports:
+      - "8086:8086"
+    environment:
+      - APP_ENV=development
+      - SERVICE_PORT=8086
+      - POSTGRES_DSN=postgresql://postgres:postgres@127.0.0.1:54322/postgres?sslmode=disable
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+volumes:
+  pgdata: {}
+
+
