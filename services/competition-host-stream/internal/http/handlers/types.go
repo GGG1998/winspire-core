@@ -87,3 +87,4 @@ type TournamentPatchRequest struct {
 	AllowedActionsOverrides []AllowedActionOverride `json:"allowedActionsOverrides"`
 }
 
+

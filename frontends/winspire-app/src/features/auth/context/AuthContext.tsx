@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '../../../shared/api/supabase';
-import { getCurrentUser, logout as supabaseLogout, loginUser, loginStreamer, registerUser, registerStreamer } from '../api/supabaseAuth';
+import { getCurrentUser, logout as supabaseLogout, loginUser, loginStreamer, registerUser, registerStreamer, signInWithGoogle, signInWithTwitch, signInWithDiscord } from '../api/supabaseAuth';
 import type { User, LoginCredentials, UserRegisterData, StreamerRegisterData, UserProfileType } from '../types';
 
 interface AuthContextType {
@@ -11,6 +11,9 @@ interface AuthContextType {
   register: (data: UserRegisterData | StreamerRegisterData) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
+  loginWithTwitch: () => Promise<{ success: boolean; error?: string }>;
+  loginWithDiscord: () => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -121,6 +124,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const result = await signInWithGoogle();
+      if (result.error) {
+        return {
+          success: false,
+          error: result.error.message,
+        };
+      }
+      // OAuth will redirect, so we don't need to update state here
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'An unexpected error occurred',
+      };
+    }
+  };
+
+  const loginWithTwitch = async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const result = await signInWithTwitch();
+      if (result.error) {
+        return {
+          success: false,
+          error: result.error.message,
+        };
+      }
+      // OAuth will redirect, so we don't need to update state here
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'An unexpected error occurred',
+      };
+    }
+  };
+
+  const loginWithDiscord = async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const result = await signInWithDiscord();
+      if (result.error) {
+        return {
+          success: false,
+          error: result.error.message,
+        };
+      }
+      // OAuth will redirect, so we don't need to update state here
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'An unexpected error occurred',
+      };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -131,6 +191,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         logout,
         refreshUser,
+        loginWithGoogle,
+        loginWithTwitch,
+        loginWithDiscord,
       }}
     >
       {children}

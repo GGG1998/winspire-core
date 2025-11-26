@@ -44,12 +44,34 @@ async function fetchUserProfile(userId: string, profileType: UserProfileType): P
 async function createUserProfile(userId: string, data: UserRegisterData): Promise<UserProfile | null> {
   try {
     // Profile is created automatically by database trigger, so we update it with additional fields
+    const updateData: any = {};
+    
+    // Only add fields if they are provided
+    if (data.city !== undefined) {
+      updateData.city = data.city || null;
+    }
+    if (data.country_id !== undefined) {
+      updateData.country_id = data.country_id || null;
+    }
+    
+    // If there's nothing to update, just fetch the profile
+    if (Object.keys(updateData).length === 0) {
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (fetchError || !existingProfile) {
+        console.error('Error fetching user profile:', fetchError);
+        return null;
+      }
+      return existingProfile as UserProfile;
+    }
+
     const { data: profile, error } = await supabase
       .from('user_profiles')
-      .update({
-        city: data.city || null,
-        country_id: data.country_id || null,
-      })
+      .update(updateData)
       .eq('id', userId)
       .select()
       .single();
@@ -80,12 +102,34 @@ async function createUserProfile(userId: string, data: UserRegisterData): Promis
 async function createStreamerProfile(userId: string, data: StreamerRegisterData): Promise<StreamerProfile | null> {
   try {
     // Profile is created automatically by database trigger, so we update it with additional fields
+    const updateData: any = {};
+    
+    // Only add fields if they are provided
+    if (data.city !== undefined) {
+      updateData.city = data.city || null;
+    }
+    if (data.country_id !== undefined) {
+      updateData.country_id = data.country_id || null;
+    }
+    
+    // If there's nothing to update, just fetch the profile
+    if (Object.keys(updateData).length === 0) {
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('streamer_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (fetchError || !existingProfile) {
+        console.error('Error fetching streamer profile:', fetchError);
+        return null;
+      }
+      return existingProfile as StreamerProfile;
+    }
+
     const { data: profile, error } = await supabase
       .from('streamer_profiles')
-      .update({
-        city: data.city || null,
-        country_id: data.country_id || null,
-      })
+      .update(updateData)
       .eq('id', userId)
       .select()
       .single();
@@ -388,6 +432,183 @@ export async function logout(): Promise<{ error: AuthError | null }> {
     };
   } catch (error) {
     return {
+      error: {
+        message: error instanceof Error ? error.message : 'An unexpected error occurred',
+      },
+    };
+  }
+}
+
+// OAuth Sign-in Functions
+export async function signInWithGoogle(): Promise<{ error: AuthError | null }> {
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    });
+
+    if (error) {
+      return {
+        error: {
+          message: error.message,
+          code: error.status?.toString(),
+        },
+      };
+    }
+
+    return { error: null };
+  } catch (error) {
+    return {
+      error: {
+        message: error instanceof Error ? error.message : 'An unexpected error occurred',
+      },
+    };
+  }
+}
+
+export async function signInWithTwitch(): Promise<{ error: AuthError | null }> {
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'twitch',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      return {
+        error: {
+          message: error.message,
+          code: error.status?.toString(),
+        },
+      };
+    }
+
+    return { error: null };
+  } catch (error) {
+    return {
+      error: {
+        message: error instanceof Error ? error.message : 'An unexpected error occurred',
+      },
+    };
+  }
+}
+
+export async function signInWithDiscord(): Promise<{ error: AuthError | null }> {
+  try {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'discord',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      return {
+        error: {
+          message: error.message,
+          code: error.status?.toString(),
+        },
+      };
+    }
+
+    return { error: null };
+  } catch (error) {
+    return {
+      error: {
+        message: error instanceof Error ? error.message : 'An unexpected error occurred',
+      },
+    };
+  }
+}
+
+// Handle OAuth callback and create/fetch profile
+export async function handleOAuthCallback(): Promise<{ user: User | null; error: AuthError | null }> {
+  try {
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !authUser) {
+      return {
+        user: null,
+        error: {
+          message: authError?.message || 'Failed to authenticate',
+          code: authError?.status?.toString(),
+        },
+      };
+    }
+
+    // Determine profile type based on OAuth provider
+    const provider = authUser.app_metadata.provider;
+    let profileType: UserProfileType;
+    
+    if (provider === 'twitch' || provider === 'discord') {
+      profileType = 'streamer';
+    } else if (provider === 'google') {
+      profileType = 'user';
+    } else {
+      // Default to user for unknown providers
+      profileType = 'user';
+    }
+
+    // Try to fetch existing profile
+    let profile = await fetchUserProfile(authUser.id, profileType);
+
+    // If profile doesn't exist, create it with OAuth data
+    if (!profile) {
+      const oauthMetadata = authUser.user_metadata;
+      const firstName = oauthMetadata.full_name?.split(' ')[0] || oauthMetadata.name?.split(' ')[0] || 'User';
+      const lastName = oauthMetadata.full_name?.split(' ').slice(1).join(' ') || oauthMetadata.name?.split(' ').slice(1).join(' ') || '';
+      const nickname = oauthMetadata.preferred_username || oauthMetadata.user_name || oauthMetadata.name || authUser.email?.split('@')[0] || 'user';
+
+      if (profileType === 'streamer') {
+        profile = await createStreamerProfile(authUser.id, {
+          email: authUser.email!,
+          password: '', // Not used for OAuth
+          first_name: firstName,
+          last_name: lastName,
+          nickname: nickname,
+          profileType: 'streamer',
+        });
+      } else {
+        profile = await createUserProfile(authUser.id, {
+          email: authUser.email!,
+          password: '', // Not used for OAuth
+          first_name: firstName,
+          last_name: lastName,
+          nickname: nickname,
+          profileType: 'user',
+        });
+      }
+
+      if (!profile) {
+        return {
+          user: null,
+          error: {
+            message: 'Failed to create user profile',
+            code: 'PROFILE_CREATION_FAILED',
+          },
+        };
+      }
+    }
+
+    return {
+      user: {
+        id: authUser.id,
+        email: authUser.email!,
+        profileType,
+        profile,
+      },
+      error: null,
+    };
+  } catch (error) {
+    return {
+      user: null,
       error: {
         message: error instanceof Error ? error.message : 'An unexpected error occurred',
       },

@@ -59,3 +59,4 @@ WHERE leased_at < NOW() - ($1 * INTERVAL '1 second');
 	return err
 }
 
+

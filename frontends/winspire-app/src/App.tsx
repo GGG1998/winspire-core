@@ -11,6 +11,7 @@ const UserLoginPage = lazy(() => import('./features/auth/pages/UserLoginPage').t
 const UserRegisterPage = lazy(() => import('./features/auth/pages/UserRegisterPage').then(m => ({ default: m.UserRegisterPage })));
 const StreamerLoginPage = lazy(() => import('./features/auth/pages/StreamerLoginPage').then(m => ({ default: m.StreamerLoginPage })));
 const StreamerRegisterPage = lazy(() => import('./features/auth/pages/StreamerRegisterPage').then(m => ({ default: m.StreamerRegisterPage })));
+const OAuthCallbackPage = lazy(() => import('./features/auth/pages/OAuthCallbackPage').then(m => ({ default: m.OAuthCallbackPage })));
 // Legacy routes for backward compatibility
 const LoginPage = lazy(() => import('./features/auth/pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('./features/auth/pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
@@ -25,6 +26,9 @@ function App() {
         <BrowserRouter>
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
+              {/* OAuth callback route */}
+              <Route path="/auth/callback" element={<OAuthCallbackPage />} />
+              
               {/* User auth routes */}
               <Route path="/auth/user/login" element={<UserLoginPage />} />
               <Route path="/auth/user/register" element={<UserRegisterPage />} />
