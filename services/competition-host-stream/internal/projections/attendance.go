@@ -55,3 +55,4 @@ func (p *AttendanceProjector) Upsert(ctx context.Context, snapshot AttendanceSna
 	)
 	return err
 }
+

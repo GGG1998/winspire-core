@@ -66,3 +66,4 @@ func (p *TournamentProjector) Upsert(ctx context.Context, view TournamentHostVie
 func PtrUUID(id uuid.UUID) *uuid.UUID {
 	return &id
 }
+

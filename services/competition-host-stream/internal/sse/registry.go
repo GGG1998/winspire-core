@@ -58,3 +58,4 @@ WHERE leased_at < NOW() - ($1 * INTERVAL '1 second');
 	_, err := r.pool.Exec(ctx, query, r.ttl.Seconds())
 	return err
 }
+

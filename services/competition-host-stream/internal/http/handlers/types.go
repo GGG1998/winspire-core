@@ -86,3 +86,4 @@ type TournamentPatchRequest struct {
 	LineupDirectives        []LineupDirective       `json:"lineupDirectives"`
 	AllowedActionsOverrides []AllowedActionOverride `json:"allowedActionsOverrides"`
 }
+

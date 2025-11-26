@@ -43,54 +43,72 @@ async function fetchUserProfile(userId: string, profileType: UserProfileType): P
 
 async function createUserProfile(userId: string, data: UserRegisterData): Promise<UserProfile | null> {
   try {
+    // Profile is created automatically by database trigger, so we update it with additional fields
     const { data: profile, error } = await supabase
       .from('user_profiles')
-      .insert({
-        id: userId,
-        first_name: data.first_name,
-        last_name: data.last_name,
-        nickname: data.nickname,
+      .update({
         city: data.city || null,
         country_id: data.country_id || null,
       })
+      .eq('id', userId)
       .select()
       .single();
 
     if (error) {
-      console.error('Error creating user profile:', error);
-      return null;
+      console.error('Error updating user profile:', error);
+      // If update fails, try to fetch the existing profile (created by trigger)
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (fetchError || !existingProfile) {
+        console.error('Error fetching user profile:', fetchError);
+        return null;
+      }
+      return existingProfile as UserProfile;
     }
 
     return profile as UserProfile;
   } catch (error) {
-    console.error('Error creating user profile:', error);
+    console.error('Error updating user profile:', error);
     return null;
   }
 }
 
 async function createStreamerProfile(userId: string, data: StreamerRegisterData): Promise<StreamerProfile | null> {
   try {
+    // Profile is created automatically by database trigger, so we update it with additional fields
     const { data: profile, error } = await supabase
       .from('streamer_profiles')
-      .insert({
-        id: userId,
-        first_name: data.first_name,
-        last_name: data.last_name,
-        nickname: data.nickname,
+      .update({
         city: data.city || null,
         country_id: data.country_id || null,
       })
+      .eq('id', userId)
       .select()
       .single();
 
     if (error) {
-      console.error('Error creating streamer profile:', error);
-      return null;
+      console.error('Error updating streamer profile:', error);
+      // If update fails, try to fetch the existing profile (created by trigger)
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('streamer_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (fetchError || !existingProfile) {
+        console.error('Error fetching streamer profile:', fetchError);
+        return null;
+      }
+      return existingProfile as StreamerProfile;
     }
 
     return profile as StreamerProfile;
   } catch (error) {
-    console.error('Error creating streamer profile:', error);
+    console.error('Error updating streamer profile:', error);
     return null;
   }
 }
@@ -212,6 +230,15 @@ export async function registerUser(data: UserRegisterData): Promise<{ user: User
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
+      options: {
+        data: {
+          user_type: 'user',
+          app_id: 'user-frontend-v1',
+          first_name: data.first_name,
+          last_name: data.last_name,
+          nickname: data.nickname,
+        },
+      },
     });
 
     if (authError || !authData.user) {
@@ -262,6 +289,15 @@ export async function registerStreamer(data: StreamerRegisterData): Promise<{ us
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
+      options: {
+        data: {
+          user_type: 'streamer',
+          app_id: 'streamer-frontend-v1',
+          first_name: data.first_name,
+          last_name: data.last_name,
+          nickname: data.nickname,
+        },
+      },
     });
 
     if (authError || !authData.user) {

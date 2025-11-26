@@ -20,8 +20,8 @@ const MatchPage = lazy(() => import('./features/lobby/pages/MatchPage').then(m =
 
 function App() {
   return (
-    <ErrorBoundary>
-      <AuthProvider>
+    <AuthProvider>
+      <ErrorBoundary>
         <BrowserRouter>
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
@@ -75,8 +75,8 @@ function App() {
             </Routes>
           </Suspense>
         </BrowserRouter>
-      </AuthProvider>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </AuthProvider>
   );
 }
 

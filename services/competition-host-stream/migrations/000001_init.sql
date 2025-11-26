@@ -59,3 +59,4 @@ DROP TABLE IF EXISTS tournament_host_views;
 DROP TABLE IF EXISTS cup_host_views;
 
 
+
