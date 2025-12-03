@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # postgres:
+  #   image: postgres:17-alpine
+  #   container_name: game-management-postgres
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
+  #     POSTGRES_DB: game_management
+  #   ports:
+  #     - "5433:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ./migrations:/docker-entrypoint-initdb.d
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+  game-management:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/src
+    ports:
+      - "8087:8087"
+    environment:
+      - APP_ENV=development
+      - SERVICE_PORT=8087
+      - POSTGRES_DSN=postgresql://postgres:postgres@127.0.0.1:54322/postgres?sslmode=disable
+      - REDIS_ADDR=localhost:6379
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: game-management-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+

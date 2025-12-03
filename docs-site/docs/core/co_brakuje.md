@@ -40,6 +40,8 @@ Zapewnienie mutacji GraphQL do tworzenia, edycji, startu i anulowania cupów, wr
 ## Subdomain: Tournament Lifecycle
 Opis: zarządza strukturą turnieju, etapami, harmonogramami i konfiguracją meczów.
 
+**Full Lifecycle Documentation:** See [Tournament Lifecycle Flow](./competition-host/tournament-lifecycle.md) for complete status transitions, business rules, and validation requirements.
+
 ### Bounded Context: Tournament Lifecycle API
 **Purpose:**  
 Obsługa powstania turnieju (z cupa lub niezależnie), zarządzanie bracketami, ustawieniami gry i ograniczeniami.
@@ -47,8 +49,8 @@ Obsługa powstania turnieju (z cupa lub niezależnie), zarządzanie bracketami, 
 **Domain Model:**  
 - Aggregates: `Tournament` (z `TournamentSettingsGroup`, `TournamentStages`)  
 - Entities: `TournamentStage`, `TournamentBracket`, `MatchSeries`, `TournamentLineup`  
-- Value Objects: `TournamentSchedule`, `TournamentLinks`, `TournamentLineupPlacement`  
-- Domain Events: `StartCupResponse` (spin-off), `TournamentParticipationUpdate`  
+- Value Objects: `TournamentSchedule`, `TournamentLinks`, `TournamentLineupPlacement`, `TournamentStatus`  
+- Domain Events: `TournamentPublished`, `RegistrationOpened`, `TournamentStarted`, `TournamentCompleted`, `TournamentCancelled`, `TournamentParticipationUpdate`  
 - Services: `Mutation::signupTournament`, `leaveTournament`, `confirmTournamentParticipation`, `setTournamentPreSeed`  
 - Repositories: `Query::tournament`, `tournamentsForSpace`
 

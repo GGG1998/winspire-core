@@ -28,7 +28,14 @@ export function OAuthCallbackPage() {
         // Refresh the auth context with the new user
         await refreshUser();
 
-        // Redirect to home page
+        // Check if user has completed their profile (nickname is required)
+        if (!result.user.profile.nickname || result.user.profile.nickname.trim() === '') {
+          // Profile incomplete, redirect to profile completion
+          navigate('/auth/complete-profile');
+          return;
+        }
+
+        // Profile complete, redirect to home page
         navigate('/');
       } catch (err) {
         console.error('OAuth callback error:', err);
@@ -90,4 +97,7 @@ export function OAuthCallbackPage() {
     </AuthLayout>
   );
 }
+
+
+
 

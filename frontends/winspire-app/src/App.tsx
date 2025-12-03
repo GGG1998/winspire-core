@@ -1,9 +1,9 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './features/auth/context/AuthContext';
+import { TournamentsProvider } from './features/host/contexts/TournamentsContext';
 import { ErrorBoundary } from './shared/components/common/ErrorBoundary';
 import { ProtectedRoute } from './shared/components/layout/ProtectedRoute';
-import { AppLayout } from './shared/components/layout/AppLayout';
 import { LoadingSpinner } from './shared/components/common/LoadingSpinner';
 
 // Lazy load pages for code splitting
@@ -12,12 +12,16 @@ const UserRegisterPage = lazy(() => import('./features/auth/pages/UserRegisterPa
 const StreamerLoginPage = lazy(() => import('./features/auth/pages/StreamerLoginPage').then(m => ({ default: m.StreamerLoginPage })));
 const StreamerRegisterPage = lazy(() => import('./features/auth/pages/StreamerRegisterPage').then(m => ({ default: m.StreamerRegisterPage })));
 const OAuthCallbackPage = lazy(() => import('./features/auth/pages/OAuthCallbackPage').then(m => ({ default: m.OAuthCallbackPage })));
+const ProfileCompletionPage = lazy(() => import('./features/auth/pages/ProfileCompletionPage').then(m => ({ default: m.ProfileCompletionPage })));
 // Legacy routes for backward compatibility
 const LoginPage = lazy(() => import('./features/auth/pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('./features/auth/pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
 const ProfilePage = lazy(() => import('./features/auth/pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const LobbyPage = lazy(() => import('./features/lobby/pages/LobbyPage').then(m => ({ default: m.LobbyPage })));
 const MatchPage = lazy(() => import('./features/lobby/pages/MatchPage').then(m => ({ default: m.MatchPage })));
+// Tournament pages
+const TournamentPage = lazy(() => import('./features/host/pages/TournamentPage').then(m => ({ default: m.TournamentPage })));
+const TournamentDetailPage = lazy(() => import('./features/host/pages/TournamentDetailPage').then(m => ({ default: m.TournamentDetailPage })));
 
 function App() {
   return (
@@ -28,6 +32,9 @@ function App() {
             <Routes>
               {/* OAuth callback route */}
               <Route path="/auth/callback" element={<OAuthCallbackPage />} />
+              
+              {/* Profile completion route for OAuth users */}
+              <Route path="/auth/complete-profile" element={<ProfileCompletionPage />} />
               
               {/* User auth routes */}
               <Route path="/auth/user/login" element={<UserLoginPage />} />
@@ -65,14 +72,33 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              {/* Host/Streamer tournament routes - use HostLayout internally */}
+              <Route
+                path="/h/:streamerId/tournaments"
+                element={
+                  <ProtectedRoute>
+                    <TournamentsProvider>
+                      <TournamentPage />
+                    </TournamentsProvider>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/h/:streamerId/tournaments/:tournamentId"
+                element={
+                  <ProtectedRoute>
+                    <TournamentsProvider>
+                      <TournamentDetailPage />
+                    </TournamentsProvider>
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/"
                 element={
-                  <AppLayout>
-                    <div className="container mx-auto px-4 py-8">
-                      <h1 className="text-2xl font-bold">Welcome to Winspire</h1>
-                    </div>
-                  </AppLayout>
+                  <ProtectedRoute>
+                    <Navigate to="/auth/profile" replace />
+                  </ProtectedRoute>
                 }
               />
               <Route path="*" element={<Navigate to="/" replace />} />

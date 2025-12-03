@@ -1,0 +1,47 @@
+# syntax=docker/dockerfile:1.6
+# Development Dockerfile - uses local libs for hot reload
+
+FROM golang:1.25-alpine3.21 AS builder
+WORKDIR /src
+
+# Copy local libs first
+COPY libs/go/auth ./libs/go/auth
+COPY libs/go/httpx ./libs/go/httpx
+
+# Copy service code
+WORKDIR /src/services/competition
+
+# Pre-fetch dependencies before copying the full source to leverage Docker layer caching.
+COPY services/competition/go.mod services/competition/go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+COPY services/competition/ ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -o /out/competition ./cmd/competition
+
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates tzdata \
+    && addgroup -S app && adduser -S -G app app
+
+WORKDIR /app
+
+# Copy binary
+COPY --from=builder /out/competition /usr/local/bin/competition
+
+# Copy migrations
+COPY --from=builder /src/services/competition/migrations ./migrations
+
+ENV APP_ENV=development \
+    SERVICE_PORT=8089
+
+EXPOSE 8089
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8089/healthz || exit 1
+
+USER app
+ENTRYPOINT ["/usr/local/bin/competition"]
+

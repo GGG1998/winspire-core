@@ -7,6 +7,7 @@ export interface AuthError {
 }
 
 async function fetchUserProfile(userId: string, profileType: UserProfileType): Promise<UserProfile | StreamerProfile | null> {
+  console.log('fetchUserProfile', userId, profileType);
   try {
     if (profileType === 'user') {
       const { data, error } = await supabase
@@ -389,11 +390,15 @@ export async function registerStreamer(data: StreamerRegisterData): Promise<{ us
 
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    const { data: { user: authUser }, error } = await supabase.auth.getUser();
-
-    if (error || !authUser) {
+    // Use getSession() first - it's synchronous from localStorage cache
+    // This prevents the hanging issue with getUser() which makes a network request
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError || !session?.user) {
       return null;
     }
+
+    const authUser = session.user;
 
     // Try user profile first
     let profile = await fetchUserProfile(authUser.id, 'user');

@@ -1,0 +1,56 @@
+services:
+  # We use supabase for postgres in development
+  # postgres:
+  #   image: postgres:17-alpine
+  #   container_name: {{ cookiecutter.service_name }}-postgres
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
+  #     POSTGRES_DB: {{ cookiecutter.db_name }}
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+
+  {{ cookiecutter.service_name }}:
+    build:
+      context: .
+      dockerfile: cmd/{{ cookiecutter.service_name }}/Dockerfile
+    volumes:
+      - ./:/src
+    ports:
+      - "{{ cookiecutter.service_port }}:{{ cookiecutter.service_port }}"
+    environment:
+      - APP_ENV=development
+      - SERVICE_PORT={{ cookiecutter.service_port }}
+      - POSTGRES_DSN=postgresql://postgres:postgres@127.0.0.1:54322/postgres?sslmode=disable
+{% if cookiecutter.use_redis == "true" %}
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: {{ cookiecutter.service_name }}-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+{% endif %}
+
+volumes:
+  postgres_data:
+{% if cookiecutter.use_redis == "true" %}
+  redis_data:
+{% endif %}
+
+

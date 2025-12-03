@@ -3,10 +3,10 @@ package httpx
 import (
 	"context"
 	"log/slog"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	authmw "github.com/winspire/winspire-core/libs/go/auth/middleware"
+	sharedhttp "github.com/winspire/winspire-core/libs/go/httpx"
 
 	"github.com/winspire/competition-host-stream/internal/config"
 	"github.com/winspire/competition-host-stream/internal/http/handlers"
@@ -35,29 +35,31 @@ type ServerDeps struct {
 func NewRouter(deps ServerDeps) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
-	router.Use(gin.Recovery(), SecurityHeaders(), RequestLogger(deps.Logger), ErrorResponder())
 
+	// Use shared httpx middleware
+	httpCfg := sharedhttp.DefaultConfig()
+	httpCfg.ServiceName = "competition-host-stream"
+
+	router.Use(
+		sharedhttp.Recovery(deps.Logger),
+		sharedhttp.SecurityHeaders(httpCfg),
+		sharedhttp.RequestLogger(deps.Logger),
+		sharedhttp.ErrorResponder(),
+	)
+
+	// Health check endpoint (no auth required)
+	router.GET("/healthz", sharedhttp.HealthCheck(deps.HealthCheck))
+
+	// API routes with auth
+	api := router.Group("/v1")
 	if deps.Config.HasAuth() {
-		router.Use(authmw.ValidateJWTMiddleware(authmw.Config{
+		api.Use(authmw.ValidateJWTMiddleware(authmw.Config{
 			JWTSecret: deps.Config.HostJWTSecret,
 			Issuer:    deps.Config.HostJWTIssuer,
 			Audience:  deps.Config.HostJWTAudience,
 		}))
 	}
 
-	router.GET("/healthz", func(c *gin.Context) {
-		if deps.HealthCheck == nil {
-			c.JSON(http.StatusOK, gin.H{"status": "ok"})
-			return
-		}
-		if err := deps.HealthCheck(c.Request.Context()); err != nil {
-			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"status": "degraded", "error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-
-	api := router.Group("/v1")
 	handlers.RegisterCupTournamentRoutes(api, handlers.CupTournamentDeps{
 		Reader:              deps.Reader,
 		CupProjector:        deps.CupProjector,

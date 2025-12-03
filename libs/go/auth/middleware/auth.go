@@ -54,11 +54,17 @@ func ValidateJWTMiddleware(cfg Config) gin.HandlerFunc {
 			roles = append(roles, types.Role(role))
 		}
 
+		// Extract nickname and user_type from claims
+		nickname := jwt.ExtractNickname(claims)
+		userType := jwt.ExtractUserType(claims)
+
 		// Create user context
 		user := &types.UserContext{
-			ID:    types.UserID(claims.Sub),
-			Email: types.Email(claims.Email),
-			Roles: roles,
+			ID:       types.UserID(claims.Sub),
+			Email:    types.Email(claims.Email),
+			Nickname: nickname,
+			UserType: userType,
+			Roles:    roles,
 		}
 
 		// Add user context to request
@@ -70,4 +76,3 @@ func ValidateJWTMiddleware(cfg Config) gin.HandlerFunc {
 		c.Next()
 	}
 }
-

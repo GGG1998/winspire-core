@@ -7,14 +7,17 @@ import { Heading } from '../../../shared/components/ui/heading';
 import { Text } from '../../../shared/components/ui/text';
 
 export function StreamerLoginPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (isLoading) {
+      return;
+    }
     if (isAuthenticated) {
       navigate('/');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isLoading, navigate]);
 
   return (
     <AuthLayout>

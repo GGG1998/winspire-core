@@ -1,0 +1,52 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+**/dist/
+**/build/
+**/node_modules/
+**/.next/
+**/out/
+
+# Logs
+*.log
+**/*.log
+
+# Test files
+**/*_test.go
+**/testdata/
+
+# Frontend (not needed for backend builds)
+frontends/
+
+# Platform
+platform/supabase/volumes/
+platform/local/volumes/
+
+# Docs
+*.md
+!README.md
+
+# Env files (will be passed via docker-compose)
+.env
+.env.*
+
+# Temporary files
+**/tmp/
+**/*.tmp
+
+

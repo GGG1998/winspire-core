@@ -171,3 +171,6 @@ Testy są skonfigurowane do uruchomienia w CI z:
 Konfiguracja CI w `playwright.config.ts` aktywuje się gdy `process.env.CI` jest ustawiony.
 
 
+
+
+

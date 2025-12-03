@@ -9,11 +9,13 @@ import (
 
 // Claims represents JWT claims from Supabase
 type Claims struct {
-	Sub         string                 `json:"sub"`
-	Email       string                 `json:"email"`
-	Role        string                 `json:"role"`
+	Sub          string                 `json:"sub"`
+	Email        string                 `json:"email"`
+	Role         string                 `json:"role"`
+	Nickname     string                 `json:"nickname"`
+	UserType     string                 `json:"user_type"`
 	UserMetadata map[string]interface{} `json:"user_metadata"`
-	AppMetadata map[string]interface{} `json:"app_metadata"`
+	AppMetadata  map[string]interface{} `json:"app_metadata"`
 	jwt.RegisteredClaims
 }
 
@@ -46,10 +48,28 @@ func ExtractRole(claims *Claims) string {
 	return ""
 }
 
-// ExtractUserType extracts the user type from user_metadata
+// ExtractUserType extracts the user type from claims
 func ExtractUserType(claims *Claims) string {
+	if claims.UserType != "" {
+		return claims.UserType
+	}
+	
+	// Fallback to user_metadata if not in top-level claims
 	if userType, ok := claims.UserMetadata["user_type"].(string); ok {
 		return userType
+	}
+	return ""
+}
+
+// ExtractNickname extracts nickname from claims
+func ExtractNickname(claims *Claims) string {
+	if claims.Nickname != "" {
+		return claims.Nickname
+	}
+	
+	// Fallback to user_metadata if not in top-level claims
+	if nick, ok := claims.UserMetadata["nickname"].(string); ok {
+		return nick
 	}
 	return ""
 }

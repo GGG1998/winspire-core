@@ -1,0 +1,48 @@
+# syntax=docker/dockerfile:1.6
+# Development Dockerfile - uses local libs for hot reload
+
+FROM golang:1.25-alpine3.21 AS builder
+WORKDIR /src
+
+# Copy local libs first
+COPY libs/go/auth ./libs/go/auth
+COPY libs/go/httpx ./libs/go/httpx
+
+# Copy service code
+WORKDIR /src/services/{{ cookiecutter.service_name }}
+
+# Pre-fetch dependencies before copying the full source to leverage Docker layer caching.
+COPY services/{{ cookiecutter.service_name }}/go.mod services/{{ cookiecutter.service_name }}/go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+COPY services/{{ cookiecutter.service_name }}/ ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -o /out/{{ cookiecutter.service_name }} ./cmd/{{ cookiecutter.service_name }}
+
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates tzdata \
+    && addgroup -S app && adduser -S -G app app
+
+WORKDIR /app
+
+# Copy binary
+COPY --from=builder /out/{{ cookiecutter.service_name }} /usr/local/bin/{{ cookiecutter.service_name }}
+
+# Copy migrations
+COPY --from=builder /src/services/{{ cookiecutter.service_name }}/migrations ./migrations
+
+ENV APP_ENV=development \
+    SERVICE_PORT={{ cookiecutter.service_port }}
+
+EXPOSE {{ cookiecutter.service_port }}
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:{{ cookiecutter.service_port }}/healthz || exit 1
+
+USER app
+ENTRYPOINT ["/usr/local/bin/{{ cookiecutter.service_name }}"]
+
+

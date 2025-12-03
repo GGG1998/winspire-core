@@ -15,9 +15,11 @@ type Role string
 
 // UserContext holds user information extracted from JWT
 type UserContext struct {
-	ID    UserID
-	Email Email
-	Roles []Role
+	ID       UserID
+	Email    Email
+	Nickname string
+	UserType string
+	Roles    []Role
 }
 
 type contextKey string
@@ -34,4 +36,3 @@ func UserFromContext(ctx context.Context) (*UserContext, bool) {
 	user, ok := ctx.Value(userContextKey).(*UserContext)
 	return user, ok
 }
-

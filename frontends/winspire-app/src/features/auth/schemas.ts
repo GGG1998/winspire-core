@@ -71,7 +71,33 @@ export const streamerRegisterSchema = z.object({
   }
 );
 
+// Profile completion schema for OAuth users
+// Only nickname is required for now
+export const profileCompletionSchema = z.object({
+  nickname: z
+    .string()
+    .min(1, 'Nickname is required')
+    .min(3, 'Nickname must be at least 3 characters'),
+  // Optional fields disabled for now
+  // first_name: z
+  //   .string()
+  //   .min(1, 'First name is required'),
+  // last_name: z
+  //   .string()
+  //   .min(1, 'Last name is required'),
+  // country_id: z
+  //   .union([
+  //     z.string().uuid('Invalid country selection'),
+  //     z.literal(''),
+  //   ])
+  //   .optional(),
+  // city: z
+  //   .string()
+  //   .optional(),
+});
+
 export type LoginCredentialsInput = z.infer<typeof loginCredentialsSchema>;
 export type UserRegisterInput = z.infer<typeof userRegisterSchema>;
 export type StreamerRegisterInput = z.infer<typeof streamerRegisterSchema>;
+export type ProfileCompletionInput = z.infer<typeof profileCompletionSchema>;
 

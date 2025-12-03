@@ -1,0 +1,10 @@
+{
+  "service_name": "my-service",
+  "service_port": "8088",
+  "db_name": "my_service",
+  "use_redis": ["true", "false"],
+  "use_sqlc": ["true", "false"],
+  "go_module": "github.com/winspire/{{ cookiecutter.service_name }}"
+}
+
+
