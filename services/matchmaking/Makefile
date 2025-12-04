@@ -1,4 +1,4 @@
-.PHONY: help build test run clean sqlc migrate-up migrate-down docker-build
+.PHONY: help build test run clean sqlc migrate-up migrate-down migrate-status docker-build install-tools
 
 # Default target
 help:
@@ -8,8 +8,9 @@ help:
 	@echo "  run          - Run the service locally"
 	@echo "  clean        - Remove build artifacts"
 	@echo "  sqlc         - Generate SQLC code from SQL queries"
-	@echo "  migrate-up   - Run database migrations"
-	@echo "  migrate-down - Rollback last migration"
+	@echo "  migrate-up   - Apply database migrations (Atlas)"
+	@echo "  migrate-down - Rollback last migration (Atlas)"
+	@echo "  migrate-status - Show migration status (Atlas)"
 	@echo "  docker-build - Build Docker image"
 
 # Build the service
@@ -38,23 +39,37 @@ sqlc:
 	@echo "Generating SQLC code..."
 	sqlc generate
 
-# Run migrations
+# Run migrations with Atlas
 migrate-up:
-	@echo "Running migrations..."
+	@echo "Applying migrations with Atlas..."
 	@if [ -z "$(DATABASE_URL)" ]; then \
 		echo "ERROR: DATABASE_URL environment variable not set"; \
 		exit 1; \
 	fi
-	goose -dir migrations postgres "$(DATABASE_URL)" up
+	atlas migrate apply \
+		--dir "file://migrations" \
+		--url "$(DATABASE_URL)"
 
-# Rollback migrations
+# Rollback migrations with Atlas
 migrate-down:
-	@echo "Rolling back migration..."
+	@echo "Rolling back migration with Atlas..."
 	@if [ -z "$(DATABASE_URL)" ]; then \
 		echo "ERROR: DATABASE_URL environment variable not set"; \
 		exit 1; \
 	fi
-	goose -dir migrations postgres "$(DATABASE_URL)" down
+	@echo "Atlas doesn't support automatic rollback. Please manually apply down migration or use atlas schema apply."
+	@exit 1
+
+# Check migration status
+migrate-status:
+	@echo "Checking migration status..."
+	@if [ -z "$(DATABASE_URL)" ]; then \
+		echo "ERROR: DATABASE_URL environment variable not set"; \
+		exit 1; \
+	fi
+	atlas migrate status \
+		--dir "file://migrations" \
+		--url "$(DATABASE_URL)"
 
 # Build Docker image
 docker-build:
@@ -65,5 +80,6 @@ docker-build:
 install-tools:
 	@echo "Installing development tools..."
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-	go install github.com/pressly/goose/v3/cmd/goose@latest
+	@echo "Installing Atlas CLI..."
+	curl -sSf https://atlasgo.sh | sh
 

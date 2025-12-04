@@ -136,6 +136,55 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  # Matchmaking Service
+  matchmaking:
+    build:
+      context: ../..
+      dockerfile: services/matchmaking/cmd/matchmaking/Dockerfile.dev
+    container_name: matchmaking
+    environment:
+      - APP_ENV=development
+      - SERVICE_PORT=8081
+      
+      # Database
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres?sslmode=disable}
+      
+      # Redis
+      - REDIS_URL=redis://redis:6379
+      
+      # JWT Auth
+      - HOST_JWT_SECRET=${HOST_JWT_SECRET:-your-jwt-secret-here}
+      - HOST_JWT_ISSUER=${HOST_JWT_ISSUER:-https://your-project.supabase.co/auth/v1}
+      - HOST_JWT_AUDIENCE=${HOST_JWT_AUDIENCE:-authenticated}
+      
+      # Supabase Storage
+      - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      # Path-based routing (like ALB)
+      - "traefik.http.routers.matchmaking.rule=PathPrefix(`/v1/matchmaking`) || PathPrefix(`/v1/tournaments`) || PathPrefix(`/v1/matches`) || PathPrefix(`/v1/players`)"
+      - "traefik.http.routers.matchmaking.entrypoints=web"
+      - "traefik.http.routers.matchmaking.middlewares=matchmaking-cors"
+      - "traefik.http.services.matchmaking.loadbalancer.server.port=8081"
+      # CORS middleware for development
+      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowmethods=GET,POST,PUT,PATCH,DELETE,OPTIONS"
+      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowheaders=Origin,Content-Type,Authorization,X-Request-ID"
+      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolalloworiginlistregex=.*"
+      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolmaxage=86400"
+      - "traefik.http.middlewares.matchmaking-cors.headers.addvaryheader=true"
+      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowcredentials=true"
+      # Health check
+      - "traefik.http.services.matchmaking.loadbalancer.healthcheck.path=/healthz"
+      - "traefik.http.services.matchmaking.loadbalancer.healthcheck.interval=30s"
+    networks:
+      - winspire-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 networks:
   winspire-network:
     driver: bridge

@@ -46,52 +46,52 @@
 
 ### Database & Migrations
 
-- [ ] T008 Create services/matchmaking/migrations/000001_create_brackets_table.sql (tournament_brackets table with no FK to tournaments)
-- [ ] T009 Create services/matchmaking/migrations/000002_create_rounds_table.sql (tournament_rounds table)
-- [ ] T010 Create services/matchmaking/migrations/000003_create_matches_table.sql (tournament_matches table with disconnect tracking)
-- [ ] T011 Configure goose migration tool in services/matchmaking/Makefile
-- [ ] T012 Create services/matchmaking/internal/store/schema.sql with all table definitions for SQLC reference
+- [X] T008 Create services/matchmaking/migrations/000001_create_brackets_table.sql (tournament_brackets table with no FK to tournaments)
+- [X] T009 Create services/matchmaking/migrations/000002_create_rounds_table.sql (tournament_rounds table)
+- [X] T010 Create services/matchmaking/migrations/000003_create_matches_table.sql (tournament_matches table with disconnect tracking)
+- [X] T011 Configure goose migration tool in services/matchmaking/Makefile
+- [X] T012 Create services/matchmaking/internal/store/schema.sql with all table definitions for SQLC reference
 
 ### SQLC Setup
 
-- [ ] T013 Create services/matchmaking/sqlc.yaml configuration file
-- [ ] T014 [P] Create services/matchmaking/internal/store/bracket_queries.sql (CreateBracket, GetBracketByTournamentID, GetBracketWithRoundsAndMatches)
-- [ ] T015 [P] Create services/matchmaking/internal/store/round_queries.sql (CreateRound, GetRoundsByBracketID, UpdateRoundStatus)
-- [ ] T016 [P] Create services/matchmaking/internal/store/match_queries.sql (CreateMatch, GetMatchByID, UpdateMatchStatus, UpdateMatchResult, UpdateMatchDisconnect)
-- [ ] T017 Generate SQLC code: run sqlc generate to create services/matchmaking/internal/store/*.go files
-- [ ] T018 Create services/matchmaking/internal/store/db.go with database connection pool using pgx/v5
+- [X] T013 Create services/matchmaking/sqlc.yaml configuration file
+- [X] T014 [P] Create services/matchmaking/internal/store/bracket_queries.sql (CreateBracket, GetBracketByTournamentID, GetBracketWithRoundsAndMatches)
+- [X] T015 [P] Create services/matchmaking/internal/store/round_queries.sql (CreateRound, GetRoundsByBracketID, UpdateRoundStatus)
+- [X] T016 [P] Create services/matchmaking/internal/store/match_queries.sql (CreateMatch, GetMatchByID, UpdateMatchStatus, UpdateMatchResult, UpdateMatchDisconnect)
+- [X] T017 Generate SQLC code: run sqlc generate to create services/matchmaking/internal/store/*.go files
+- [X] T018 Create services/matchmaking/internal/store/db.go with database connection pool using pgx/v5
 
 ### Domain Models & Events
 
-- [ ] T019 [P] Create services/matchmaking/internal/domain/bracket.go (Bracket aggregate with business logic)
-- [ ] T020 [P] Create services/matchmaking/internal/domain/round.go (Round entity with state transitions)
-- [ ] T021 [P] Create services/matchmaking/internal/domain/match.go (Match aggregate with states: pending, ready, started, paused, completed)
-- [ ] T022 [P] Create services/matchmaking/internal/domain/events.go (DomainEvent interface and event types: BracketGenerated, MatchCreated, MatchStarted, MatchCompleted)
+- [X] T019 [P] Create services/matchmaking/internal/domain/bracket.go (Bracket aggregate with business logic)
+- [X] T020 [P] Create services/matchmaking/internal/domain/round.go (Round entity with state transitions)
+- [X] T021 [P] Create services/matchmaking/internal/domain/match.go (Match aggregate with states: pending, ready, started, paused, completed)
+- [X] T022 [P] Create services/matchmaking/internal/domain/events.go (DomainEvent interface and event types: BracketGenerated, MatchCreated, MatchStarted, MatchCompleted)
 
 ### Redis Pub/Sub Infrastructure
 
-- [ ] T023 Create services/matchmaking/internal/pubsub/publisher.go (EventPublisher with Redis client, Publish method using channel-per-event pattern)
-- [ ] T024 Create services/matchmaking/internal/pubsub/subscriber.go (EventSubscriber with Redis Pub/Sub, Subscribe method, event routing)
-- [ ] T025 Create services/matchmaking/internal/pubsub/channels.go (Channel naming constants: events:matchmaking:*, events:tournament_management:*)
+- [X] T023 Create services/matchmaking/internal/pubsub/publisher.go (EventPublisher with Redis client, Publish method using channel-per-event pattern)
+- [X] T024 Create services/matchmaking/internal/pubsub/subscriber.go (EventSubscriber with Redis Pub/Sub, Subscribe method, event routing)
+- [X] T025 Create services/matchmaking/internal/pubsub/channels.go (Channel naming constants: events:matchmaking:*, events:tournament_management:*)
 
 ### WebSocket Infrastructure
 
-- [ ] T026 Create services/matchmaking/internal/websocket/hub.go (WebSocket hub for managing client connections per match)
-- [ ] T027 Create services/matchmaking/internal/websocket/client.go (WebSocket client with heartbeat monitoring, disconnect detection)
-- [ ] T028 Create services/matchmaking/internal/websocket/message.go (Message types for lobby, ready status, score submission)
+- [X] T026 Create services/matchmaking/internal/websocket/hub.go (WebSocket hub for managing client connections per match)
+- [X] T027 Create services/matchmaking/internal/websocket/client.go (WebSocket client with heartbeat monitoring, disconnect detection)
+- [X] T028 Create services/matchmaking/internal/websocket/message.go (Message types for lobby, ready status, score submission)
 
 ### HTTP Framework & Middleware
 
-- [ ] T029 Create services/matchmaking/cmd/matchmaking/main.go with Gin router setup, graceful shutdown
-- [ ] T030 [P] Create services/matchmaking/internal/http/middleware.go (Auth middleware using libs/go/auth, Logging middleware using libs/go/httpx)
-- [ ] T031 [P] Create services/matchmaking/internal/http/health_handler.go (GET /health endpoint for ECS health checks)
-- [ ] T032 Configure Gin router with middleware, CORS, and error handling in main.go
+- [X] T029 Create services/matchmaking/cmd/matchmaking/main.go with Gin router setup, graceful shutdown
+- [X] T030 [P] Create services/matchmaking/internal/http/middleware.go (Auth middleware using libs/go/auth, Logging middleware using libs/go/httpx)
+- [X] T031 [P] Create services/matchmaking/internal/http/health_handler.go (GET /health endpoint for ECS health checks)
+- [X] T032 Configure Gin router with middleware, CORS, and error handling in main.go
 
 ### Configuration & Observability
 
-- [ ] T033 Create services/matchmaking/internal/config/config.go (Environment variable loading: DATABASE_URL, REDIS_URL, JWT_SECRET, PORT)
-- [ ] T034 [P] Create services/matchmaking/internal/observability/metrics.go (CloudWatch metrics emitter for bracket generation time, match completion rates)
-- [ ] T035 [P] Create services/matchmaking/internal/observability/logger.go (Structured logging to CloudWatch Logs with context fields)
+- [X] T033 Create services/matchmaking/internal/config/config.go (Environment variable loading: DATABASE_URL, REDIS_URL, JWT_SECRET, PORT)
+- [X] T034 [P] Create services/matchmaking/internal/observability/metrics.go (CloudWatch metrics emitter for bracket generation time, match completion rates)
+- [X] T035 [P] Create services/matchmaking/internal/observability/logger.go (Structured logging to CloudWatch Logs with context fields)
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
