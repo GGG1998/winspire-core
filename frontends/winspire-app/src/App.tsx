@@ -19,6 +19,7 @@ const RegisterPage = lazy(() => import('./features/auth/pages/RegisterPage').the
 const ProfilePage = lazy(() => import('./features/auth/pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const LobbyPage = lazy(() => import('./features/lobby/pages/LobbyPage').then(m => ({ default: m.LobbyPage })));
 const MatchPage = lazy(() => import('./features/lobby/pages/MatchPage').then(m => ({ default: m.MatchPage })));
+const TournamentPreLobbyPage = lazy(() => import('./features/lobby/pages/TournamentPreLobbyPage').then(m => ({ default: m.TournamentPreLobbyPage })));
 // Tournament pages
 const TournamentPage = lazy(() => import('./features/host/pages/TournamentPage').then(m => ({ default: m.TournamentPage })));
 const TournamentDetailPage = lazy(() => import('./features/host/pages/TournamentDetailPage').then(m => ({ default: m.TournamentDetailPage })));
@@ -56,6 +57,16 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              {/* Tournament Pre-Lobby (waiting room before bracket generation) */}
+              <Route
+                path="/tournaments/:tournamentId/lobby"
+                element={
+                  <ProtectedRoute>
+                    <TournamentPreLobbyPage />
+                  </ProtectedRoute>
+                }
+              />
+              {/* Legacy lobby route */}
               <Route
                 path="/lobby/:tournamentId"
                 element={
@@ -64,6 +75,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              {/* Match Lobby (per-match room after bracket generation) */}
               <Route
                 path="/lobby/:tournamentId/match/:matchId"
                 element={

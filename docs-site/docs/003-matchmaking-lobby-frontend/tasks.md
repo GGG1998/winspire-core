@@ -38,14 +38,14 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 **Goal**: Initialize project structure and install dependencies
 
-- [ ] T001 Verify TypeScript 5.9+ and React 19 are installed in frontends/winspire-app/package.json
-- [ ] T002 Install required dependencies: @tanstack/react-query, zod in frontends/winspire-app/
-- [ ] T003 Create feature directory structure in frontends/winspire-app/src/features/lobby/
-- [ ] T004 Create api subdirectory in frontends/winspire-app/src/features/lobby/api/
-- [ ] T005 Create components subdirectory in frontends/winspire-app/src/features/lobby/components/
-- [ ] T006 Create hooks subdirectory in frontends/winspire-app/src/features/lobby/hooks/
-- [ ] T007 Create pages subdirectory in frontends/winspire-app/src/features/lobby/pages/
-- [ ] T008 Create shared hooks directory in frontends/winspire-app/src/shared/hooks/
+- [x] T001 Verify TypeScript 5.9+ and React 19 are installed in frontends/winspire-app/package.json
+- [x] T002 Install required dependencies: @tanstack/react-query, zod in frontends/winspire-app/ (NOTE: @tanstack/react-query pending manual install)
+- [x] T003 Create feature directory structure in frontends/winspire-app/src/features/lobby/
+- [x] T004 Create api subdirectory in frontends/winspire-app/src/features/lobby/api/
+- [x] T005 Create components subdirectory in frontends/winspire-app/src/features/lobby/components/
+- [x] T006 Create hooks subdirectory in frontends/winspire-app/src/features/lobby/hooks/
+- [x] T007 Create pages subdirectory in frontends/winspire-app/src/features/lobby/pages/
+- [x] T008 Create shared hooks directory in frontends/winspire-app/src/shared/hooks/
 
 ---
 
@@ -57,35 +57,35 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 ### Core Types
 
-- [ ] T009 [P] Define Match, Bracket, Round types in frontends/winspire-app/src/features/lobby/types.ts
-- [ ] T010 [P] Define TournamentPreLobbyState and PreLobbyParticipant types in frontends/winspire-app/src/features/lobby/types.ts
-- [ ] T011 [P] Define PlayerInfo and LobbyState types in frontends/winspire-app/src/features/lobby/types.ts
-- [ ] T012 [P] Define WebSocket message types (ClientMessageType, ServerMessageType) in frontends/winspire-app/src/features/lobby/types.ts
-- [ ] T013 [P] Define WebSocket payload types (LobbyStatePayload, MatchAssignedPayload, etc.) in frontends/winspire-app/src/features/lobby/types.ts
+- [x] T009 [P] Define Match, Bracket, Round types in frontends/winspire-app/src/features/lobby/types.ts
+- [x] T010 [P] Define TournamentPreLobbyState and PreLobbyParticipant types in frontends/winspire-app/src/features/lobby/types.ts
+- [x] T011 [P] Define PlayerInfo and LobbyState types in frontends/winspire-app/src/features/lobby/types.ts
+- [x] T012 [P] Define WebSocket message types (ClientMessageType, ServerMessageType) in frontends/winspire-app/src/features/lobby/types.ts
+- [x] T013 [P] Define WebSocket payload types (LobbyStatePayload, MatchAssignedPayload, etc.) in frontends/winspire-app/src/features/lobby/types.ts
 
 ### Validation Schemas
 
-- [ ] T014 [P] Create Zod schemas for Match validation in frontends/winspire-app/src/features/lobby/schemas.ts
-- [ ] T015 [P] Create Zod schemas for PreLobby validation in frontends/winspire-app/src/features/lobby/schemas.ts
-- [ ] T016 [P] Create Zod schemas for WebSocket messages in frontends/winspire-app/src/features/lobby/schemas.ts
+- [x] T014 [P] Create Zod schemas for Match validation in frontends/winspire-app/src/features/lobby/schemas.ts
+- [x] T015 [P] Create Zod schemas for PreLobby validation in frontends/winspire-app/src/features/lobby/schemas.ts
+- [x] T016 [P] Create Zod schemas for WebSocket messages in frontends/winspire-app/src/features/lobby/schemas.ts
 
 ### API Client
 
-- [ ] T017 Create base matchmaking API client with fetch wrapper in frontends/winspire-app/src/features/lobby/api/matchmakingApi.ts
-- [ ] T018 Add getPreLobbyState(tournamentId) endpoint in frontends/winspire-app/src/features/lobby/api/matchmakingApi.ts
-- [ ] T019 Add getMatch(matchId) endpoint in frontends/winspire-app/src/features/lobby/api/matchmakingApi.ts
-- [ ] T020 Add markReady(matchId, playerId) endpoint in frontends/winspire-app/src/features/lobby/api/matchmakingApi.ts
+- [x] T017 Create base matchmaking API client with fetch wrapper in frontends/winspire-app/src/features/lobby/api/matchmakingApi.ts
+- [x] T018 Add getPreLobbyState(tournamentId) endpoint in frontends/winspire-app/src/features/lobby/api/matchmakingApi.ts
+- [x] T019 Add getMatch(matchId) endpoint in frontends/winspire-app/src/features/lobby/api/matchmakingApi.ts
+- [x] T020 Add markReady(matchId, playerId) endpoint in frontends/winspire-app/src/features/lobby/api/matchmakingApi.ts
 
 ### WebSocket Infrastructure
 
-- [ ] T021 Implement useWebSocket hook with connection lifecycle in frontends/winspire-app/src/shared/hooks/useWebSocket.ts
-- [ ] T022 Add auto-reconnect with exponential backoff (1s, 2s, 4s, max 30s) in frontends/winspire-app/src/shared/hooks/useWebSocket.ts
-- [ ] T023 Add connection state tracking (connecting, connected, disconnected, reconnecting) in frontends/winspire-app/src/shared/hooks/useWebSocket.ts
-- [ ] T024 Add message queue for pending messages during reconnect in frontends/winspire-app/src/shared/hooks/useWebSocket.ts
+- [x] T021 Implement useWebSocket hook with connection lifecycle in frontends/winspire-app/src/shared/hooks/useWebSocket.ts
+- [x] T022 Add auto-reconnect with exponential backoff (1s, 2s, 4s, max 30s) in frontends/winspire-app/src/shared/hooks/useWebSocket.ts
+- [x] T023 Add connection state tracking (connecting, connected, disconnected, reconnecting) in frontends/winspire-app/src/shared/hooks/useWebSocket.ts
+- [x] T024 Add message queue for pending messages during reconnect in frontends/winspire-app/src/shared/hooks/useWebSocket.ts
 
 ### Constants
 
-- [ ] T025 [P] Define lobby constants (RECONNECT_TIMEOUT, GRACE_PERIOD_DURATION, etc.) in frontends/winspire-app/src/features/lobby/constants.ts
+- [x] T025 [P] Define lobby constants (RECONNECT_TIMEOUT, GRACE_PERIOD_DURATION, etc.) in frontends/winspire-app/src/features/lobby/constants.ts
 
 ---
 
@@ -99,27 +99,27 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 ### Components
 
-- [ ] T026 [P] [US0] Create TournamentPreLobbyPage with route `/tournaments/:tournamentId/lobby` in frontends/winspire-app/src/features/lobby/pages/TournamentPreLobbyPage.tsx
-- [ ] T027 [P] [US0] Create ParticipantList component showing avatars and display names in frontends/winspire-app/src/features/lobby/components/ParticipantList.tsx
-- [ ] T028 [P] [US0] Create ActivityFeed component for joins/leaves events in frontends/winspire-app/src/features/lobby/components/ActivityFeed.tsx
-- [ ] T029 [P] [US0] Create GracePeriodIndicator component with 30s countdown in frontends/winspire-app/src/features/lobby/components/GracePeriodIndicator.tsx
+- [x] T026 [P] [US0] Create TournamentPreLobbyPage with route `/tournaments/:tournamentId/lobby` in frontends/winspire-app/src/features/lobby/pages/TournamentPreLobbyPage.tsx
+- [x] T027 [P] [US0] Create ParticipantList component showing avatars and display names in frontends/winspire-app/src/features/lobby/components/ParticipantList.tsx
+- [x] T028 [P] [US0] Create ActivityFeed component for joins/leaves events in frontends/winspire-app/src/features/lobby/components/ActivityFeed.tsx
+- [x] T029 [P] [US0] Create GracePeriodIndicator component with 30s countdown in frontends/winspire-app/src/features/lobby/components/GracePeriodIndicator.tsx
 
 ### State Management
 
-- [ ] T030 [US0] Create useTournamentPreLobby hook with WebSocket connection in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
-- [ ] T031 [US0] Add prelobby_state message handler in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
-- [ ] T032 [US0] Add participant_joined message handler in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
-- [ ] T033 [US0] Add participant_left message handler in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
-- [ ] T034 [US0] Add grace_period_started message handler in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
-- [ ] T035 [US0] Add roster_updated message handler (participant count changes during grace period) in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
-- [ ] T036 [US0] Add match_assigned message handler with 2s delay + redirect logic in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
+- [x] T030 [US0] Create useTournamentPreLobby hook with WebSocket connection in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
+- [x] T031 [US0] Add prelobby_state message handler in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
+- [x] T032 [US0] Add participant_joined message handler in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
+- [x] T033 [US0] Add participant_left message handler in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
+- [x] T034 [US0] Add grace_period_started message handler in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
+- [x] T035 [US0] Add roster_updated message handler (participant count changes during grace period) in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
+- [x] T036 [US0] Add match_assigned message handler with 2s delay + redirect logic in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
 
 ### Integration
 
-- [ ] T037 [US0] Integrate TournamentPreLobbyPage with useTournamentPreLobby hook in frontends/winspire-app/src/features/lobby/pages/TournamentPreLobbyPage.tsx
-- [ ] T038 [US0] Add authentication check (verify user is registered participant) in frontends/winspire-app/src/features/lobby/pages/TournamentPreLobbyPage.tsx
-- [ ] T039 [US0] Add late arrival toast notification (after grace period) in frontends/winspire-app/src/features/lobby/pages/TournamentPreLobbyPage.tsx
-- [ ] T040 [US0] Add route registration for /tournaments/:tournamentId/lobby in frontends/winspire-app/src/App.tsx
+- [x] T037 [US0] Integrate TournamentPreLobbyPage with useTournamentPreLobby hook in frontends/winspire-app/src/features/lobby/pages/TournamentPreLobbyPage.tsx
+- [x] T038 [US0] Add authentication check (verify user is registered participant) in frontends/winspire-app/src/features/lobby/pages/TournamentPreLobbyPage.tsx
+- [x] T039 [US0] Add late arrival toast notification (after grace period) in frontends/winspire-app/src/features/lobby/pages/TournamentPreLobbyPage.tsx
+- [x] T040 [US0] Add route registration for /tournaments/:tournamentId/lobby in frontends/winspire-app/src/App.tsx
 
 ---
 
