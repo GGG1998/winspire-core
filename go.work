@@ -6,4 +6,5 @@ use (
 	./services/competition
 	./services/competition-host-stream
 	./services/game-management
+	./services/matchmaking
 )

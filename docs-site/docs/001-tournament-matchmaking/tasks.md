@@ -26,13 +26,13 @@
 
 **Purpose**: Create new matchmaking microservice structure
 
-- [ ] T001 Create services/matchmaking/ directory structure (cmd/, internal/, migrations/)
-- [ ] T002 Initialize Go module in services/matchmaking/go.mod with Go 1.25.4
-- [ ] T003 [P] Add matchmaking service to root go.work file
-- [ ] T004 [P] Create services/matchmaking/Makefile with build, test, and sqlc generate targets
-- [ ] T005 [P] Create services/matchmaking/Dockerfile for containerized deployment
-- [ ] T006 [P] Create services/matchmaking/.env.example with required environment variables
-- [ ] T007 [P] Setup services/matchmaking/.gitignore for Go artifacts
+- [X] T001 Create services/matchmaking/ directory structure (cmd/, internal/, migrations/)
+- [X] T002 Initialize Go module in services/matchmaking/go.mod with Go 1.25.4
+- [X] T003 [P] Add matchmaking service to root go.work file
+- [X] T004 [P] Create services/matchmaking/Makefile with build, test, and sqlc generate targets
+- [X] T005 [P] Create services/matchmaking/Dockerfile for containerized deployment
+- [X] T006 [P] Create services/matchmaking/.env.example with required environment variables
+- [X] T007 [P] Setup services/matchmaking/.gitignore for Go artifacts
 
 **Checkpoint**: Service skeleton ready
 
