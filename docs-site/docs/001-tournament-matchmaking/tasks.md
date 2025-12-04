@@ -105,20 +105,20 @@
 
 ### Implementation for User Story 1
 
-- [ ] T036 [P] [US1] Create services/matchmaking/internal/repository/bracket_repo.go (BracketRepository interface and implementation using SQLC queries)
-- [ ] T037 [P] [US1] Create services/matchmaking/internal/repository/round_repo.go (RoundRepository interface and implementation)
-- [ ] T038 [P] [US1] Create services/matchmaking/internal/repository/match_repo.go (MatchRepository interface and implementation)
-- [ ] T039 [US1] Create services/matchmaking/internal/application/bracket_service.go (BracketService with GenerateBracket method)
-- [ ] T040 [US1] Implement bracket generation algorithm in bracket_service.go (binary tree algorithm from research.md: calculate rounds, assign byes, create match tree)
-- [ ] T041 [US1] Implement bye assignment logic (random selection, equal probability for all participants)
-- [ ] T042 [US1] Implement match numbering and progression tracking (next_match_id linking)
-- [ ] T043 [US1] Create services/matchmaking/internal/application/event_handler.go (HandleTournamentStarted event handler, subscribes to events:tournament_management:tournament_started)
-- [ ] T044 [US1] Integrate event_handler.go with bracket_service.go (call GenerateBracket when TournamentStarted received)
-- [ ] T045 [US1] Implement transaction wrapper for bracket generation (atomic create of bracket + rounds + matches)
-- [ ] T046 [US1] Publish BracketGenerated event after successful generation via events:matchmaking:bracket_generated
-- [ ] T047 [US1] Add error handling and rollback for bracket generation failures
-- [ ] T048 [US1] Add CloudWatch metric emission for bracket generation duration (SC-001: <2s target)
-- [ ] T049 [US1] Start event subscriber in main.go (subscribe to TournamentStarted on service startup)
+- [X] T036 [P] [US1] Create services/matchmaking/internal/repository/bracket_repo.go (BracketRepository interface and implementation using SQLC queries)
+- [X] T037 [P] [US1] Create services/matchmaking/internal/repository/round_repo.go (RoundRepository interface and implementation)
+- [X] T038 [P] [US1] Create services/matchmaking/internal/repository/match_repo.go (MatchRepository interface and implementation)
+- [X] T039 [US1] Create services/matchmaking/internal/application/bracket_service.go (BracketService with GenerateBracket method)
+- [X] T040 [US1] Implement bracket generation algorithm in bracket_service.go (binary tree algorithm from research.md: calculate rounds, assign byes, create match tree)
+- [X] T041 [US1] Implement bye assignment logic (random selection, equal probability for all participants)
+- [X] T042 [US1] Implement match numbering and progression tracking (next_match_id linking)
+- [X] T043 [US1] Create services/matchmaking/internal/application/event_handler.go (HandleTournamentStarted event handler, subscribes to events:tournament_management:tournament_started)
+- [X] T044 [US1] Integrate event_handler.go with bracket_service.go (call GenerateBracket when TournamentStarted received)
+- [X] T045 [US1] Implement transaction wrapper for bracket generation (atomic create of bracket + rounds + matches)
+- [X] T046 [US1] Publish BracketGenerated event after successful generation via events:matchmaking:bracket_generated
+- [X] T047 [US1] Add error handling and rollback for bracket generation failures
+- [X] T048 [US1] Add CloudWatch metric emission for bracket generation duration (SC-001: <2s target)
+- [X] T049 [US1] Start event subscriber in main.go (subscribe to TournamentStarted on service startup)
 
 **Checkpoint**: At this point, User Story 1 should be fully functional - tournament start triggers bracket generation
 

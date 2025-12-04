@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	pgtypeconv "github.com/winspire/winspire-core/libs/go/pgtype"
 
 	"github.com/winspire/competition/internal/store/sqlc"
 )
@@ -63,12 +64,12 @@ type CreateRegistrationParams struct {
 // Create creates a new registration.
 func (r *RegistrationRepository) Create(ctx context.Context, params CreateRegistrationParams) (*Registration, error) {
 	sqlcParams := sqlc.CreateTournamentRegistrationParams{
-		TournamentID: uuidToPgtype(params.TournamentID),
-		UserID:       uuidToPgtype(params.UserID),
-		TeamID:       uuidToPgtypeUUID(params.TeamID),
+		TournamentID: pgtypeconv.UUIDToPgtype(params.TournamentID),
+		UserID:       pgtypeconv.UUIDToPgtype(params.UserID),
+		TeamID:       pgtypeconv.UUIDPtrToPgtype(params.TeamID),
 		Status:       "pending",
 		DisplayName:  params.DisplayName,
-		AvatarUrl:    stringToPgtypeText(params.AvatarURL),
+		AvatarUrl:    pgtypeconv.StringPtrToPgtype(params.AvatarURL),
 	}
 
 	sqlcReg, err := r.queries.CreateTournamentRegistration(ctx, sqlcParams)
@@ -82,8 +83,8 @@ func (r *RegistrationRepository) Create(ctx context.Context, params CreateRegist
 // GetByTournamentAndUser retrieves a registration by tournament and user ID.
 func (r *RegistrationRepository) GetByTournamentAndUser(ctx context.Context, tournamentID, userID uuid.UUID) (*Registration, error) {
 	params := sqlc.GetTournamentRegistrationParams{
-		TournamentID: uuidToPgtype(tournamentID),
-		UserID:       uuidToPgtype(userID),
+		TournamentID: pgtypeconv.UUIDToPgtype(tournamentID),
+		UserID:       pgtypeconv.UUIDToPgtype(userID),
 	}
 
 	sqlcReg, err := r.queries.GetTournamentRegistration(ctx, params)
@@ -100,7 +101,7 @@ func (r *RegistrationRepository) GetByTournamentAndUser(ctx context.Context, tou
 // ListByTournament retrieves paginated registrations for a tournament.
 func (r *RegistrationRepository) ListByTournament(ctx context.Context, tournamentID uuid.UUID, limit, offset int32) ([]Registration, error) {
 	params := sqlc.ListTournamentRegistrationsParams{
-		TournamentID: uuidToPgtype(tournamentID),
+		TournamentID: pgtypeconv.UUIDToPgtype(tournamentID),
 		Limit:        limit,
 		Offset:       offset,
 	}
@@ -120,7 +121,7 @@ func (r *RegistrationRepository) ListByTournament(ctx context.Context, tournamen
 
 // CountByTournament counts total registrations for a tournament.
 func (r *RegistrationRepository) CountByTournament(ctx context.Context, tournamentID uuid.UUID) (int64, error) {
-	count, err := r.queries.CountTournamentRegistrations(ctx, uuidToPgtype(tournamentID))
+	count, err := r.queries.CountTournamentRegistrations(ctx, pgtypeconv.UUIDToPgtype(tournamentID))
 	if err != nil {
 		return 0, fmt.Errorf("count registrations: %w", err)
 	}
@@ -129,7 +130,7 @@ func (r *RegistrationRepository) CountByTournament(ctx context.Context, tourname
 
 // CountReadyByTournament counts ready participants for a tournament.
 func (r *RegistrationRepository) CountReadyByTournament(ctx context.Context, tournamentID uuid.UUID) (int64, error) {
-	count, err := r.queries.CountReadyParticipants(ctx, uuidToPgtype(tournamentID))
+	count, err := r.queries.CountReadyParticipants(ctx, pgtypeconv.UUIDToPgtype(tournamentID))
 	if err != nil {
 		return 0, fmt.Errorf("count ready participants: %w", err)
 	}
@@ -139,8 +140,8 @@ func (r *RegistrationRepository) CountReadyByTournament(ctx context.Context, tou
 // CheckIn marks a participant as checked in.
 func (r *RegistrationRepository) CheckIn(ctx context.Context, tournamentID, userID uuid.UUID) error {
 	params := sqlc.CheckInParticipantParams{
-		TournamentID: uuidToPgtype(tournamentID),
-		UserID:       uuidToPgtype(userID),
+		TournamentID: pgtypeconv.UUIDToPgtype(tournamentID),
+		UserID:       pgtypeconv.UUIDToPgtype(userID),
 	}
 
 	if err := r.queries.CheckInParticipant(ctx, params); err != nil {
@@ -152,8 +153,8 @@ func (r *RegistrationRepository) CheckIn(ctx context.Context, tournamentID, user
 // Withdraw withdraws a registration.
 func (r *RegistrationRepository) Withdraw(ctx context.Context, tournamentID, userID uuid.UUID) error {
 	params := sqlc.WithdrawRegistrationParams{
-		TournamentID: uuidToPgtype(tournamentID),
-		UserID:       uuidToPgtype(userID),
+		TournamentID: pgtypeconv.UUIDToPgtype(tournamentID),
+		UserID:       pgtypeconv.UUIDToPgtype(userID),
 	}
 
 	if err := r.queries.WithdrawRegistration(ctx, params); err != nil {
@@ -165,9 +166,9 @@ func (r *RegistrationRepository) Withdraw(ctx context.Context, tournamentID, use
 // SetReady sets the ready status for a participant.
 func (r *RegistrationRepository) SetReady(ctx context.Context, tournamentID, userID uuid.UUID, isReady bool) error {
 	params := sqlc.UpdateRegistrationReadyParams{
-		TournamentID: uuidToPgtype(tournamentID),
-		UserID:       uuidToPgtype(userID),
-		IsReady:      boolToPgtypeBool(&isReady),
+		TournamentID: pgtypeconv.UUIDToPgtype(tournamentID),
+		UserID:       pgtypeconv.UUIDToPgtype(userID),
+		IsReady:      pgtypeconv.BoolPtrToPgtype(&isReady),
 	}
 
 	if err := r.queries.UpdateRegistrationReady(ctx, params); err != nil {
@@ -179,8 +180,8 @@ func (r *RegistrationRepository) SetReady(ctx context.Context, tournamentID, use
 // UpdateStatus updates the registration status for a participant.
 func (r *RegistrationRepository) UpdateStatus(ctx context.Context, tournamentID, userID uuid.UUID, status string) error {
 	params := sqlc.UpdateRegistrationStatusParams{
-		TournamentID: uuidToPgtype(tournamentID),
-		UserID:       uuidToPgtype(userID),
+		TournamentID: pgtypeconv.UUIDToPgtype(tournamentID),
+		UserID:       pgtypeconv.UUIDToPgtype(userID),
 		Status:       status,
 	}
 
@@ -193,7 +194,7 @@ func (r *RegistrationRepository) UpdateStatus(ctx context.Context, tournamentID,
 // CountByTournamentAndStatus counts registrations for a tournament by status.
 func (r *RegistrationRepository) CountByTournamentAndStatus(ctx context.Context, tournamentID uuid.UUID, status string) (int64, error) {
 	params := sqlc.CountTournamentRegistrationsByStatusParams{
-		TournamentID: uuidToPgtype(tournamentID),
+		TournamentID: pgtypeconv.UUIDToPgtype(tournamentID),
 		Status:       status,
 	}
 
@@ -207,8 +208,8 @@ func (r *RegistrationRepository) CountByTournamentAndStatus(ctx context.Context,
 // Delete removes a registration.
 func (r *RegistrationRepository) Delete(ctx context.Context, tournamentID, userID uuid.UUID) error {
 	params := sqlc.DeleteRegistrationParams{
-		TournamentID: uuidToPgtype(tournamentID),
-		UserID:       uuidToPgtype(userID),
+		TournamentID: pgtypeconv.UUIDToPgtype(tournamentID),
+		UserID:       pgtypeconv.UUIDToPgtype(userID),
 	}
 
 	if err := r.queries.DeleteRegistration(ctx, params); err != nil {
@@ -223,14 +224,14 @@ func (r *RegistrationRepository) Delete(ctx context.Context, tournamentID, userI
 
 func sqlcRegistrationToRegistration(r sqlc.TournamentRegistration) *Registration {
 	return &Registration{
-		ID:           pgtypeToUUID(r.ID),
-		TournamentID: pgtypeToUUID(r.TournamentID),
-		UserID:       pgtypeToUUID(r.UserID),
-		TeamID:       pgtypeUUIDToUUIDPtr(r.TeamID),
+		ID:           pgtypeconv.PgtypeToUUID(r.ID),
+		TournamentID: pgtypeconv.PgtypeToUUID(r.TournamentID),
+		UserID:       pgtypeconv.PgtypeToUUID(r.UserID),
+		TeamID:       pgtypeconv.PgtypeToUUIDPtr(r.TeamID),
 		Status:       r.Status,
 		DisplayName:  r.DisplayName,
-		AvatarURL:    pgtypeTextToString(r.AvatarUrl),
-		CheckedInAt:  pgtypeTimestampToTime(r.CheckedInAt),
+		AvatarURL:    pgtypeconv.PgtypeToStringPtr(r.AvatarUrl),
+		CheckedInAt:  pgtypeconv.PgtypeTimestamptzToTimePtr(r.CheckedInAt),
 		IsReady:      r.IsReady.Bool,
 		RegisteredAt: r.RegisteredAt.Time,
 		UpdatedAt:    r.UpdatedAt.Time,

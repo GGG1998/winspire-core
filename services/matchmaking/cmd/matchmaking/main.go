@@ -15,10 +15,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/winspire-core/services/matchmaking/internal/application"
 	"github.com/winspire-core/services/matchmaking/internal/config"
 	httphandlers "github.com/winspire-core/services/matchmaking/internal/http"
 	"github.com/winspire-core/services/matchmaking/internal/observability"
 	"github.com/winspire-core/services/matchmaking/internal/pubsub"
+	"github.com/winspire-core/services/matchmaking/internal/repository"
 	"github.com/winspire-core/services/matchmaking/internal/store/sqlc"
 	"github.com/winspire-core/services/matchmaking/internal/websocket"
 	authmiddleware "github.com/winspire/winspire-core/libs/go/auth/middleware"
@@ -102,6 +104,24 @@ func main() {
 	hub := websocket.NewHub(nil) // Disconnect callback will be set by match service
 	go hub.Run()
 
+	// Initialize repositories
+	bracketRepo := repository.NewBracketRepository(queries, pool, pool) // queries, db (DBTX), pool
+	roundRepo := repository.NewRoundRepository(queries)
+	matchRepo := repository.NewMatchRepository(queries)
+
+	// Initialize bracket service
+	bracketService := application.NewBracketService(
+		bracketRepo,
+		roundRepo,
+		matchRepo,
+		publisher,
+		metrics,
+		logger,
+	)
+
+	// Initialize event handler
+	eventHandler := application.NewEventHandler(bracketService, logger)
+
 	// Initialize HTTP router
 	router := gin.New()
 
@@ -166,8 +186,9 @@ func main() {
 
 	// Start event subscriber in goroutine
 	subscriber := pubsub.NewEventSubscriber(redisClient)
-	// TODO: Register event handlers
-	// subscriber.Subscribe("TournamentStarted", handleTournamentStarted)
+
+	// Register event handlers
+	eventHandler.RegisterHandlers(subscriber)
 
 	go func() {
 		channels := pubsub.GetSubscriptionChannels()
@@ -197,10 +218,7 @@ func main() {
 	logger.Info("Server stopped", nil)
 
 	// Track unused variables to avoid compile errors
-	_ = queries
-	_ = publisher
 	_ = hub
-	_ = metrics
 }
 
 // DatabaseHealthChecker implements HealthChecker for database
