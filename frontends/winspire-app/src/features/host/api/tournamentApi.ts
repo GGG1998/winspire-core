@@ -15,7 +15,11 @@ import type {
   TournamentApiData,
   CreateTournamentResponse,
   EditTournamentResponse,
-  TournamentParticipant
+  TournamentParticipant,
+  Bracket,
+  Match,
+  MatchWithPlayers,
+  MatchPlayer
 } from '../types'
 
 /**
@@ -371,6 +375,102 @@ export const tournamentApi = {
       }))
     } catch (error) {
       console.error('Failed to fetch participants:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Get tournament bracket with all rounds and matches
+   */
+  async getBracket(tournamentId: string): Promise<Bracket> {
+    try {
+      const hostId = await getCurrentHostId()
+      const response = await apiClient.get<{ bracket: Bracket }>(
+        `/matchmaking/v1/tournaments/${tournamentId}/bracket`
+      )
+
+      if (response.error) {
+        throw new Error(response.error.message)
+      }
+
+      if (!response.data?.bracket) {
+        throw new Error('Bracket not found')
+      }
+
+      return response.data.bracket
+    } catch (error) {
+      console.error('Failed to fetch bracket:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Get all matches for a tournament (grouped by round)
+   * Returns matches with player details
+   */
+  async getMatches(tournamentId: string): Promise<MatchWithPlayers[]> {
+    try {
+      const hostId = await getCurrentHostId()
+      const response = await apiClient.get<{
+        matches: Array<{
+          match: Match
+          participant1: MatchPlayer | null
+          participant2: MatchPlayer | null
+          roundNumber: number
+          roundName: string
+        }>
+      }>(`/matchmaking/v1/tournaments/${tournamentId}/matches`)
+
+      if (response.error) {
+        throw new Error(response.error.message)
+      }
+
+      if (!response.data?.matches) {
+        return []
+      }
+
+      // Transform to MatchWithPlayers format
+      return response.data.matches.map(item => ({
+        ...item.match,
+        player1: item.participant1,
+        player2: item.participant2,
+      }))
+    } catch (error) {
+      console.error('Failed to fetch matches:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Submit manual result for a match (host only)
+   * Used when game API fails or is unavailable
+   */
+  async submitManualResult(
+    matchId: string, 
+    winnerId: string, 
+    scorePlayer1: number | null = null, 
+    scorePlayer2: number | null = null
+  ): Promise<void> {
+    try {
+      const hostId = await getCurrentHostId()
+      const response = await apiClient.post<{ success: boolean }>(
+        `/matchmaking/v1/matches/${matchId}/manual-result`,
+        {
+          winnerId,
+          scorePlayer1,
+          scorePlayer2,
+        }
+      )
+
+      if (response.error) {
+        throw new Error(response.error.message)
+      }
+
+      if (!response.data?.success) {
+        throw new Error('Failed to submit manual result')
+      }
+    } catch (error) {
+      console.error('Failed to submit manual result:', error)
       throw error
     }
   }

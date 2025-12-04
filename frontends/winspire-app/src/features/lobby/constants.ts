@@ -128,6 +128,17 @@ export const API_ENDPOINTS = {
 } as const;
 
 // ============================================================================
+// Game Iframe Configuration
+// ============================================================================
+
+export const GAME_IFRAME_CONFIG = {
+  LOAD_TIMEOUT_MS: 30000, // 30 seconds
+  ASPECT_RATIO: '16:9',
+  ALLOW_PERMISSIONS: 'fullscreen; gamepad; microphone',
+  SANDBOX_FLAGS: 'allow-scripts allow-same-origin allow-forms allow-popups',
+} as const;
+
+// ============================================================================
 // Local Storage Keys
 // ============================================================================
 

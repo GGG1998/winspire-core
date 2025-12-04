@@ -6,6 +6,7 @@ import { ErrorMessage } from '../../../shared/components/common/ErrorMessage';
 import { ParticipantList } from '../components/ParticipantList';
 import { ActivityFeed } from '../components/ActivityFeed';
 import { GracePeriodIndicator } from '../components/GracePeriodIndicator';
+import { ByeWaitingState } from '../components/ByeWaitingState';
 import { useTournamentPreLobby } from '../hooks/useTournamentPreLobby';
 import { ERROR_MESSAGES } from '../constants';
 import { LobbyLayout } from '../layouts';
@@ -34,6 +35,8 @@ export function TournamentPreLobbyPage() {
     connectionStatus,
     isGracePeriodActive,
     isParticipantCountUpdating,
+    hasBye,
+    byeInfo,
   } = useTournamentPreLobby(tournamentId || null);
 
   const [matchAssignmentNotification] = useState<{
@@ -105,6 +108,21 @@ export function TournamentPreLobbyPage() {
             </button>
           </div>
         </div>
+      </LobbyLayout>
+    );
+  }
+
+  // Show ByeWaitingState if player has BYE
+  if (hasBye && byeInfo) {
+    return (
+      <LobbyLayout tournamentId={preLobbyState.tournamentId} streamerId={preLobbyState.creatorId}>
+        <ByeWaitingState
+          playerName={user?.profile.nickname || `${user?.profile.first_name} ${user?.profile.last_name}` || 'Gracz'}
+          playerAvatarUrl={user?.profile.nickname ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.profile.nickname}` : null}
+          nextMatchSlot={byeInfo.nextMatchSlot}
+          roundName={byeInfo.roundName}
+          onRefresh={() => window.location.reload()}
+        />
       </LobbyLayout>
     );
   }

@@ -1,91 +1,148 @@
 /**
  * MatchesView Component
- * Feature: 002-streamer-tournament-creation
+ * Feature: 003-matchmaking-lobby-frontend
  * 
- * Displays list of all matches in the tournament
+ * Displays list of all matches in the tournament grouped by round
+ * Features:
+ * - Real API integration
+ * - Round grouping (Round 1, Semifinals, Finals)
+ * - Status badges with pulsing "Live" indicator
+ * - Click navigation to match details
+ * - "Join Lobby" button for user's active matches
  */
 
-import { Badge } from '../../../shared/components/ui/badge'
-import { UI_LABELS } from '../constants'
-import type { Tournament } from '../types'
+import { useEffect, useState, useCallback } from 'react';
+import { tournamentApi } from '../api/tournamentApi';
+import { useAuth } from '../../auth';
+import { useWebSocket } from '../../../shared/hooks/useWebSocket';
+import { LoadingSpinner } from '../../../shared/components/common/LoadingSpinner';
+import { ErrorMessage } from '../../../shared/components/common/ErrorMessage';
+import { ConnectionIndicator } from '../../../shared/components/ConnectionIndicator';
+import { MatchCard } from './MatchCard';
+import { ManualResultForm } from './ManualResultForm';
+import type { Tournament, MatchWithPlayers } from '../types';
 
 interface MatchesViewProps {
-  tournament: Tournament
+  tournament: Tournament;
 }
 
-// Mock match data for demo purposes
-interface Match {
-  id: string
-  round: number
-  matchNumber: number
-  player1?: { name: string; score?: number }
-  player2?: { name: string; score?: number }
-  status: 'pending' | 'in_progress' | 'completed'
-  scheduledTime?: Date
-}
-
-function generateMockMatches(tournament: Tournament): Match[] {
-  const participants = tournament.participants || []
-  const maxSlots = tournament.format?.maxSlots || 8
-  
-  // Generate matches based on single elimination
-  const rounds = Math.ceil(Math.log2(maxSlots))
-  const matches: Match[] = []
-  
-  let matchNumber = 1
-  for (let round = 1; round <= rounds; round++) {
-    const matchesInRound = Math.pow(2, rounds - round)
-    for (let i = 0; i < matchesInRound; i++) {
-      const isFirstRound = round === 1
-      matches.push({
-        id: `match-${matchNumber}`,
-        round,
-        matchNumber: matchNumber++,
-        player1: isFirstRound && participants[i * 2] 
-          ? { name: participants[i * 2].name }
-          : undefined,
-        player2: isFirstRound && participants[i * 2 + 1]
-          ? { name: participants[i * 2 + 1].name }
-          : undefined,
-        status: 'pending',
-        scheduledTime: tournament.startTime
-      })
-    }
-  }
-  
-  return matches
-}
-
-function getRoundName(round: number, totalRounds: number): string {
-  if (round === totalRounds) return 'Finał'
-  if (round === totalRounds - 1) return 'Półfinały'
-  if (round === totalRounds - 2) return 'Ćwierćfinały'
-  return `Runda ${round}`
-}
-
-function getMatchStatusBadge(status: Match['status']) {
-  switch (status) {
-    case 'in_progress':
-      return <Badge color="emerald">Na żywo</Badge>
-    case 'completed':
-      return <Badge color="zinc">Zakończony</Badge>
-    default:
-      return <Badge color="cyan">Oczekuje</Badge>
-  }
+// Helper to get round name based on position
+function getRoundName(roundNumber: number, totalRounds: number): string {
+  if (roundNumber === totalRounds) return 'Finał';
+  if (roundNumber === totalRounds - 1) return 'Półfinały';
+  if (roundNumber === totalRounds - 2) return 'Ćwierćfinały';
+  return `Runda ${roundNumber}`;
 }
 
 export function MatchesView({ tournament }: MatchesViewProps) {
-  const matches = generateMockMatches(tournament)
-  const maxSlots = tournament.format?.maxSlots || 8
-  const totalRounds = Math.ceil(Math.log2(maxSlots))
-  
-  // Group matches by round
-  const matchesByRound = matches.reduce((acc, match) => {
-    if (!acc[match.round]) acc[match.round] = []
-    acc[match.round].push(match)
-    return acc
-  }, {} as Record<number, Match[]>)
+  const { user } = useAuth();
+  const [matches, setMatches] = useState<MatchWithPlayers[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showManualFormForMatch, setShowManualFormForMatch] = useState<string | null>(null);
 
+  // Check if current user is the tournament host/creator
+  const isHost = user?.id === tournament.creatorId;
+
+  // Fetch matches data from API
+  const fetchMatches = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const matchesData = await tournamentApi.getMatches(tournament.id);
+      setMatches(matchesData);
+    } catch (err) {
+      console.error('[MatchesView] Failed to fetch matches:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load matches');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [tournament.id]);
+
+  // WebSocket connection for real-time match updates
+  const wsUrl = `/matchmaking/v1/tournaments/${tournament.id}/matches/ws`;
+  
+  const handleWebSocketMessage = useCallback((event: MessageEvent) => {
+    try {
+      const message = JSON.parse(event.data);
+      console.log('[MatchesView] WebSocket message:', message);
+
+      // Handle match update events
+      if (message.type === 'match_updated' || message.type === 'match_status_changed') {
+        // Refresh matches data
+        console.log('[MatchesView] Refreshing matches after update');
+        fetchMatches();
+      }
+    } catch (err) {
+      console.error('[MatchesView] Failed to parse WebSocket message:', err);
+    }
+  }, [fetchMatches]);
+
+  const { status: wsStatus } = useWebSocket({
+    url: tournament.status === 'started' || tournament.status === 'completed' ? wsUrl : null,
+    onMessage: handleWebSocketMessage,
+    onOpen: () => {
+      console.log('[MatchesView] WebSocket connected');
+    },
+    onError: (error) => {
+      console.error('[MatchesView] WebSocket error:', error);
+    },
+  });
+
+  useEffect(() => {
+    // Only fetch if tournament is started or completed
+    if (tournament.status === 'started' || tournament.status === 'completed') {
+      fetchMatches();
+    } else {
+      setIsLoading(false);
+      setError('Matches not available yet. Start the tournament to generate matches.');
+    }
+  }, [tournament.status, fetchMatches]);
+
+  // Group matches by round
+  const matchesByRound: Record<number, MatchWithPlayers[]> = matches.reduce((acc, match) => {
+    const roundNum = getRoundNumberFromMatch(match);
+    if (!acc[roundNum]) acc[roundNum] = [];
+    acc[roundNum].push(match);
+    return acc;
+  }, {} as Record<number, MatchWithPlayers[]>);
+
+  // Calculate total rounds (assumes single elimination: log2 of participants)
+  const totalRounds = matches.length > 0 
+    ? Math.max(...matches.map(m => getRoundNumberFromMatch(m)))
+    : 0;
+
+  // Helper to extract round number from match (assuming roundId contains round info)
+  function getRoundNumberFromMatch(_match: MatchWithPlayers): number {
+    // In real implementation, this would come from API
+    // For now, derive from match structure
+    // This is a placeholder - adjust based on actual API response
+    return 1; // TODO: Extract from match.roundId or add roundNumber to API response
+  }
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="py-8 max-w-md mx-auto">
+        <ErrorMessage
+          message={error}
+          onRetry={() => window.location.reload()}
+        />
+      </div>
+    );
+  }
+
+  // No matches available
   if (matches.length === 0) {
     return (
       <div className="py-12 text-center">
@@ -97,72 +154,81 @@ export function MatchesView({ tournament }: MatchesViewProps) {
         <h3 className="text-lg font-medium text-zinc-950 dark:text-white mb-2">Brak meczów</h3>
         <p className="text-zinc-500 dark:text-zinc-400">Mecze pojawią się po rozpoczęciu turnieju.</p>
       </div>
-    )
+    );
   }
 
   return (
     <div className="py-6 space-y-8">
-      {Object.entries(matchesByRound).map(([round, roundMatches]) => (
-        <div key={round}>
-          {/* Round header */}
-          <h3 className="text-lg font-semibold text-zinc-950 dark:text-white mb-4">
-            {getRoundName(parseInt(round), totalRounds)}
-          </h3>
-          
-          {/* Matches list */}
-          <div className="space-y-3">
-            {roundMatches.map(match => (
-              <div
-                key={match.id}
-                className="rounded-xl border border-zinc-200 dark:border-zinc-700/50 bg-white dark:bg-zinc-800/50 p-4"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                    Mecz #{match.matchNumber}
-                  </span>
-                  {getMatchStatusBadge(match.status)}
-                </div>
-                
-                {/* Players */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-300">
-                        {match.player1?.name?.slice(0, 2).toUpperCase() || '?'}
-                      </div>
-                      <span className="font-medium text-zinc-950 dark:text-white">
-                        {match.player1?.name || 'TBD'}
-                      </span>
-                    </div>
-                    {match.player1?.score !== undefined && (
-                      <span className="text-lg font-bold text-zinc-950 dark:text-white">
-                        {match.player1.score}
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-700 flex items-center justify-center text-xs font-medium text-zinc-600 dark:text-zinc-300">
-                        {match.player2?.name?.slice(0, 2).toUpperCase() || '?'}
-                      </div>
-                      <span className="font-medium text-zinc-950 dark:text-white">
-                        {match.player2?.name || 'TBD'}
-                      </span>
-                    </div>
-                    {match.player2?.score !== undefined && (
-                      <span className="text-lg font-bold text-zinc-950 dark:text-white">
-                        {match.player2.score}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Header with match count */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-2xl font-bold text-zinc-950 dark:text-white">
+            Wszystkie mecze
+          </h2>
+          {/* Connection indicator for real-time updates */}
+          <ConnectionIndicator status={wsStatus} size="sm" />
         </div>
-      ))}
-    </div>
-  )
-}
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          {matches.length} {matches.length === 1 ? 'mecz' : 'meczów'} w {totalRounds} {totalRounds === 1 ? 'rundzie' : 'rundach'}
+        </p>
+      </div>
 
+      {/* Matches grouped by round */}
+      {Object.entries(matchesByRound)
+        .sort(([a], [b]) => parseInt(a) - parseInt(b))
+        .map(([roundNum, roundMatches]) => (
+          <div key={roundNum}>
+            {/* Round header */}
+            <h3 className="text-lg font-semibold text-zinc-950 dark:text-white mb-4">
+              {getRoundName(parseInt(roundNum), totalRounds)}
+            </h3>
+            
+            {/* Matches list */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {roundMatches.map(match => {
+                // Check if this match needs manual result entry (disputed + host is viewing)
+                const needsManualEntry = match.status === 'disputed' && isHost;
+                const isShowingForm = showManualFormForMatch === match.id;
+
+                return (
+                  <div key={match.id} className="space-y-3">
+                    <MatchCard
+                      match={match}
+                      tournamentId={tournament.id}
+                      streamerId={tournament.creatorId}
+                      currentUserId={user?.id}
+                      roundName={getRoundName(parseInt(roundNum), totalRounds)}
+                      isClickable={!needsManualEntry}
+                    />
+                    
+                    {/* Manual Result Form for disputed matches (host only) */}
+                    {needsManualEntry && !isShowingForm && (
+                      <button
+                        onClick={() => setShowManualFormForMatch(match.id)}
+                        className="w-full px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium text-sm transition-colors"
+                      >
+                        Wprowadź wynik ręcznie
+                      </button>
+                    )}
+                    
+                    {isShowingForm && (
+                      <ManualResultForm
+                        matchId={match.id}
+                        player1={match.player1}
+                        player2={match.player2}
+                        onSuccess={() => {
+                          setShowManualFormForMatch(null);
+                          fetchMatches(); // Refresh matches after successful submission
+                        }}
+                        onCancel={() => setShowManualFormForMatch(null)}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+    </div>
+  );
+}

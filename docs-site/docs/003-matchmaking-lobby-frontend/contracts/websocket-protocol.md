@@ -13,7 +13,7 @@ This protocol covers two WebSocket endpoints:
 
 ### Endpoint
 ```
-wss://api.winspire.app/api/matchmaking/v1/tournaments/{tournamentId}/lobby
+wss://api.winspire.com/api/matchmaking/v1/tournaments/{tournamentId}/lobby
 ```
 
 ### Authentication

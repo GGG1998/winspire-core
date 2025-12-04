@@ -3,8 +3,17 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth';
 import { LoadingSpinner } from '../../../shared/components/common/LoadingSpinner';
 import { ErrorMessage } from '../../../shared/components/common/ErrorMessage';
+import { ConnectionIndicator } from '../../../shared/components/ConnectionIndicator';
 import { PlayerVsDisplay } from '../components/PlayerVsDisplay';
+import { ReadyButton } from '../components/ReadyButton';
+import { MatchStartCountdown } from '../components/MatchStartCountdown';
+import { GameFrame } from '../components/GameFrame';
+import { MatchResult } from '../components/MatchResult';
+import { DisconnectOverlay } from '../components/DisconnectOverlay';
+import { WalkoverButton } from '../components/WalkoverButton';
 import { useMatchLobby } from '../hooks/useMatchLobby';
+import { useReadyState } from '../hooks/useReadyState';
+import { useDisconnect } from '../hooks/useDisconnect';
 import { LobbyLayout } from '../layouts';
 import { ERROR_MESSAGES } from '../constants';
 
@@ -29,7 +38,57 @@ export function MatchLobbyPage() {
     isLoading,
     error,
     connectionStatus,
+    claimWalkover,
   } = useMatchLobby(matchId || null);
+
+  // Determine current player's ready status
+  const currentPlayerReady = user && matchState
+    ? (matchState.player1?.id === user.id ? matchState.match.participant1Ready : matchState.match.participant2Ready)
+    : false;
+
+  // Ready state management
+  const {
+    isReady: localReadyState,
+    isLoading: isReadyLoading,
+    toggleReady,
+    setReady,
+  } = useReadyState(
+    matchId || '',
+    user?.id || '',
+    currentPlayerReady
+  );
+
+  // Sync local ready state with server state
+  useEffect(() => {
+    if (matchState && user) {
+      const serverReady = matchState.player1?.id === user.id 
+        ? matchState.match.participant1Ready 
+        : matchState.match.participant2Ready;
+      setReady(serverReady);
+    }
+  }, [matchState, user, setReady]);
+
+  // Disconnect state management
+  const {
+    isDisconnected,
+    disconnectedPlayerId,
+    disconnectedAt: _disconnectedAt,
+    remainingSeconds,
+    setDisconnected,
+    setReconnected,
+  } = useDisconnect();
+
+  // Sync disconnect state with match state
+  useEffect(() => {
+    if (matchState) {
+      if (matchState.disconnectedPlayerId && matchState.disconnectedAt) {
+        setDisconnected(matchState.disconnectedPlayerId, matchState.disconnectedAt);
+      } else if (disconnectedPlayerId && !matchState.disconnectedPlayerId) {
+        // Player reconnected
+        setReconnected();
+      }
+    }
+  }, [matchState, disconnectedPlayerId, setDisconnected, setReconnected]);
 
   // Check authorization - verify user is a match participant
   useEffect(() => {
@@ -113,6 +172,31 @@ export function MatchLobbyPage() {
       streamerId={matchState.tournament?.creatorId}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* WebSocket Connection Failure Banner */}
+        {(connectionStatus === 'disconnected' || connectionStatus === 'error') && (
+          <div className="mb-6 rounded-lg border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
+            <div className="flex items-start gap-3">
+              <svg className="size-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-red-800 dark:text-red-200">
+                  Utracono połączenie
+                </h3>
+                <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                  Nie można połączyć się z serwerem. Sprawdź swoje połączenie internetowe. Próbujemy połączyć ponownie...
+                </p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg font-medium transition-colors"
+                >
+                  Odśwież stronę
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
@@ -126,32 +210,7 @@ export function MatchLobbyPage() {
             </div>
 
             {/* Connection status indicator */}
-            <div className="flex items-center gap-2">
-              {connectionStatus === 'connected' && (
-                <>
-                  <div className="size-2 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Połączony</span>
-                </>
-              )}
-              {connectionStatus === 'connecting' && (
-                <>
-                  <LoadingSpinner size="sm" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Łączenie...</span>
-                </>
-              )}
-              {connectionStatus === 'reconnecting' && (
-                <>
-                  <LoadingSpinner size="sm" />
-                  <span className="text-sm text-amber-600 dark:text-amber-400">Ponowne łączenie...</span>
-                </>
-              )}
-              {connectionStatus === 'disconnected' && (
-                <>
-                  <div className="size-2 rounded-full bg-red-500" />
-                  <span className="text-sm text-red-600 dark:text-red-400">Rozłączony</span>
-                </>
-              )}
-            </div>
+            <ConnectionIndicator status={connectionStatus} size="sm" />
           </div>
         </div>
 
@@ -181,7 +240,96 @@ export function MatchLobbyPage() {
           player1={matchState.player1}
           player2={matchState.player2}
           currentUserId={user?.id}
+          player1Ready={matchState.match.participant1Ready}
+          player2Ready={matchState.match.participant2Ready}
         />
+
+        {/* Ready Button Section */}
+        {matchState.status === 'ready' && matchState.player1 && matchState.player2 && (
+          <div className="mt-8 flex flex-col items-center">
+            <ReadyButton
+              isReady={localReadyState}
+              isLoading={isReadyLoading}
+              disabled={!matchState.player2} // Disable if opponent not present
+              onClick={toggleReady}
+            />
+
+            {/* Both Players Ready Message */}
+            {matchState.match.participant1Ready && matchState.match.participant2Ready && (
+              <div className="mt-4 rounded-lg border-2 border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-4">
+                <p className="text-center text-green-800 dark:text-green-200 font-semibold">
+                  🎉 Obaj gracze gotowi! Mecz rozpocznie się za moment...
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Match Start Countdown Overlay */}
+        {matchState.matchStarting && matchState.countdownSeconds !== null && matchState.countdownSeconds > 0 && (
+          <MatchStartCountdown 
+            initialSeconds={matchState.countdownSeconds}
+            onComplete={() => console.log('Countdown complete')}
+          />
+        )}
+
+        {/* Walkover Button - Show after 2 minutes if opponent doesn't join */}
+        {matchState.canClaimWalkover && !matchState.player2 && matchState.status === 'ready' && (
+          <div className="mt-8">
+            <div className="mb-4 rounded-lg border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">⏰</div>
+                <div className="flex-1">
+                  <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">
+                    Przeciwnik nie stawił się
+                  </p>
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    Minęły 2 minuty oczekiwania. Możesz zgłosić walkower i awansować do następnej rundy.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <WalkoverButton
+              onClaim={claimWalkover}
+              disabled={false}
+            />
+          </div>
+        )}
+
+        {/* Game Iframe - Show when match has started and game URL is available */}
+        {matchState.status === 'started' && matchState.gameUrl && matchState.match.status !== 'completed' && (
+          <div className="mt-8">
+            <GameFrame
+              gameUrl={matchState.gameUrl}
+              matchId={matchState.match.id}
+              sessionToken={undefined} // TODO: Get session token from auth context
+              onGameComplete={(result) => {
+                console.log('[MatchLobbyPage] Game completed:', result);
+                // The match_completed WebSocket message will update the state
+              }}
+              onGameError={(error) => {
+                console.error('[MatchLobbyPage] Game error:', error);
+              }}
+            />
+          </div>
+        )}
+
+        {/* Match Result - Show when match is completed */}
+        {matchState.status === 'completed' && matchState.match.winnerId && (
+          <div className="mt-8">
+            <MatchResult
+              winner={matchState.match.winnerId === matchState.player1?.id ? matchState.player1 : matchState.player2}
+              loser={matchState.match.winnerId === matchState.player1?.id ? matchState.player2 : matchState.player1}
+              currentUserId={user?.id}
+              scoreWinner={matchState.match.winnerId === matchState.player1?.id ? matchState.match.scorePlayer1 : matchState.match.scorePlayer2}
+              scoreLoser={matchState.match.winnerId === matchState.player1?.id ? matchState.match.scorePlayer2 : matchState.match.scorePlayer1}
+              resultSource={matchState.match.resultSource || undefined}
+              onContinue={() => {
+                navigate(`/h/${matchState.tournament?.creatorId}/tournaments/${tournamentId}`);
+              }}
+            />
+          </div>
+        )}
 
         {/* Info Footer */}
         <div className="mt-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-4">
@@ -199,6 +347,23 @@ export function MatchLobbyPage() {
           </div>
         </div>
       </div>
+
+      {/* Disconnect Overlay */}
+      {isDisconnected && disconnectedPlayerId && (
+        <DisconnectOverlay
+          disconnectedPlayerName={
+            disconnectedPlayerId === matchState.player1?.id 
+              ? matchState.player1?.displayName || 'Gracz 1'
+              : matchState.player2?.displayName || 'Gracz 2'
+          }
+          isCurrentUserDisconnected={disconnectedPlayerId === user?.id}
+          remainingSeconds={remainingSeconds}
+          onTimeExpired={() => {
+            console.log('[MatchLobbyPage] Disconnect timer expired');
+            // The match_completed event from server will handle the walkover
+          }}
+        />
+      )}
     </LobbyLayout>
   );
 }

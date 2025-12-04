@@ -28,6 +28,11 @@ interface UseTournamentPreLobbyReturn {
   isGracePeriodActive: boolean;
   gracePeriodRemaining: number;
   isParticipantCountUpdating: boolean;
+  hasBye: boolean;
+  byeInfo: {
+    roundName: string;
+    nextMatchSlot: string;
+  } | null;
 }
 
 /**
@@ -51,6 +56,8 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
   const [isGracePeriodActive, setIsGracePeriodActive] = useState(false);
   const [gracePeriodRemaining, setGracePeriodRemaining] = useState(0);
   const [isParticipantCountUpdating, setIsParticipantCountUpdating] = useState(false);
+  const [hasBye, setHasBye] = useState(false);
+  const [byeInfo, setByeInfo] = useState<{ roundName: string; nextMatchSlot: string } | null>(null);
 
   // Refs
   const gracePeriodTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -248,6 +255,8 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
 
       // Check if this is a bye
       if (payload.isBye) {
+        console.log('[PreLobby] Player has BYE, showing waiting state');
+        
         setPreLobbyState((prev) => {
           if (!prev) return prev;
 
@@ -265,8 +274,14 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
           };
         });
 
-        // TODO: Handle bye recipient waiting state (US7)
-        // For now, just show notification
+        // Set bye state
+        setHasBye(true);
+        setByeInfo({
+          roundName: payload.roundName,
+          nextMatchSlot: 'Zwycięzca meczu poprzedniej rundy',
+        });
+
+        // Don't redirect - show ByeWaitingState instead
         return;
       }
 
@@ -421,6 +436,8 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
     isGracePeriodActive,
     gracePeriodRemaining,
     isParticipantCountUpdating,
+    hasBye,
+    byeInfo,
   };
 }
 

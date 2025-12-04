@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useWebSocket } from '../../../shared/hooks/useWebSocket';
+import { matchmakingApi } from '../api/matchmakingApi';
+import { useAuth } from '../../auth';
 import type {
   Match,
   PlayerInfo,
@@ -9,8 +11,10 @@ import type {
   ReadyUpdatedPayload,
   MatchStartingPayload,
   MatchStartedPayload,
+  MatchCompletedPayload,
+  PlayerDisconnectedPayload,
+  PlayerReconnectedPayload,
 } from '../types';
-import { matchmakingApi } from '../api/matchmakingApi';
 
 // Player joined/left payloads (for match lobby)
 interface PlayerJoinedPayload {
@@ -34,6 +38,13 @@ export interface MatchLobbyState {
     creatorId: string;
   };
   status: Match['status'];
+  matchStarting: boolean; // Countdown active
+  countdownSeconds: number | null; // 3, 2, 1, null
+  gameUrl: string | null; // Set when match starts
+  disconnectedPlayerId: string | null; // ID of disconnected player
+  disconnectedAt: string | null; // Timestamp of disconnect
+  canClaimWalkover: boolean; // 2 minutes elapsed, opponent not present
+  walkoverClaimableAt: string | null; // Timestamp when walkover becomes available
 }
 
 interface UseMatchLobbyReturn {
@@ -41,6 +52,7 @@ interface UseMatchLobbyReturn {
   isLoading: boolean;
   error: string | null;
   connectionStatus: ConnectionState;
+  claimWalkover: () => Promise<void>;
 }
 
 /**
@@ -56,6 +68,7 @@ interface UseMatchLobbyReturn {
  * - Auto-reconnection on disconnect
  */
 export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
+  const { user } = useAuth();
   const [matchState, setMatchState] = useState<MatchLobbyState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,10 +80,48 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
   // Note: The actual WS base URL would be configured in environment
   const wsUrl = matchId ? `/v1/matches/${matchId}/lobby` : '';
 
+  // Track previous connection status for auto-refresh on reconnect
+  const previousStatusRef = useRef<ConnectionState | null>(null);
+
   // Initialize WebSocket connection
   const { status: connectionStatus } = useWebSocket({
     url: wsUrl,
     onMessage: handleWebSocketMessage,
+    onOpen: () => {
+      console.log('[useMatchLobby] WebSocket connected');
+      
+      // Auto-refresh data on reconnection (not on initial connection)
+      if (previousStatusRef.current && previousStatusRef.current !== 'connected' && matchId) {
+        console.log('[useMatchLobby] Auto-refreshing match data after reconnection');
+        
+        // Re-fetch match data
+        matchmakingApi.getMatch(matchId).then((matchData) => {
+          setMatchState({
+            match: matchData.match,
+            player1: matchData.participant1,
+            player2: matchData.participant2,
+            roundNumber: matchData.roundNumber || 1,
+            tournament: matchData.tournament,
+            status: matchData.match.status,
+            matchStarting: false,
+            countdownSeconds: null,
+            gameUrl: matchData.match.status === 'started' ? matchData.match.gameApiMatchId : null,
+            disconnectedPlayerId: matchData.match.disconnectedPlayerId || null,
+            disconnectedAt: matchData.match.disconnectedAt || null,
+            canClaimWalkover: false,
+            walkoverClaimableAt: null,
+          });
+        }).catch((err) => {
+          console.error('[useMatchLobby] Exception during match data refresh:', err);
+        });
+      }
+      
+      previousStatusRef.current = connectionStatus;
+    },
+    onClose: () => {
+      console.log('[useMatchLobby] WebSocket disconnected');
+      previousStatusRef.current = connectionStatus;
+    },
     onError: (error) => {
       console.error('[useMatchLobby] WebSocket error:', error);
       setError('Błąd połączenia WebSocket');
@@ -99,6 +150,13 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
           roundNumber: matchData.roundNumber || 1,
           tournament: matchData.tournament,
           status: matchData.match.status,
+          matchStarting: false,
+          countdownSeconds: null,
+          gameUrl: null,
+          disconnectedPlayerId: matchData.match.disconnectedPlayerId || null,
+          disconnectedAt: matchData.match.disconnectedAt || null,
+          canClaimWalkover: false,
+          walkoverClaimableAt: null,
         });
 
         initialLoadComplete.current = true;
@@ -140,6 +198,15 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
         case 'match_started':
           handleMatchStarted(message.payload as MatchStartedPayload);
           break;
+        case 'match_completed':
+          handleMatchCompleted(message.payload as MatchCompletedPayload);
+          break;
+        case 'player_disconnected':
+          handlePlayerDisconnected(message.payload as PlayerDisconnectedPayload);
+          break;
+        case 'player_reconnected':
+          handlePlayerReconnected(message.payload as PlayerReconnectedPayload);
+          break;
         default:
           console.warn('[useMatchLobby] Unknown message type:', messageType);
       }
@@ -159,6 +226,13 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
       roundNumber: prev?.roundNumber || 1,
       tournament: prev?.tournament,
       status: payload.match.status,
+      matchStarting: prev?.matchStarting || false,
+      countdownSeconds: prev?.countdownSeconds || null,
+      gameUrl: prev?.gameUrl || null,
+      disconnectedPlayerId: payload.match.disconnectedPlayerId || null,
+      disconnectedAt: payload.match.disconnectedAt || null,
+      canClaimWalkover: prev?.canClaimWalkover || false,
+      walkoverClaimableAt: prev?.walkoverClaimableAt || null,
     }));
   }, []);
 
@@ -227,11 +301,11 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
 
       return {
         ...prev,
-        status: 'started', // Transition to started during countdown
+        status: 'started',
+        matchStarting: true,
+        countdownSeconds: payload.countdownSeconds,
       };
     });
-
-    // TODO: Will be handled by MatchStartCountdown component in Phase 5
   }, []);
 
   // Handle match_started message (game begins)
@@ -252,17 +326,168 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
         ...prev,
         match: updatedMatch,
         status: 'started',
+        matchStarting: false,
+        countdownSeconds: null,
+        gameUrl: payload.gameUrl,
       };
     });
-
-    // TODO: Will trigger GameFrame component in Phase 6
   }, []);
+
+  // Handle match_completed message (match finishes)
+  const handleMatchCompleted = useCallback((payload: MatchCompletedPayload) => {
+    console.log('[useMatchLobby] Match completed:', payload);
+    
+    setMatchState((prev) => {
+      if (!prev) return null;
+
+      const updatedMatch = {
+        ...prev.match,
+        status: 'completed' as const,
+        winnerId: payload.winnerId,
+        scorePlayer1: payload.scorePlayer1,
+        scorePlayer2: payload.scorePlayer2,
+        resultSource: payload.resultSource,
+        completedAt: new Date().toISOString(),
+      };
+
+      return {
+        ...prev,
+        match: updatedMatch,
+        status: 'completed',
+      };
+    });
+  }, []);
+
+  // Handle player_disconnected message
+  const handlePlayerDisconnected = useCallback((payload: PlayerDisconnectedPayload) => {
+    console.log('[useMatchLobby] Player disconnected:', payload);
+    
+    setMatchState((prev) => {
+      if (!prev) return null;
+
+      const updatedMatch = {
+        ...prev.match,
+        disconnectedPlayerId: payload.playerId,
+        disconnectedAt: payload.disconnectedAt,
+      };
+
+      return {
+        ...prev,
+        match: updatedMatch,
+        disconnectedPlayerId: payload.playerId,
+        disconnectedAt: payload.disconnectedAt,
+      };
+    });
+  }, []);
+
+  // Handle player_reconnected message
+  const handlePlayerReconnected = useCallback((payload: PlayerReconnectedPayload) => {
+    console.log('[useMatchLobby] Player reconnected:', payload);
+    
+    setMatchState((prev) => {
+      if (!prev) return null;
+
+      const updatedMatch = {
+        ...prev.match,
+        disconnectedPlayerId: null,
+        disconnectedAt: null,
+      };
+
+      return {
+        ...prev,
+        match: updatedMatch,
+        disconnectedPlayerId: null,
+        disconnectedAt: null,
+      };
+    });
+  }, []);
+
+  // Walkover timer - enable claim button after 2 minutes if opponent doesn't join
+  useEffect(() => {
+    if (!matchState || matchState.status !== 'ready') {
+      return;
+    }
+
+    // Check if opponent is missing (only 1 player in lobby)
+    const opponentMissing = !matchState.player2;
+    
+    if (!opponentMissing) {
+      // Both players present, clear walkover state
+      setMatchState((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          canClaimWalkover: false,
+          walkoverClaimableAt: null,
+        };
+      });
+      return;
+    }
+
+    // Calculate when walkover becomes claimable (2 minutes from match creation)
+    const matchCreatedAt = new Date(matchState.match.createdAt).getTime();
+    const now = Date.now();
+    const elapsed = now - matchCreatedAt;
+    const TWO_MINUTES_MS = 2 * 60 * 1000;
+
+    if (elapsed >= TWO_MINUTES_MS) {
+      // Walkover already claimable
+      setMatchState((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          canClaimWalkover: true,
+          walkoverClaimableAt: new Date(matchCreatedAt + TWO_MINUTES_MS).toISOString(),
+        };
+      });
+    } else {
+      // Set timer for when walkover becomes claimable
+      const remainingMs = TWO_MINUTES_MS - elapsed;
+      const timeout = setTimeout(() => {
+        setMatchState((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            canClaimWalkover: true,
+            walkoverClaimableAt: new Date(matchCreatedAt + TWO_MINUTES_MS).toISOString(),
+          };
+        });
+      }, remainingMs);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [matchState]);
+
+  // Claim walkover function
+  const claimWalkover = useCallback(async () => {
+    if (!matchState || !matchId || !user) {
+      throw new Error('Match state or user not available');
+    }
+
+    try {
+      const response = await matchmakingApi.claimWalkover(matchId, user.id);
+      
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      console.log('[useMatchLobby] Walkover claimed successfully - awaiting server confirmation');
+      
+      // The match_completed event from server will update the state
+      // In a real implementation, show a success toast notification here
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Nie udało się zgłosić walkoweru';
+      console.error('[useMatchLobby] Walkover claim failed:', errorMessage);
+      throw err;
+    }
+  }, [matchState, matchId, user]);
 
   return {
     matchState,
     isLoading,
     error,
     connectionStatus,
+    claimWalkover,
   };
 }
 

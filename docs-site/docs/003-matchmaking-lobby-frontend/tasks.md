@@ -164,21 +164,21 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 ### Components
 
-- [ ] T053 [P] [US2] Create ReadyButton component with click handler in frontends/winspire-app/src/features/lobby/components/ReadyButton.tsx
-- [ ] T054 [P] [US2] Add ready status indicators (checkmark/clock icons) in frontends/winspire-app/src/features/lobby/components/PlayerVsDisplay.tsx
-- [ ] T055 [P] [US2] Create MatchStartCountdown component (3, 2, 1) in frontends/winspire-app/src/features/lobby/components/MatchStartCountdown.tsx
+- [x] T053 [P] [US2] Create ReadyButton component with click handler in frontends/winspire-app/src/features/lobby/components/ReadyButton.tsx
+- [x] T054 [P] [US2] Add ready status indicators (checkmark/clock icons) in frontends/winspire-app/src/features/lobby/components/PlayerVsDisplay.tsx
+- [x] T055 [P] [US2] Create MatchStartCountdown component (3, 2, 1) in frontends/winspire-app/src/features/lobby/components/MatchStartCountdown.tsx
 
 ### State Management
 
-- [ ] T056 [US2] Create useReadyState hook with optimistic updates in frontends/winspire-app/src/features/lobby/hooks/useReadyState.ts
-- [ ] T057 [US2] Add ready_updated WebSocket message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
-- [ ] T058 [US2] Add match_starting WebSocket message handler (triggers countdown) in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
-- [ ] T059 [US2] Add server-side ready state persistence on page load in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T056 [US2] Create useReadyState hook with optimistic updates in frontends/winspire-app/src/features/lobby/hooks/useReadyState.ts
+- [x] T057 [US2] Add ready_updated WebSocket message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T058 [US2] Add match_starting WebSocket message handler (triggers countdown) in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T059 [US2] Add server-side ready state persistence on page load in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
 
 ### Integration
 
-- [ ] T060 [US2] Integrate ReadyButton with useReadyState in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
-- [ ] T061 [US2] Add countdown display when match_starting received in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T060 [US2] Integrate ReadyButton with useReadyState in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T061 [US2] Add countdown display when match_starting received in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
 
 ---
 
@@ -192,26 +192,26 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 ### Components
 
-- [ ] T062 [P] [US3] Create GameFrame component with iframe container in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
-- [ ] T063 [P] [US3] Add game loading state with spinner in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
-- [ ] T064 [P] [US3] Add iframe error handling with retry button in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
-- [ ] T065 [P] [US3] Create MatchResult component for post-match summary in frontends/winspire-app/src/features/lobby/components/MatchResult.tsx
+- [x] T062 [P] [US3] Create GameFrame component with iframe container in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
+- [x] T063 [P] [US3] Add game loading state with spinner in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
+- [x] T064 [P] [US3] Add iframe error handling with retry button in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
+- [x] T065 [P] [US3] Create MatchResult component for post-match summary in frontends/winspire-app/src/features/lobby/components/MatchResult.tsx
 
 ### Communication
 
-- [ ] T066 [US3] Implement postMessage listener for game completion signals in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
-- [ ] T067 [US3] Add session token passing via URL parameters in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
-- [ ] T068 [US3] Add 30-second timeout for game load failure in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
+- [x] T066 [US3] Implement postMessage listener for game completion signals in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
+- [x] T067 [US3] Add session token passing via URL parameters in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
+- [x] T068 [US3] Add 30-second timeout for game load failure in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
 
 ### State Management
 
-- [ ] T069 [US3] Add match_started WebSocket message handler (provides gameUrl) in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
-- [ ] T070 [US3] Add match_completed WebSocket message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T069 [US3] Add match_started WebSocket message handler (provides gameUrl) in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T070 [US3] Add match_completed WebSocket message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
 
 ### Integration
 
-- [ ] T071 [US3] Integrate GameFrame into MatchLobbyPage (show when match started) in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
-- [ ] T072 [US3] Replace iframe with MatchResult when match completes in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T071 [US3] Integrate GameFrame into MatchLobbyPage (show when match started) in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T072 [US3] Replace iframe with MatchResult when match completes in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
 
 ---
 
@@ -225,26 +225,26 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 ### API Integration
 
-- [ ] T073 [P] [US4] Add getBracket(tournamentId) endpoint in frontends/winspire-app/src/features/host/api/tournamentApi.ts
-- [ ] T074 [P] [US4] Update Bracket and Round types in frontends/winspire-app/src/features/host/types.ts
+- [x] T073 [P] [US4] Add getBracket(tournamentId) endpoint in frontends/winspire-app/src/features/host/api/tournamentApi.ts
+- [x] T074 [P] [US4] Update Bracket and Round types in frontends/winspire-app/src/features/host/types.ts
 
 ### Components
 
-- [ ] T075 [P] [US4] Update BracketView component with real API integration in frontends/winspire-app/src/features/host/components/BracketView.tsx
-- [ ] T076 [P] [US4] Create BracketMatch component with SVG connectors in frontends/winspire-app/src/features/host/components/BracketMatch.tsx
-- [ ] T077 [P] [US4] Add winner highlighting and eliminated player dimming in frontends/winspire-app/src/features/host/components/BracketMatch.tsx
-- [ ] T078 [P] [US4] Add bye indicators ("BYE") in frontends/winspire-app/src/features/host/components/BracketMatch.tsx
-- [ ] T079 [P] [US4] Add click handler for navigating to match lobby in frontends/winspire-app/src/features/host/components/BracketMatch.tsx
+- [x] T075 [P] [US4] Update BracketView component with real API integration in frontends/winspire-app/src/features/host/components/BracketView.tsx
+- [x] T076 [P] [US4] Create BracketMatch component with SVG connectors in frontends/winspire-app/src/features/host/components/BracketMatch.tsx
+- [x] T077 [P] [US4] Add winner highlighting and eliminated player dimming in frontends/winspire-app/src/features/host/components/BracketMatch.tsx
+- [x] T078 [P] [US4] Add bye indicators ("BYE") in frontends/winspire-app/src/features/host/components/BracketMatch.tsx
+- [x] T079 [P] [US4] Add click handler for navigating to match lobby in frontends/winspire-app/src/features/host/components/BracketMatch.tsx
 
 ### Layout
 
-- [ ] T080 [US4] Implement horizontal scroll for large brackets in frontends/winspire-app/src/features/host/components/BracketView.tsx
-- [ ] T081 [US4] Add CSS Grid layout for round columns in frontends/winspire-app/src/features/host/components/BracketView.tsx
-- [ ] T082 [US4] Add responsive mobile layout (horizontal scroll + zoom) in frontends/winspire-app/src/features/host/components/BracketView.tsx
+- [x] T080 [US4] Implement horizontal scroll for large brackets in frontends/winspire-app/src/features/host/components/BracketView.tsx
+- [x] T081 [US4] Add CSS Grid layout for round columns in frontends/winspire-app/src/features/host/components/BracketView.tsx
+- [x] T082 [US4] Add responsive mobile layout (horizontal scroll + zoom) in frontends/winspire-app/src/features/host/components/BracketView.tsx
 
 ### Integration
 
-- [ ] T083 [US4] Update TournamentDetailPage Bracket tab to use new BracketView in frontends/winspire-app/src/features/host/pages/TournamentDetailPage.tsx
+- [x] T083 [US4] Update TournamentDetailPage Bracket tab to use new BracketView in frontends/winspire-app/src/features/host/pages/TournamentDetailPage.tsx
 
 ---
 
@@ -258,22 +258,22 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 ### API Integration
 
-- [ ] T084 [P] [US5] Add getMatches(tournamentId) endpoint in frontends/winspire-app/src/features/host/api/tournamentApi.ts
+- [x] T084 [P] [US5] Add getMatches(tournamentId) endpoint in frontends/winspire-app/src/features/host/api/tournamentApi.ts
 
 ### Components
 
-- [ ] T085 [P] [US5] Update MatchesView component with real API integration in frontends/winspire-app/src/features/host/components/MatchesView.tsx
-- [ ] T086 [P] [US5] Create MatchCard component showing player names, avatars, score, status in frontends/winspire-app/src/features/host/components/MatchCard.tsx
-- [ ] T087 [P] [US5] Add pulsing "Live" badge for active matches in frontends/winspire-app/src/features/host/components/MatchCard.tsx
-- [ ] T088 [P] [US5] Add "Join Lobby" button for user's active matches in frontends/winspire-app/src/features/host/components/MatchCard.tsx
+- [x] T085 [P] [US5] Update MatchesView component with real API integration in frontends/winspire-app/src/features/host/components/MatchesView.tsx
+- [x] T086 [P] [US5] Create MatchCard component showing player names, avatars, score, status in frontends/winspire-app/src/features/host/components/MatchCard.tsx
+- [x] T087 [P] [US5] Add pulsing "Live" badge for active matches in frontends/winspire-app/src/features/host/components/MatchCard.tsx
+- [x] T088 [P] [US5] Add "Join Lobby" button for user's active matches in frontends/winspire-app/src/features/host/components/MatchCard.tsx
 
 ### Layout
 
-- [ ] T089 [US5] Add round grouping (Runda 1, Półfinały, Finał) in frontends/winspire-app/src/features/host/components/MatchesView.tsx
+- [x] T089 [US5] Add round grouping (Runda 1, Półfinały, Finał) in frontends/winspire-app/src/features/host/components/MatchesView.tsx
 
 ### Integration
 
-- [ ] T090 [US5] Update TournamentDetailPage Matches tab to use new MatchesView in frontends/winspire-app/src/features/host/pages/TournamentDetailPage.tsx
+- [x] T090 [US5] Update TournamentDetailPage Matches tab to use new MatchesView in frontends/winspire-app/src/features/host/pages/TournamentDetailPage.tsx
 
 ---
 
@@ -287,15 +287,15 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 ### WebSocket Integration
 
-- [ ] T091 [US6] Add WebSocket subscription for bracket updates in frontends/winspire-app/src/features/host/components/BracketView.tsx
-- [ ] T092 [US6] Add WebSocket subscription for matches list updates in frontends/winspire-app/src/features/host/components/MatchesView.tsx
-- [ ] T093 [US6] Add React Query cache invalidation on WebSocket messages in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T091 [US6] Add WebSocket subscription for bracket updates in frontends/winspire-app/src/features/host/components/BracketView.tsx
+- [x] T092 [US6] Add WebSocket subscription for matches list updates in frontends/winspire-app/src/features/host/components/MatchesView.tsx
+- [x] T093 [US6] Add React Query cache invalidation on WebSocket messages in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
 
 ### Connection Handling
 
-- [ ] T094 [P] [US6] Create ConnectionIndicator component for reconnection state in frontends/winspire-app/src/shared/components/ConnectionIndicator.tsx
-- [ ] T095 [US6] Add "Reconnecting..." indicator when WebSocket drops in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
-- [ ] T096 [US6] Add auto-refresh data on connection restore in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T094 [P] [US6] Create ConnectionIndicator component for reconnection state in frontends/winspire-app/src/shared/components/ConnectionIndicator.tsx
+- [x] T095 [US6] Add "Reconnecting..." indicator when WebSocket drops in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T096 [US6] Add auto-refresh data on connection restore in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
 
 ---
 
@@ -309,17 +309,17 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 ### Components
 
-- [ ] T097 [P] [US7] Create ByeWaitingState component with "Auto-advanced" message in frontends/winspire-app/src/features/lobby/components/ByeWaitingState.tsx
-- [ ] T098 [P] [US7] Add next match slot display ("Winner of Match X") in frontends/winspire-app/src/features/lobby/components/ByeWaitingState.tsx
+- [x] T097 [P] [US7] Create ByeWaitingState component with "Auto-advanced" message in frontends/winspire-app/src/features/lobby/components/ByeWaitingState.tsx
+- [x] T098 [P] [US7] Add next match slot display ("Winner of Match X") in frontends/winspire-app/src/features/lobby/components/ByeWaitingState.tsx
 
 ### State Management
 
-- [ ] T099 [US7] Add bye detection logic in useTournamentPreLobby (handle match_assigned with bye flag) in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
-- [ ] T100 [US7] Add notification when next match becomes ready in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
+- [x] T099 [US7] Add bye detection logic in useTournamentPreLobby (handle match_assigned with bye flag) in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
+- [x] T100 [US7] Add notification when next match becomes ready in frontends/winspire-app/src/features/lobby/hooks/useTournamentPreLobby.ts
 
 ### Integration
 
-- [ ] T101 [US7] Show ByeWaitingState instead of match redirect for bye recipients in frontends/winspire-app/src/features/lobby/pages/TournamentPreLobbyPage.tsx
+- [x] T101 [US7] Show ByeWaitingState instead of match redirect for bye recipients in frontends/winspire-app/src/features/lobby/pages/TournamentPreLobbyPage.tsx
 
 ---
 
@@ -333,20 +333,20 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 ### Components
 
-- [ ] T102 [P] [US8] Create DisconnectOverlay component with 30s countdown in frontends/winspire-app/src/features/lobby/components/DisconnectOverlay.tsx
-- [ ] T103 [P] [US8] Add "Opponent Disqualified" message when timer expires in frontends/winspire-app/src/features/lobby/components/DisconnectOverlay.tsx
+- [x] T102 [P] [US8] Create DisconnectOverlay component with 30s countdown in frontends/winspire-app/src/features/lobby/components/DisconnectOverlay.tsx
+- [x] T103 [P] [US8] Add "Opponent Disqualified" message when timer expires in frontends/winspire-app/src/features/lobby/components/DisconnectOverlay.tsx
 
 ### State Management
 
-- [ ] T104 [US8] Create useDisconnect hook tracking disconnect state in frontends/winspire-app/src/features/lobby/hooks/useDisconnect.ts
-- [ ] T105 [US8] Add player_disconnected WebSocket message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
-- [ ] T106 [US8] Add player_reconnected WebSocket message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
-- [ ] T107 [US8] Calculate remaining reconnect time from disconnectedAt timestamp in frontends/winspire-app/src/features/lobby/hooks/useDisconnect.ts
+- [x] T104 [US8] Create useDisconnect hook tracking disconnect state in frontends/winspire-app/src/features/lobby/hooks/useDisconnect.ts
+- [x] T105 [US8] Add player_disconnected WebSocket message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T106 [US8] Add player_reconnected WebSocket message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T107 [US8] Calculate remaining reconnect time from disconnectedAt timestamp in frontends/winspire-app/src/features/lobby/hooks/useDisconnect.ts
 
 ### Integration
 
-- [ ] T108 [US8] Show DisconnectOverlay when opponent disconnects in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
-- [ ] T109 [US8] Handle seamless rejoin for returning players in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T108 [US8] Show DisconnectOverlay when opponent disconnects in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T109 [US8] Handle seamless rejoin for returning players in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
 
 ---
 
@@ -360,18 +360,18 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 ### API Integration
 
-- [ ] T110 [P] [US9] Add submitManualResult(matchId, winnerId, scores) endpoint in frontends/winspire-app/src/features/host/api/tournamentApi.ts
+- [x] T110 [P] [US9] Add submitManualResult(matchId, winnerId, scores) endpoint in frontends/winspire-app/src/features/host/api/tournamentApi.ts
 
 ### Components
 
-- [ ] T111 [P] [US9] Create ManualResultForm component with winner selection and score inputs in frontends/winspire-app/src/features/host/components/ManualResultForm.tsx
-- [ ] T112 [P] [US9] Add "API Error - Manual Entry Required" alert in frontends/winspire-app/src/features/host/components/MatchCard.tsx
-- [ ] T113 [P] [US9] Add "Manually Entered" indicator badge in frontends/winspire-app/src/features/host/components/MatchCard.tsx
+- [x] T111 [P] [US9] Create ManualResultForm component with winner selection and score inputs in frontends/winspire-app/src/features/host/components/ManualResultForm.tsx
+- [x] T112 [P] [US9] Add "API Error - Manual Entry Required" alert in frontends/winspire-app/src/features/host/components/MatchCard.tsx
+- [x] T113 [P] [US9] Add "Manually Entered" indicator badge in frontends/winspire-app/src/features/host/components/MatchCard.tsx
 
 ### Integration
 
-- [ ] T114 [US9] Add host authentication check in frontends/winspire-app/src/features/host/pages/TournamentDetailPage.tsx
-- [ ] T115 [US9] Show ManualResultForm for flagged matches in frontends/winspire-app/src/features/host/components/MatchesView.tsx
+- [x] T114 [US9] Add host authentication check in frontends/winspire-app/src/features/host/pages/TournamentDetailPage.tsx
+- [x] T115 [US9] Show ManualResultForm for flagged matches in frontends/winspire-app/src/features/host/components/MatchesView.tsx
 
 ---
 
@@ -385,21 +385,21 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 ### API Integration
 
-- [ ] T116 [P] [US10] Add claimWalkover(matchId) endpoint in frontends/winspire-app/src/features/lobby/api/matchmakingApi.ts
+- [x] T116 [P] [US10] Add claimWalkover(matchId) endpoint in frontends/winspire-app/src/features/lobby/api/matchmakingApi.ts
 
 ### Components
 
-- [ ] T117 [P] [US10] Create WalkoverButton component with 2-minute timer in frontends/winspire-app/src/features/lobby/components/WalkoverButton.tsx
+- [x] T117 [P] [US10] Create WalkoverButton component with 2-minute timer in frontends/winspire-app/src/features/lobby/components/WalkoverButton.tsx
 
 ### State Management
 
-- [ ] T118 [US10] Add walkover timer logic (show button after 2 min) in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
-- [ ] T119 [US10] Handle walkover success and advancement in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T118 [US10] Add walkover timer logic (show button after 2 min) in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T119 [US10] Handle walkover success and advancement in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
 
 ### Integration
 
-- [ ] T120 [US10] Show WalkoverButton when timeout expires in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
-- [ ] T120a [US10] Implement host notification for double no-show (5min timeout per FR-038) in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T120 [US10] Show WalkoverButton when timeout expires in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T120a [US10] Implement host notification for double no-show (5min timeout per FR-038) in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
 
 ---
 
@@ -411,24 +411,24 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 ### Mobile Responsiveness
 
-- [ ] T121 [P] Add mobile breakpoints and responsive styles to PlayerVsDisplay in frontends/winspire-app/src/features/lobby/components/PlayerVsDisplay.tsx
-- [ ] T122 [P] Add mobile layout (stacked) for MatchLobbyPage in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
-- [ ] T123 [P] Add mobile-optimized GameFrame (viewport adaptation) in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
-- [ ] T124 [P] Test bracket horizontal scroll on mobile devices in frontends/winspire-app/src/features/host/components/BracketView.tsx
+- [x] T121 [P] Add mobile breakpoints and responsive styles to PlayerVsDisplay in frontends/winspire-app/src/features/lobby/components/PlayerVsDisplay.tsx
+- [x] T122 [P] Add mobile layout (stacked) for MatchLobbyPage in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T123 [P] Add mobile-optimized GameFrame (viewport adaptation) in frontends/winspire-app/src/features/lobby/components/GameFrame.tsx
+- [x] T124 [P] Test bracket horizontal scroll on mobile devices in frontends/winspire-app/src/features/host/components/BracketView.tsx
 
 ### Error Handling
 
-- [ ] T125 [P] Add error boundaries for lobby pages in frontends/winspire-app/src/features/lobby/pages/
-- [ ] T126 [P] Add fallback UI for WebSocket connection failures in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
-- [ ] T127 [P] Add toast notifications for critical errors in frontends/winspire-app/src/features/lobby/pages/
-- [ ] T128 [P] Add loading skeletons for slow network conditions in frontends/winspire-app/src/features/lobby/components/
+- [x] T125 [P] Add error boundaries for lobby pages in frontends/winspire-app/src/features/lobby/pages/
+- [x] T126 [P] Add fallback UI for WebSocket connection failures in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T127 [P] Add toast notifications for critical errors in frontends/winspire-app/src/features/lobby/pages/
+- [x] T128 [P] Add loading skeletons for slow network conditions in frontends/winspire-app/src/features/lobby/components/
 
 ### Edge Cases
 
-- [ ] T129 [P] Handle multiple browser tabs (show "Session active in another tab") in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
-- [ ] T130 [P] Handle tournament cancellation during lobby in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
-- [ ] T131 [P] Handle player navigating to wrong match lobby in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
-- [ ] T132 [P] Handle insufficient participants during grace period in frontends/winspire-app/src/features/lobby/pages/TournamentPreLobbyPage.tsx
+- [x] T129 [P] Handle multiple browser tabs (show "Session active in another tab") in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T130 [P] Handle tournament cancellation during lobby in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T131 [P] Handle player navigating to wrong match lobby in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T132 [P] Handle insufficient participants during grace period in frontends/winspire-app/src/features/lobby/pages/TournamentPreLobbyPage.tsx
 
 ---
 

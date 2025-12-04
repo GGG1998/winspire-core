@@ -283,6 +283,11 @@ export interface PlayerDisconnectedPayload {
   reconnectDeadline: string; // 30 seconds from disconnect
 }
 
+export interface PlayerReconnectedPayload {
+  playerId: string;
+  reconnectedAt: string;
+}
+
 export interface MatchCompletedPayload {
   winnerId: string;
   scorePlayer1: number;
