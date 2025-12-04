@@ -23,3 +23,4 @@ COMMENT ON CONSTRAINT tournaments_status_check ON tournaments IS
 'Allowed tournament statuses: draft (unpublished), scheduled (published but registration not open), registration_open (accepting signups), registration_closed (no more signups), started (in progress), completed (finished), cancelled (terminated early)';
 
 
+

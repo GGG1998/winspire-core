@@ -1,0 +1,530 @@
+openapi: 3.0.3
+info:
+  title: Tournament Matchmaking API
+  description: |
+    REST API for tournament matchmaking system supporting single elimination 1v1 tournaments
+    with automatic bracket generation, match handling, and real-time event flow.
+    
+    **Bounded Contexts**:
+    - TournamentManagement: Tournament lifecycle (out of scope - existing API)
+    - Matchmaking: Brackets, rounds, matches (this API)
+    
+    **Authentication**: Bearer JWT token required for all endpoints except public bracket viewing.
+  version: 1.0.0
+  contact:
+    name: Winspire Core Team
+
+servers:
+  - url: https://api.gowinspire.com/v1
+    description: Production
+  - url: http://localhost:8080/v1
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: tournaments
+    description: Tournament operations (start tournament)
+  - name: brackets
+    description: Bracket visualization and queries
+  - name: matches
+    description: Match operations (ready, forfeit, host override)
+  - name: lobby
+    description: Match lobby operations
+
+paths:
+  # ===================================================================
+  # TOURNAMENTS
+  # ===================================================================
+  
+  /tournaments/{tournament_id}/start:
+    post:
+      tags: [tournaments]
+      summary: Start tournament (triggers bracket generation)
+      description: |
+        Host starts tournament, triggering automatic bracket generation.
+        Emits `TournamentStarted` → `BracketGenerated` → `RoundCreated` → `MatchCreated` events.
+      operationId: startTournament
+      parameters:
+        - name: tournament_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '202':
+          description: Tournament start initiated (bracket generation in progress)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tournament_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [started]
+                  bracket_id:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+                    example: "Bracket generation initiated"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===================================================================
+  # BRACKETS
+  # ===================================================================
+  
+  /tournaments/{tournament_id}/bracket:
+    get:
+      tags: [brackets]
+      summary: Get tournament bracket with rounds and matches
+      description: |
+        Returns complete bracket structure including all rounds, matches, and participants.
+        Used for bracket visualization.
+      operationId: getBracket
+      parameters:
+        - name: tournament_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Bracket with rounds and matches
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BracketWithMatches'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===================================================================
+  # MATCHES
+  # ===================================================================
+  
+  /matches/{match_id}:
+    get:
+      tags: [matches]
+      summary: Get match details
+      description: Returns match details including participants, status, scores
+      operationId: getMatch
+      parameters:
+        - name: match_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Match details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /matches/{match_id}/ready:
+    post:
+      tags: [matches]
+      summary: Mark player as ready in match lobby
+      description: |
+        Player indicates readiness. When both players ready, match auto-starts.
+        Emits `MatchStarted` event when both ready.
+      operationId: markReady
+      parameters:
+        - name: match_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Player marked ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  match_id:
+                    type: string
+                    format: uuid
+                  player_ready:
+                    type: boolean
+                  opponent_ready:
+                    type: boolean
+                  match_status:
+                    type: string
+                    enum: [pending, ready, started]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /matches/{match_id}/forfeit:
+    post:
+      tags: [matches]
+      summary: Player forfeits match (gives opponent walkover)
+      description: |
+        Player forfeits current/upcoming match. Opponent receives walkover.
+        Emits `WalkoverGranted` event.
+      operationId: forfeitMatch
+      parameters:
+        - name: match_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Optional forfeit reason
+      responses:
+        '200':
+          description: Forfeit processed, opponent wins
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  match_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [completed]
+                  winner_id:
+                    type: string
+                    format: uuid
+                  result_source:
+                    type: string
+                    enum: [walkover]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /matches/{match_id}/result:
+    patch:
+      tags: [matches]
+      summary: Host manually overrides match result
+      description: |
+        Host manually enters/overrides match result (for API failures or disputes).
+        Only accessible by tournament host.
+        Emits `MatchCompleted` event with `result_source=host_manual`.
+      operationId: overrideResult
+      parameters:
+        - name: match_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [winner_id]
+              properties:
+                winner_id:
+                  type: string
+                  format: uuid
+                score_player1:
+                  type: integer
+                  minimum: 0
+                score_player2:
+                  type: integer
+                  minimum: 0
+                override_reason:
+                  type: string
+                  description: Required reason for manual override
+      responses:
+        '200':
+          description: Result manually set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===================================================================
+  # LOBBY
+  # ===================================================================
+  
+  /tournaments/{tournament_id}/lobby:
+    get:
+      tags: [lobby]
+      summary: Get player's current lobby state
+      description: |
+        Returns player's current match lobby information (if assigned to match).
+        Includes opponent details, ready state, countdown timers.
+        
+        **Security**: Must be authenticated as participant. Lobby URL cannot be shared
+        (user ID authentication required per FR-023).
+      operationId: getPlayerLobby
+      parameters:
+        - name: tournament_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Player lobby state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LobbyState'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Player not assigned to match or not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+# ===================================================================
+# COMPONENTS
+# ===================================================================
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from authentication service
+
+  schemas:
+    BracketWithMatches:
+      type: object
+      properties:
+        bracket_id:
+          type: string
+          format: uuid
+        tournament_id:
+          type: string
+          format: uuid
+        total_rounds:
+          type: integer
+        total_matches:
+          type: integer
+        byes_count:
+          type: integer
+        generated_at:
+          type: string
+          format: date-time
+        rounds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Round'
+
+    Round:
+      type: object
+      properties:
+        round_id:
+          type: string
+          format: uuid
+        round_number:
+          type: integer
+        round_name:
+          type: string
+          example: "Semi-finals"
+        matches_count:
+          type: integer
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/Match'
+
+    Match:
+      type: object
+      properties:
+        match_id:
+          type: string
+          format: uuid
+        round_id:
+          type: string
+          format: uuid
+        match_number:
+          type: integer
+        next_match_id:
+          type: string
+          format: uuid
+          nullable: true
+        participant1:
+          $ref: '#/components/schemas/Participant'
+        participant2:
+          allOf:
+            - $ref: '#/components/schemas/Participant'
+            - nullable: true
+              description: "Null if participant1 has a bye"
+        status:
+          type: string
+          enum: [pending, ready, started, paused, completed, cancelled]
+        participant1_ready:
+          type: boolean
+        participant2_ready:
+          type: boolean
+        winner_id:
+          type: string
+          format: uuid
+          nullable: true
+        score_player1:
+          type: integer
+          nullable: true
+        score_player2:
+          type: integer
+          nullable: true
+        result_source:
+          type: string
+          enum: [game_api, host_manual, walkover]
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    Participant:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+
+    LobbyState:
+      type: object
+      properties:
+        match_id:
+          type: string
+          format: uuid
+        tournament_id:
+          type: string
+          format: uuid
+        round_name:
+          type: string
+        player:
+          $ref: '#/components/schemas/Participant'
+        opponent:
+          allOf:
+            - $ref: '#/components/schemas/Participant'
+            - nullable: true
+        player_ready:
+          type: boolean
+        opponent_ready:
+          type: boolean
+        match_status:
+          type: string
+          enum: [pending, ready, started, paused, completed]
+        countdown_seconds:
+          type: integer
+          nullable: true
+          description: "Seconds until ready timeout (120s) or reconnect window (30s)"
+        has_bye:
+          type: boolean
+          description: "True if player has bye (no opponent)"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Invalid request (validation failed)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    
+    Forbidden:
+      description: Forbidden (not authorized or not match participant)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Forbidden"
+            message: "Unauthorized - you are not a participant in this match"
+    
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+# ===================================================================
+# WEBHOOKS (for future realtime service integration)
+# ===================================================================
+
+webhooks:
+  matchCreated:
+    post:
+      summary: Match created notification
+      description: Sent to realtime service when match created
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Match'
+      responses:
+        '200':
+          description: Webhook received
+
+

@@ -287,3 +287,4 @@ All state transitions require user confirmation with:
 - [Competition Domain Context](../co_brakuje.md#subdomain-tournament-lifecycle)
 
 
+
