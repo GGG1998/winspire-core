@@ -20,6 +20,7 @@ const ProfilePage = lazy(() => import('./features/auth/pages/ProfilePage').then(
 const LobbyPage = lazy(() => import('./features/lobby/pages/LobbyPage').then(m => ({ default: m.LobbyPage })));
 const MatchPage = lazy(() => import('./features/lobby/pages/MatchPage').then(m => ({ default: m.MatchPage })));
 const TournamentPreLobbyPage = lazy(() => import('./features/lobby/pages/TournamentPreLobbyPage').then(m => ({ default: m.TournamentPreLobbyPage })));
+const MatchLobbyPage = lazy(() => import('./features/lobby/pages/MatchLobbyPage').then(m => ({ default: m.MatchLobbyPage })));
 // Tournament pages
 const TournamentPage = lazy(() => import('./features/host/pages/TournamentPage').then(m => ({ default: m.TournamentPage })));
 const TournamentDetailPage = lazy(() => import('./features/host/pages/TournamentDetailPage').then(m => ({ default: m.TournamentDetailPage })));
@@ -63,6 +64,15 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <TournamentPreLobbyPage />
+                  </ProtectedRoute>
+                }
+              />
+              {/* Match Lobby (player VS opponent, ready button, game iframe) */}
+              <Route
+                path="/lobby/:tournamentId/match/:matchId"
+                element={
+                  <ProtectedRoute>
+                    <MatchLobbyPage />
                   </ProtectedRoute>
                 }
               />

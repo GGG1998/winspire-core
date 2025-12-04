@@ -133,24 +133,24 @@ This document breaks down the implementation of the matchmaking lobby frontend i
 
 ### Components
 
-- [ ] T041 [P] [US1] Create MatchLobbyPage with route `/lobby/:tournamentId/match/:matchId` in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
-- [ ] T042 [P] [US1] Create PlayerVsDisplay component with left-right layout in frontends/winspire-app/src/features/lobby/components/PlayerVsDisplay.tsx
-- [ ] T043 [P] [US1] Add VS separator with styling in frontends/winspire-app/src/features/lobby/components/PlayerVsDisplay.tsx
-- [ ] T044 [P] [US1] Add placeholder state for missing opponent ("Waiting for opponent...") in frontends/winspire-app/src/features/lobby/components/PlayerVsDisplay.tsx
+- [x] T041 [P] [US1] Create MatchLobbyPage with route `/lobby/:tournamentId/match/:matchId` in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T042 [P] [US1] Create PlayerVsDisplay component with left-right layout in frontends/winspire-app/src/features/lobby/components/PlayerVsDisplay.tsx
+- [x] T043 [P] [US1] Add VS separator with styling in frontends/winspire-app/src/features/lobby/components/PlayerVsDisplay.tsx
+- [x] T044 [P] [US1] Add placeholder state for missing opponent ("Waiting for opponent...") in frontends/winspire-app/src/features/lobby/components/PlayerVsDisplay.tsx
 
 ### State Management
 
-- [ ] T045 [US1] Create useMatchLobby hook with WebSocket connection to /v1/matches/:id/lobby in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
-- [ ] T046 [US1] Add lobby_state message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
-- [ ] T047 [US1] Add player_joined message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
-- [ ] T048 [US1] Add player_left message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T045 [US1] Create useMatchLobby hook with WebSocket connection to /v1/matches/:id/lobby in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T046 [US1] Add lobby_state message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T047 [US1] Add player_joined message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
+- [x] T048 [US1] Add player_left message handler in frontends/winspire-app/src/features/lobby/hooks/useMatchLobby.ts
 
 ### Integration
 
-- [ ] T049 [US1] Integrate MatchLobbyPage with useMatchLobby hook in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
-- [ ] T050 [US1] Add authentication check (verify user is match participant) in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
-- [ ] T051 [US1] Add unauthorized error page for non-participants in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
-- [ ] T052 [US1] Add route registration for /lobby/:tournamentId/match/:matchId in frontends/winspire-app/src/App.tsx
+- [x] T049 [US1] Integrate MatchLobbyPage with useMatchLobby hook in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T050 [US1] Add authentication check (verify user is match participant) in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T051 [US1] Add unauthorized error page for non-participants in frontends/winspire-app/src/features/lobby/pages/MatchLobbyPage.tsx
+- [x] T052 [US1] Add route registration for /lobby/:tournamentId/match/:matchId in frontends/winspire-app/src/App.tsx
 
 ---
 

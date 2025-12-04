@@ -94,6 +94,7 @@ export const PRE_LOBBY_STATUS_LABELS: Record<string, string> = {
 export const ERROR_MESSAGES = {
   UNAUTHORIZED: 'Unauthorized - you are not a participant in this match',
   NOT_REGISTERED: 'Unauthorized - you must be registered for this tournament',
+  NOT_MATCH_PARTICIPANT: 'Nie masz uprawnień do tego meczu - nie jesteś jego uczestnikiem',
   TOURNAMENT_IN_PROGRESS: 'Tournament in progress - registration closed',
   CONNECTION_LOST: 'Connection lost - attempting to reconnect...',
   GAME_LOAD_FAILED: 'Failed to load game - please retry',

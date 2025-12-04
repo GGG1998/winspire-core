@@ -362,6 +362,7 @@ export interface ClaimWalkoverResponse {
 export interface GetPreLobbyStateResponse {
   tournament_id: string;
   tournament_name: string;
+  creator_id: string;
   start_time: string;
   status: string;
   participants: PreLobbyParticipantApiData[];

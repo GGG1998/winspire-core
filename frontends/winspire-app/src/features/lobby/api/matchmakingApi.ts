@@ -85,6 +85,7 @@ export async function getPreLobbyState(
   const transformed: TournamentPreLobbyState = {
     tournamentId: response.data!.tournament_id,
     tournamentName: response.data!.tournament_name,
+    creatorId: response.data!.creator_id || '', // Creator ID from backend
     startTime: response.data!.start_time,
     status: response.data!.status as any,
     participants: response.data!.participants.map(transformPreLobbyParticipant),
@@ -101,19 +102,74 @@ export async function getPreLobbyState(
 // Match Lobby API
 // ============================================================================
 
+// Response type for getMatch API
+export interface GetMatchApiResponse {
+  match: MatchApiData;
+  participant1: {
+    id: string;
+    display_name: string;
+    avatar_url: string | null;
+  };
+  participant2: {
+    id: string;
+    display_name: string;
+    avatar_url: string | null;
+  } | null;
+  round_number: number;
+  tournament?: {
+    id: string;
+    name: string;
+    creator_id: string;
+  };
+}
+
+// Transformed response for frontend
+export interface GetMatchResponse {
+  match: Match;
+  participant1: import('../types').PlayerInfo;
+  participant2: import('../types').PlayerInfo | null;
+  roundNumber: number;
+  tournament?: {
+    id: string;
+    name: string;
+    creatorId: string;
+  };
+}
+
 /**
  * Get match details by match ID
  * Returns match information including participants and status
  */
-export async function getMatch(matchId: string): Promise<ApiResponse<Match>> {
-  const response = await apiClient.get<MatchApiData>(API_ENDPOINTS.GET_MATCH(matchId));
+export async function getMatch(matchId: string): Promise<GetMatchResponse> {
+  const response = await apiClient.get<GetMatchApiResponse>(API_ENDPOINTS.GET_MATCH(matchId));
 
   if (response.error) {
-    return { error: response.error };
+    throw new Error(typeof response.error === 'string' ? response.error : response.error.message || 'Failed to fetch match');
   }
 
-  const transformed = transformMatch(response.data!);
-  return { data: transformed };
+  const data = response.data!;
+
+  const transformed: GetMatchResponse = {
+    match: transformMatch(data.match),
+    participant1: {
+      id: data.participant1.id,
+      displayName: data.participant1.display_name,
+      avatarUrl: data.participant1.avatar_url,
+    },
+    participant2: data.participant2 ? {
+      id: data.participant2.id,
+      displayName: data.participant2.display_name,
+      avatarUrl: data.participant2.avatar_url,
+    } : null,
+    roundNumber: data.round_number,
+    tournament: data.tournament ? {
+      id: data.tournament.id,
+      name: data.tournament.name,
+      creatorId: data.tournament.creator_id,
+    } : undefined,
+  };
+
+  return transformed;
 }
 
 /**
@@ -212,4 +268,21 @@ export function getGracePeriodRemaining(gracePeriodEndsAt: string | null): numbe
   const diff = end - now;
   return Math.max(0, Math.floor(diff / 1000));
 }
+
+// ============================================================================
+// Default Export
+// ============================================================================
+
+export const matchmakingApi = {
+  getPreLobbyState,
+  getMatch,
+  markReady,
+  claimWalkover,
+  getPreLobbyWebSocketUrl,
+  getMatchLobbyWebSocketUrl,
+  canAccessPreLobby,
+  canAccessMatchLobby,
+  getTimeUntilStart,
+  getGracePeriodRemaining,
+};
 
