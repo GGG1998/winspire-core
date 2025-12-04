@@ -132,19 +132,19 @@
 
 ### Implementation for User Story 2
 
-- [ ] T050 [P] [US2] Create services/matchmaking/internal/http/bracket_handler.go (GET /v1/brackets/:id endpoint, GET /v1/tournaments/:id/bracket endpoint)
-- [ ] T051 [P] [US2] Create services/matchmaking/internal/http/match_handler.go (GET /v1/matches/:id endpoint, POST /v1/matches/:id/ready endpoint)
-- [ ] T052 [US2] Implement GetBracket handler in bracket_handler.go (fetch bracket with all rounds and matches using complex join query)
-- [ ] T053 [US2] Implement GetMatch handler in match_handler.go (fetch single match with participant details)
-- [ ] T054 [US2] Implement MarkPlayerReady handler in match_handler.go (update participant1_ready or participant2_ready, persist server-side per FR-019)
-- [ ] T055 [US2] Add JWT authentication to match lobby endpoints (verify user ID matches participant ID per FR-023)
-- [ ] T056 [US2] Implement lobby access control (deny access if authenticated user ID not in match participants per FR-024, FR-025)
-- [ ] T057 [US2] Create services/matchmaking/internal/http/websocket_handler.go (WebSocket upgrade endpoint: GET /v1/matches/:id/lobby)
-- [ ] T058 [US2] Implement WebSocket lobby connection (register client in hub, send initial lobby state)
-- [ ] T059 [US2] Implement WebSocket ready status broadcasting (when player marks ready, notify opponent via WebSocket)
-- [ ] T060 [US2] Publish ParticipantJoinedLobby event when player connects to lobby WebSocket
-- [ ] T061 [US2] Add error responses for unauthorized lobby access attempts (SC message from FR-024)
-- [ ] T062 [US2] Register bracket and match handlers in Gin router
+- [X] T050 [P] [US2] Create services/matchmaking/internal/http/bracket_handler.go (GET /v1/brackets/:id endpoint, GET /v1/tournaments/:id/bracket endpoint)
+- [X] T051 [P] [US2] Create services/matchmaking/internal/http/match_handler.go (GET /v1/matches/:id endpoint, POST /v1/matches/:id/ready endpoint)
+- [X] T052 [US2] Implement GetBracket handler in bracket_handler.go (fetch bracket with all rounds and matches using complex join query)
+- [X] T053 [US2] Implement GetMatch handler in match_handler.go (fetch single match with participant details)
+- [X] T054 [US2] Implement MarkPlayerReady handler in match_handler.go (update participant1_ready or participant2_ready, persist server-side per FR-019)
+- [X] T055 [US2] Add JWT authentication to match lobby endpoints (verify user ID matches participant ID per FR-023)
+- [X] T056 [US2] Implement lobby access control (deny access if authenticated user ID not in match participants per FR-024, FR-025)
+- [X] T057 [US2] Create services/matchmaking/internal/http/websocket_handler.go (WebSocket upgrade endpoint: GET /v1/matches/:id/lobby)
+- [X] T058 [US2] Implement WebSocket lobby connection (register client in hub, send initial lobby state)
+- [X] T059 [US2] Implement WebSocket ready status broadcasting (when player marks ready, notify opponent via WebSocket)
+- [X] T060 [US2] Publish ParticipantJoinedLobby event when player connects to lobby WebSocket
+- [X] T061 [US2] Add error responses for unauthorized lobby access attempts (SC message from FR-024)
+- [X] T062 [US2] Register bracket and match handlers in Gin router
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work - players can view brackets and join lobbies
 
@@ -158,15 +158,15 @@
 
 ### Implementation for User Story 3
 
-- [ ] T063 [P] [US3] Create services/matchmaking/internal/application/match_service.go (MatchService with CompleteMatch, AdvanceWinner methods)
-- [ ] T064 [US3] Implement CompleteMatch in match_service.go (update match with winner_id, scores, status=completed, completed_at timestamp)
-- [ ] T065 [US3] Implement winner advancement logic (find next_match_id, assign winner to participant slot in next match per FR-014)
-- [ ] T066 [US3] Implement loser elimination tracking (mark loser as eliminated per FR-015)
-- [ ] T067 [US3] Handle bye matches (auto-advance participant1 when participant2_id is NULL)
-- [ ] T068 [US3] Publish MatchCompleted event with winner_id and loser_id
-- [ ] T069 [US3] Publish ParticipantAdvanced event when winner assigned to next match
-- [ ] T070 [US3] Publish ParticipantEliminated event for losing player
-- [ ] T071 [US3] Add CloudWatch logging for match completion events
+- [X] T063 [P] [US3] Create services/matchmaking/internal/application/match_service.go (MatchService with CompleteMatch, AdvanceWinner methods)
+- [X] T064 [US3] Implement CompleteMatch in match_service.go (update match with winner_id, scores, status=completed, completed_at timestamp)
+- [X] T065 [US3] Implement winner advancement logic (find next_match_id, assign winner to participant slot in next match per FR-014)
+- [X] T066 [US3] Implement loser elimination tracking (mark loser as eliminated per FR-015)
+- [X] T067 [US3] Handle bye matches (auto-advance participant1 when participant2_id is NULL)
+- [X] T068 [US3] Publish MatchCompleted event with winner_id and loser_id
+- [X] T069 [US3] Publish ParticipantAdvanced event when winner assigned to next match
+- [X] T070 [US3] Publish ParticipantEliminated event for losing player
+- [X] T071 [US3] Add CloudWatch logging for match completion events
 
 **Checkpoint**: Tournament progression now works - matches complete and advance winners
 
@@ -180,12 +180,12 @@
 
 ### Implementation for User Story 4
 
-- [ ] T072 [US4] Add ready state detection in match_service.go (CheckBothPlayersReady method)
-- [ ] T073 [US4] Implement automatic match start trigger (when both ready, update status to "started", set started_at timestamp)
-- [ ] T074 [US4] Publish MatchStarted event when match begins
-- [ ] T075 [US4] Broadcast match start notification via WebSocket to both players
-- [ ] T076 [US4] Implement auto-force-ready logic for tournaments with auto_force_ready enabled (if specified start time arrives, force start per user story acceptance)
-- [ ] T077 [US4] Add CloudWatch metric for time between both-ready and match-started (SC-009: <5s target)
+- [X] T072 [US4] Add ready state detection in match_service.go (CheckBothPlayersReady method)
+- [X] T073 [US4] Implement automatic match start trigger (when both ready, update status to "started", set started_at timestamp)
+- [X] T074 [US4] Publish MatchStarted event when match begins
+- [X] T075 [US4] Broadcast match start notification via WebSocket to both players
+- [X] T076 [US4] Implement auto-force-ready logic for tournaments with auto_force_ready enabled (if specified start time arrives, force start per user story acceptance)
+- [X] T077 [US4] Add CloudWatch metric for time between both-ready and match-started (SC-009: <5s target)
 
 **Checkpoint**: Match lifecycle complete - ready detection works
 
@@ -201,9 +201,9 @@
 
 ### Implementation for User Story 5
 
-- [ ] T078 [US5] Update event_handler.go to filter participants from TournamentStarted event (only include checked-in participants if check-in enabled)
-- [ ] T079 [US5] Add participant status validation in bracket generation (ensure participant list only contains eligible players)
-- [ ] T080 [US5] Handle edge case: minimum participant count not met after check-in filtering (reject bracket generation, publish error event)
+- [X] T078 [US5] Update event_handler.go to filter participants from TournamentStarted event (only include checked-in participants if check-in enabled)
+- [X] T079 [US5] Add participant status validation in bracket generation (ensure participant list only contains eligible players)
+- [X] T080 [US5] Handle edge case: minimum participant count not met after check-in filtering (reject bracket generation, publish error event)
 
 **Checkpoint**: Check-in integration complete
 
@@ -217,13 +217,13 @@
 
 ### Implementation for User Story 6
 
-- [ ] T081 [US6] Add no-show timeout tracking in websocket/hub.go (track lobby join timestamps per player)
-- [ ] T082 [US6] Implement timeout detection (if opponent doesn't join within 2 minutes per FR-032)
-- [ ] T083 [US6] Implement walkover grant logic in match_service.go (GrantWalkover method, mark present player as winner per FR-016)
-- [ ] T084 [US6] Publish WalkoverGranted event with winner and reason (no-show)
-- [ ] T085 [US6] Handle both players absent scenario (notify host for manual resolution per acceptance criteria)
-- [ ] T086 [US6] Add POST /v1/matches/:id/claim-walkover endpoint for player-initiated walkover claim
-- [ ] T087 [US6] Add host notification for both-absent scenario (integrate with notification service or log for host dashboard)
+- [X] T081 [US6] Add no-show timeout tracking in websocket/hub.go (track lobby join timestamps per player)
+- [X] T082 [US6] Implement timeout detection (if opponent doesn't join within 2 minutes per FR-032)
+- [X] T083 [US6] Implement walkover grant logic in match_service.go (GrantWalkover method, mark present player as winner per FR-016)
+- [X] T084 [US6] Publish WalkoverGranted event with winner and reason (no-show)
+- [X] T085 [US6] Handle both players absent scenario (notify host for manual resolution per acceptance criteria)
+- [X] T086 [US6] Add POST /v1/matches/:id/claim-walkover endpoint for player-initiated walkover claim
+- [X] T087 [US6] Add host notification for both-absent scenario (integrate with notification service or log for host dashboard)
 
 **Checkpoint**: No-show handling works
 
@@ -239,17 +239,17 @@
 
 ### Implementation for User Story 7
 
-- [ ] T088 [P] [US7] Create services/matchmaking/internal/gameapi/client.go (GameAPIClient with PollMatchResult method, circuit breaker pattern from research.md)
-- [ ] T089 [US7] Implement polling trigger when match status changes to 'started' (start polling after both players ready)
-- [ ] T090 [US7] Implement polling loop with 5-second intervals (poll Game API GET /api/matches/:id/result per research.md)
-- [ ] T091 [US7] Handle successful result retrieval (Game API returns validated score with fraud check results, call match_service.CompleteMatch per FR-029)
-- [ ] T092 [US7] Handle Game API fraud validation failure (if API indicates fraud detected, flag match for host review per FR-027)
-- [ ] T093 [US7] Handle Game API timeout (60s polling timeout → flag match for manual host entry per FR-027)
-- [ ] T094 [US7] Implement circuit breaker for Game API calls (prevent cascading failures, open after 5 consecutive failures per research.md)
-- [ ] T095 [US7] Add CloudWatch metric for polling success rate (SC-011: 95% target)
-- [ ] T096 [US7] Add CloudWatch metric for result retrieval latency (SC-012: <10s target from polling start to result)
-- [ ] T097 [US7] Publish ScoreRetrieved event when Game API returns validated result
-- [ ] T098 [US7] Add audit logging for all polling attempts (timestamp, match_id, poll_count, result, validation_status)
+- [X] T088 [P] [US7] Create services/matchmaking/internal/gameapi/client.go (GameAPIClient with PollMatchResult method, circuit breaker pattern from research.md)
+- [X] T089 [US7] Implement polling trigger when match status changes to 'started' (start polling after both players ready)
+- [X] T090 [US7] Implement polling loop with 5-second intervals (poll Game API GET /api/matches/:id/result per research.md)
+- [X] T091 [US7] Handle successful result retrieval (Game API returns validated score with fraud check results, call match_service.CompleteMatch per FR-029)
+- [X] T092 [US7] Handle Game API fraud validation failure (if API indicates fraud detected, flag match for host review per FR-027)
+- [X] T093 [US7] Handle Game API timeout (60s polling timeout → flag match for manual host entry per FR-027)
+- [X] T094 [US7] Implement circuit breaker for Game API calls (prevent cascading failures, open after 5 consecutive failures per research.md)
+- [X] T095 [US7] Add CloudWatch metric for polling success rate (SC-011: 95% target)
+- [X] T096 [US7] Add CloudWatch metric for result retrieval latency (SC-012: <10s target from polling start to result)
+- [X] T097 [US7] Publish ScoreRetrieved event when Game API returns validated result
+- [X] T098 [US7] Add audit logging for all polling attempts (timestamp, match_id, poll_count, result, validation_status)
 
 **Checkpoint**: Real-time score submission with fraud detection works
 
@@ -283,11 +283,11 @@
 
 ### Implementation for User Story 9
 
-- [ ] T106 [US9] Add final match detection in match_service.go (check if completed match has next_match_id = NULL)
-- [ ] T107 [US9] Implement tournament completion logic (when final match completes, determine champion)
-- [ ] T108 [US9] Publish TournamentCompleted event with tournament_id and champion_id (consumed by competition service)
-- [ ] T109 [US9] Add bracket completion status tracking (update bracket record with completed_at timestamp)
-- [ ] T110 [US9] Generate final standings data (all participants with placement: 1st, 2nd, eliminated in round X)
+- [X] T106 [US9] Add final match detection in match_service.go (check if completed match has next_match_id = NULL)
+- [X] T107 [US9] Implement tournament completion logic (when final match completes, determine champion)
+- [X] T108 [US9] Publish TournamentCompleted event with tournament_id and champion_id (consumed by competition service)
+- [X] T109 [US9] Add bracket completion status tracking (update bracket record with completed_at timestamp)
+- [X] T110 [US9] Generate final standings data (all participants with placement: 1st, 2nd, eliminated in round X)
 
 **Checkpoint**: Tournament lifecycle complete end-to-end
 
@@ -303,18 +303,18 @@
 
 ### Implementation for Disconnect Handling
 
-- [ ] T111 Implement WebSocket heartbeat monitoring in websocket/client.go (detect missed heartbeats per research.md, 10s threshold)
-- [ ] T112 Implement disconnect detection handler (when heartbeat timeout occurs, trigger disconnect flow per FR-016a)
-- [ ] T113 Implement point award on disconnect (update match score: opponent gets +1 point per FR-016b)
-- [ ] T114 Implement match pause on disconnect (set status='paused', store disconnected_at timestamp per FR-016a)
-- [ ] T115 Implement 30-second reconnection timer (use time.AfterFunc, start from app exit timestamp per FR-016c)
-- [ ] T116 Implement reconnection handler (if player reconnects within 30s, resume match per FR-016f)
-- [ ] T117 Implement disqualification on timeout (if 30s expires without reconnect, grant walkover per FR-016d)
-- [ ] T118 Handle both players disconnect scenario (track timestamps independently per FR-016e, first to disconnect gives point, both get 30s timers)
-- [ ] T119 Publish PlayerConnectionLost event when disconnect detected
-- [ ] T120 Publish PlayerConnectionRestored event when player reconnects successfully
-- [ ] T121 Add disconnect/reconnect state to match database (disconnected_player_id, disconnected_at columns already in schema)
-- [ ] T122 Add CloudWatch logging for disconnect events (frequency, duration, reconnect success rate)
+- [X] T111 Implement WebSocket heartbeat monitoring in websocket/client.go (detect missed heartbeats per research.md, 10s threshold)
+- [X] T112 Implement disconnect detection handler (when heartbeat timeout occurs, trigger disconnect flow per FR-016a)
+- [X] T113 Implement point award on disconnect (update match score: opponent gets +1 point per FR-016b)
+- [X] T114 Implement match pause on disconnect (set status='paused', store disconnected_at timestamp per FR-016a)
+- [X] T115 Implement 30-second reconnection timer (use time.AfterFunc, start from app exit timestamp per FR-016c)
+- [X] T116 Implement reconnection handler (if player reconnects within 30s, resume match per FR-016f)
+- [X] T117 Implement disqualification on timeout (if 30s expires without reconnect, grant walkover per FR-016d)
+- [X] T118 Handle both players disconnect scenario (track timestamps independently per FR-016e, first to disconnect gives point, both get 30s timers)
+- [X] T119 Publish PlayerConnectionLost event when disconnect detected
+- [X] T120 Publish PlayerConnectionRestored event when player reconnects successfully
+- [X] T121 Add disconnect/reconnect state to match database (disconnected_player_id, disconnected_at columns already in schema)
+- [X] T122 Add CloudWatch logging for disconnect events (frequency, duration, reconnect success rate)
 
 **Checkpoint**: Disconnect handling fully implemented
 

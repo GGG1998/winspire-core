@@ -37,6 +37,18 @@ func (q *Queries) AssignWinnerToNextMatch(ctx context.Context, arg AssignWinnerT
 	return err
 }
 
+const ClearDisconnectedPlayerInfo = `-- name: ClearDisconnectedPlayerInfo :exec
+UPDATE tournament_matches
+SET disconnected_player_id = NULL, disconnected_at = NULL, updated_at = NOW()
+WHERE id = $1
+`
+
+// Clear disconnected player info
+func (q *Queries) ClearDisconnectedPlayerInfo(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, ClearDisconnectedPlayerInfo, id)
+	return err
+}
+
 const ClearMatchDisconnect = `-- name: ClearMatchDisconnect :exec
 UPDATE tournament_matches
 SET 
@@ -344,6 +356,24 @@ func (q *Queries) GetMatchesForPlayer(ctx context.Context, participant1ID pgtype
 		return nil, err
 	}
 	return items, nil
+}
+
+const UpdateDisconnectedPlayerOnly = `-- name: UpdateDisconnectedPlayerOnly :exec
+UPDATE tournament_matches
+SET disconnected_player_id = $2, disconnected_at = $3, updated_at = NOW()
+WHERE id = $1
+`
+
+type UpdateDisconnectedPlayerOnlyParams struct {
+	ID                   pgtype.UUID      `json:"id"`
+	DisconnectedPlayerID pgtype.UUID      `json:"disconnected_player_id"`
+	DisconnectedAt       pgtype.Timestamp `json:"disconnected_at"`
+}
+
+// Update disconnected player info without changing status
+func (q *Queries) UpdateDisconnectedPlayerOnly(ctx context.Context, arg UpdateDisconnectedPlayerOnlyParams) error {
+	_, err := q.db.Exec(ctx, UpdateDisconnectedPlayerOnly, arg.ID, arg.DisconnectedPlayerID, arg.DisconnectedAt)
+	return err
 }
 
 const UpdateMatchDisconnect = `-- name: UpdateMatchDisconnect :exec

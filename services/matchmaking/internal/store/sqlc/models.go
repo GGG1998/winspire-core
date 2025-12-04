@@ -11,12 +11,13 @@ import (
 )
 
 type TournamentBracket struct {
-	ID           pgtype.UUID `json:"id"`
-	TournamentID pgtype.UUID `json:"tournament_id"`
-	TotalRounds  int32       `json:"total_rounds"`
-	TotalMatches int32       `json:"total_matches"`
-	ByesCount    int32       `json:"byes_count"`
-	GeneratedAt  time.Time   `json:"generated_at"`
+	ID           pgtype.UUID      `json:"id"`
+	TournamentID pgtype.UUID      `json:"tournament_id"`
+	TotalRounds  int32            `json:"total_rounds"`
+	TotalMatches int32            `json:"total_matches"`
+	ByesCount    int32            `json:"byes_count"`
+	GeneratedAt  time.Time        `json:"generated_at"`
+	CompletedAt  pgtype.Timestamp `json:"completed_at"`
 }
 
 type TournamentMatch struct {

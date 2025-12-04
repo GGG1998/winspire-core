@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	pgtypeconv "github.com/winspire/winspire-core/libs/go/pgtype"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/winspire-core/services/matchmaking/internal/domain"
 	"github.com/winspire-core/services/matchmaking/internal/store/sqlc"
+	pgtypeconv "github.com/winspire/winspire-core/libs/go/pgtype"
 )
 
 // MatchRepository handles match persistence
@@ -21,6 +22,8 @@ type MatchRepository interface {
 	UpdateResult(ctx context.Context, id uuid.UUID, winnerID uuid.UUID, scorePlayer1, scorePlayer2 int, source domain.ResultSource) error
 	UpdateDisconnect(ctx context.Context, id uuid.UUID, playerID uuid.UUID, disconnectedAt *time.Time) error
 	UpdateScore(ctx context.Context, id uuid.UUID, scorePlayer1, scorePlayer2 int) error
+	UpdateDisconnectedPlayer(ctx context.Context, id uuid.UUID, playerID uuid.UUID, disconnectedAt time.Time) error
+	ClearDisconnectedPlayer(ctx context.Context, id uuid.UUID) error
 }
 
 type matchRepository struct {
@@ -191,4 +194,30 @@ func (r *matchRepository) rowToMatch(row sqlc.TournamentMatch) *domain.Match {
 	match.GameAPILastPoll = pgtypeconv.PgtypeToTimePtr(row.GameApiLastPoll)
 
 	return match
+}
+
+// UpdateDisconnectedPlayer updates disconnect tracking info (T114, T121)
+func (r *matchRepository) UpdateDisconnectedPlayer(ctx context.Context, id uuid.UUID, playerID uuid.UUID, disconnectedAt time.Time) error {
+	return r.queries.UpdateDisconnectedPlayerOnly(ctx, sqlc.UpdateDisconnectedPlayerOnlyParams{
+		ID: pgtype.UUID{
+			Bytes: id,
+			Valid: true,
+		},
+		DisconnectedPlayerID: pgtype.UUID{
+			Bytes: playerID,
+			Valid: true,
+		},
+		DisconnectedAt: pgtype.Timestamp{
+			Time:  disconnectedAt,
+			Valid: true,
+		},
+	})
+}
+
+// ClearDisconnectedPlayer clears disconnect tracking info (T116)
+func (r *matchRepository) ClearDisconnectedPlayer(ctx context.Context, id uuid.UUID) error {
+	return r.queries.ClearDisconnectedPlayerInfo(ctx, pgtype.UUID{
+		Bytes: id,
+		Valid: true,
+	})
 }

@@ -4,8 +4,10 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/winspire-core/services/matchmaking/internal/domain"
 	"github.com/winspire-core/services/matchmaking/internal/store/sqlc"
@@ -18,6 +20,7 @@ type BracketRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Bracket, error)
 	GetByTournamentID(ctx context.Context, tournamentID uuid.UUID) (*domain.Bracket, error)
 	GetWithRoundsAndMatches(ctx context.Context, tournamentID uuid.UUID) (*domain.Bracket, []domain.Round, []domain.Match, error)
+	UpdateCompletedAt(ctx context.Context, id uuid.UUID, completedAt time.Time) error
 }
 
 type bracketRepository struct {
@@ -201,4 +204,18 @@ func (r *bracketRepository) GetWithRoundsAndMatches(ctx context.Context, tournam
 	}
 
 	return bracket, rounds, matches, nil
+}
+
+// UpdateCompletedAt marks a bracket as completed (T109)
+func (r *bracketRepository) UpdateCompletedAt(ctx context.Context, id uuid.UUID, completedAt time.Time) error {
+	return r.queries.UpdateBracketCompletedAt(ctx, sqlc.UpdateBracketCompletedAtParams{
+		ID: pgtype.UUID{
+			Bytes: id,
+			Valid: true,
+		},
+		CompletedAt: pgtype.Timestamp{
+			Time:  completedAt,
+			Valid: true,
+		},
+	})
 }

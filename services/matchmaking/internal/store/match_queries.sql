@@ -146,3 +146,15 @@ WHERE round_id IN (
 )
 AND next_match_id IS NULL;
 
+-- name: UpdateDisconnectedPlayerOnly :exec
+-- Update disconnected player info without changing status
+UPDATE tournament_matches
+SET disconnected_player_id = $2, disconnected_at = $3, updated_at = NOW()
+WHERE id = $1;
+
+-- name: ClearDisconnectedPlayerInfo :exec
+-- Clear disconnected player info
+UPDATE tournament_matches
+SET disconnected_player_id = NULL, disconnected_at = NULL, updated_at = NOW()
+WHERE id = $1;
+

@@ -168,6 +168,34 @@ type MatchStartedPayload struct {
 	StartedAt      time.Time `json:"started_at"`
 }
 
+// ParticipantJoinedLobby represents when a player joins a match lobby
+type ParticipantJoinedLobby struct {
+	BaseEvent
+}
+
+type ParticipantJoinedLobbyPayload struct {
+	MatchID       uuid.UUID `json:"match_id"`
+	ParticipantID uuid.UUID `json:"participant_id"`
+	JoinedAt      time.Time `json:"joined_at"`
+}
+
+// NewParticipantJoinedLobby creates a new ParticipantJoinedLobby event
+func NewParticipantJoinedLobby(eventID, matchID, participantID uuid.UUID, metadata map[string]string) ParticipantJoinedLobby {
+	payload := ParticipantJoinedLobbyPayload{
+		MatchID:       matchID,
+		ParticipantID: participantID,
+		JoinedAt:      time.Now(),
+	}
+	baseEvent := newBaseEvent(
+		"ParticipantJoinedLobby",
+		matchID.String(),
+		"Match",
+		payload,
+		metadata,
+	)
+	return ParticipantJoinedLobby{BaseEvent: baseEvent}
+}
+
 // MatchStarted event fired when match begins
 type MatchStarted struct {
 	BaseEvent
@@ -396,5 +424,36 @@ func NewTournamentCompleted(tournamentID, championID uuid.UUID, completedAt time
 	}
 	return TournamentCompleted{
 		BaseEvent: newBaseEvent("TournamentCompleted", tournamentID.String(), "Tournament", payload, metadata),
+	}
+}
+
+// ScoreRetrieved represents when a score is retrieved from the Game API
+type ScoreRetrieved struct {
+	BaseEvent
+}
+
+type ScoreRetrievedPayload struct {
+	MatchID      uuid.UUID `json:"match_id"`
+	TournamentID uuid.UUID `json:"tournament_id"`
+	WinnerID     uuid.UUID `json:"winner_id"`
+	ScorePlayer1 int       `json:"score_player1"`
+	ScorePlayer2 int       `json:"score_player2"`
+	GameMatchID  string    `json:"game_match_id"`
+	RetrievedAt  time.Time `json:"retrieved_at"`
+}
+
+// NewScoreRetrieved creates a new ScoreRetrieved event
+func NewScoreRetrieved(matchID, tournamentID, winnerID uuid.UUID, scorePlayer1, scorePlayer2 int, gameMatchID string, retrievedAt time.Time, metadata map[string]string) ScoreRetrieved {
+	payload := ScoreRetrievedPayload{
+		MatchID:      matchID,
+		TournamentID: tournamentID,
+		WinnerID:     winnerID,
+		ScorePlayer1: scorePlayer1,
+		ScorePlayer2: scorePlayer2,
+		GameMatchID:  gameMatchID,
+		RetrievedAt:  retrievedAt,
+	}
+	return ScoreRetrieved{
+		BaseEvent: newBaseEvent("ScoreRetrieved", matchID.String(), "Match", payload, metadata),
 	}
 }

@@ -22,7 +22,7 @@ INSERT INTO tournament_brackets (
     generated_at
 ) VALUES (
     $1, $2, $3, $4, NOW()
-) RETURNING id, tournament_id, total_rounds, total_matches, byes_count, generated_at
+) RETURNING id, tournament_id, total_rounds, total_matches, byes_count, generated_at, completed_at
 `
 
 type CreateBracketParams struct {
@@ -50,6 +50,7 @@ func (q *Queries) CreateBracket(ctx context.Context, arg CreateBracketParams) (T
 		&i.TotalMatches,
 		&i.ByesCount,
 		&i.GeneratedAt,
+		&i.CompletedAt,
 	)
 	return i, err
 }
@@ -65,7 +66,7 @@ func (q *Queries) DeleteBracket(ctx context.Context, id pgtype.UUID) error {
 }
 
 const GetBracketByID = `-- name: GetBracketByID :one
-SELECT id, tournament_id, total_rounds, total_matches, byes_count, generated_at FROM tournament_brackets
+SELECT id, tournament_id, total_rounds, total_matches, byes_count, generated_at, completed_at FROM tournament_brackets
 WHERE id = $1
 `
 
@@ -79,12 +80,13 @@ func (q *Queries) GetBracketByID(ctx context.Context, id pgtype.UUID) (Tournamen
 		&i.TotalMatches,
 		&i.ByesCount,
 		&i.GeneratedAt,
+		&i.CompletedAt,
 	)
 	return i, err
 }
 
 const GetBracketByTournamentID = `-- name: GetBracketByTournamentID :one
-SELECT id, tournament_id, total_rounds, total_matches, byes_count, generated_at FROM tournament_brackets
+SELECT id, tournament_id, total_rounds, total_matches, byes_count, generated_at, completed_at FROM tournament_brackets
 WHERE tournament_id = $1
 `
 
@@ -98,6 +100,7 @@ func (q *Queries) GetBracketByTournamentID(ctx context.Context, tournamentID pgt
 		&i.TotalMatches,
 		&i.ByesCount,
 		&i.GeneratedAt,
+		&i.CompletedAt,
 	)
 	return i, err
 }
@@ -218,4 +221,20 @@ func (q *Queries) GetBracketWithRoundsAndMatches(ctx context.Context, tournament
 		return nil, err
 	}
 	return items, nil
+}
+
+const UpdateBracketCompletedAt = `-- name: UpdateBracketCompletedAt :exec
+UPDATE tournament_brackets
+SET completed_at = $2
+WHERE id = $1
+`
+
+type UpdateBracketCompletedAtParams struct {
+	ID          pgtype.UUID      `json:"id"`
+	CompletedAt pgtype.Timestamp `json:"completed_at"`
+}
+
+func (q *Queries) UpdateBracketCompletedAt(ctx context.Context, arg UpdateBracketCompletedAtParams) error {
+	_, err := q.db.Exec(ctx, UpdateBracketCompletedAt, arg.ID, arg.CompletedAt)
+	return err
 }

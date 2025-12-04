@@ -13,6 +13,8 @@ import (
 type Querier interface {
 	// Assign winner to next match's participant slot
 	AssignWinnerToNextMatch(ctx context.Context, arg AssignWinnerToNextMatchParams) error
+	// Clear disconnected player info
+	ClearDisconnectedPlayerInfo(ctx context.Context, id pgtype.UUID) error
 	// Clear disconnect tracking when player reconnects
 	ClearMatchDisconnect(ctx context.Context, id pgtype.UUID) error
 	// ============================================================================
@@ -45,6 +47,9 @@ type Querier interface {
 	GetRoundByBracketAndNumber(ctx context.Context, arg GetRoundByBracketAndNumberParams) (TournamentRound, error)
 	GetRoundByID(ctx context.Context, id pgtype.UUID) (TournamentRound, error)
 	GetRoundsByBracketID(ctx context.Context, bracketID pgtype.UUID) ([]TournamentRound, error)
+	UpdateBracketCompletedAt(ctx context.Context, arg UpdateBracketCompletedAtParams) error
+	// Update disconnected player info without changing status
+	UpdateDisconnectedPlayerOnly(ctx context.Context, arg UpdateDisconnectedPlayerOnlyParams) error
 	// Track player disconnect for CS:GO-style handling
 	UpdateMatchDisconnect(ctx context.Context, arg UpdateMatchDisconnectParams) error
 	// Track Game API polling attempts

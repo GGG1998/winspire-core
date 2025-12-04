@@ -9,13 +9,16 @@ import (
 	"github.com/google/uuid"
 )
 
-// DisconnectCallback is called when a player disconnects
+// DisconnectCallback is called when a player disconnects (T112)
 type DisconnectCallback func(matchID, playerID uuid.UUID, disconnectedAt time.Time)
 
 // Hub maintains active WebSocket connections and broadcasts messages
 type Hub struct {
 	// Registered clients organized by match ID
 	matches map[uuid.UUID]map[uuid.UUID]*Client
+
+	// T081: Track lobby join timestamps for no-show detection
+	lobbyJoinTimes map[uuid.UUID]map[uuid.UUID]time.Time
 
 	// Register requests from clients
 	register chan *Client
@@ -42,11 +45,12 @@ type BroadcastMessage struct {
 // NewHub creates a new WebSocket hub
 func NewHub(onDisconnect DisconnectCallback) *Hub {
 	return &Hub{
-		matches:      make(map[uuid.UUID]map[uuid.UUID]*Client),
-		register:     make(chan *Client, 256),
-		unregister:   make(chan *Client, 256),
-		broadcast:    make(chan *BroadcastMessage, 256),
-		onDisconnect: onDisconnect,
+		matches:        make(map[uuid.UUID]map[uuid.UUID]*Client),
+		lobbyJoinTimes: make(map[uuid.UUID]map[uuid.UUID]time.Time),
+		register:       make(chan *Client, 256),
+		unregister:     make(chan *Client, 256),
+		broadcast:      make(chan *BroadcastMessage, 256),
+		onDisconnect:   onDisconnect,
 	}
 }
 
@@ -79,8 +83,14 @@ func (h *Hub) registerClient(client *Client) {
 		h.matches[client.MatchID] = make(map[uuid.UUID]*Client)
 	}
 
-	// Register client
+	// T081: Initialize lobby join times map if needed
+	if h.lobbyJoinTimes[client.MatchID] == nil {
+		h.lobbyJoinTimes[client.MatchID] = make(map[uuid.UUID]time.Time)
+	}
+
+	// Register client and track join time
 	h.matches[client.MatchID][client.PlayerID] = client
+	h.lobbyJoinTimes[client.MatchID][client.PlayerID] = time.Now()
 
 	log.Printf("[Hub] Player %s connected to match %s (total clients: %d)",
 		client.PlayerID, client.MatchID, len(h.matches[client.MatchID]))
@@ -102,6 +112,14 @@ func (h *Hub) unregisterClient(client *Client) {
 	if _, exists := matchClients[client.PlayerID]; exists {
 		delete(matchClients, client.PlayerID)
 		close(client.send)
+
+		// Clean up lobby join time tracking
+		if joinTimes, exists := h.lobbyJoinTimes[client.MatchID]; exists {
+			delete(joinTimes, client.PlayerID)
+			if len(joinTimes) == 0 {
+				delete(h.lobbyJoinTimes, client.MatchID)
+			}
+		}
 
 		log.Printf("[Hub] Player %s disconnected from match %s (remaining clients: %d)",
 			client.PlayerID, client.MatchID, len(matchClients))
@@ -228,7 +246,7 @@ func (h *Hub) monitorHeartbeats() {
 					h.mu.Unlock()
 					h.unregister <- client
 					h.mu.Lock()
-					
+
 					// Trigger disconnect callback
 					if h.onDisconnect != nil {
 						disconnectedAt := time.Now().Add(-timeSinceHeartbeat)
@@ -253,9 +271,9 @@ func (h *Hub) handleClientMessage(client *Client, messageBytes []byte) {
 	case MessageTypeHeartbeat:
 		// Heartbeat handled by ReadPump (updates lastHeartbeat)
 		// No additional action needed
-		
+
 	default:
-		log.Printf("[Hub] Received message type %s from player %s in match %s", 
+		log.Printf("[Hub] Received message type %s from player %s in match %s",
 			msg.Type, client.PlayerID, client.MatchID)
 		// Additional message types handled by application layer
 	}
@@ -280,4 +298,3 @@ func (h *Hub) sendLobbyStateToClient(client *Client) {
 	messageBytes, _ := json.Marshal(msg)
 	client.Send(messageBytes)
 }
-

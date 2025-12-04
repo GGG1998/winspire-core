@@ -10,7 +10,8 @@ CREATE TABLE tournament_brackets (
     total_rounds INTEGER NOT NULL CHECK (total_rounds > 0),
     total_matches INTEGER NOT NULL CHECK (total_matches > 0),
     byes_count INTEGER NOT NULL DEFAULT 0 CHECK (byes_count >= 0),
-    generated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    generated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMP NULL
 );
 
 -- ============================================================================

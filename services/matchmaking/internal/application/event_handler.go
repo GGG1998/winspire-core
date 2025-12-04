@@ -56,7 +56,16 @@ func (h *EventHandler) HandleTournamentStarted(ctx context.Context, eventType st
 	if eventPayload.TournamentID == "" {
 		return fmt.Errorf("tournament_id is required")
 	}
+
+	// T079, T080: Validate minimum participant count (at least 2 required)
+	// Note: If check-in is enabled, competition service has already filtered to checked-in participants
+	// This validation ensures we don't generate brackets with insufficient players
 	if len(eventPayload.Participants) < 2 {
+		h.logger.Error("Insufficient participants for bracket generation", map[string]interface{}{
+			"tournament_id":     eventPayload.TournamentID,
+			"participant_count": len(eventPayload.Participants),
+			"correlation_id":    metadata["correlation_id"],
+		})
 		return fmt.Errorf("at least 2 participants required, got %d", len(eventPayload.Participants))
 	}
 
@@ -66,7 +75,10 @@ func (h *EventHandler) HandleTournamentStarted(ctx context.Context, eventType st
 		return fmt.Errorf("parse tournament_id: %w", err)
 	}
 
-	// Parse participant UUIDs
+	// T078: Parse participant UUIDs
+	// The participant list is pre-filtered by competition service:
+	// - If check-in disabled: all registered participants
+	// - If check-in enabled: only checked-in participants
 	participants := make([]uuid.UUID, len(eventPayload.Participants))
 	for i, participantStr := range eventPayload.Participants {
 		participantID, err := uuid.Parse(participantStr)

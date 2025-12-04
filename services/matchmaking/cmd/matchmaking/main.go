@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
@@ -100,10 +101,6 @@ func main() {
 	// Initialize event publisher
 	publisher := pubsub.NewEventPublisher(redisClient)
 
-	// Initialize WebSocket hub
-	hub := websocket.NewHub(nil) // Disconnect callback will be set by match service
-	go hub.Run()
-
 	// Initialize repositories
 	bracketRepo := repository.NewBracketRepository(queries, pool, pool) // queries, db (DBTX), pool
 	roundRepo := repository.NewRoundRepository(queries)
@@ -119,8 +116,32 @@ func main() {
 		logger,
 	)
 
+	// Initialize match service
+	matchService := application.NewMatchService(
+		matchRepo,
+		roundRepo,
+		bracketRepo,
+		publisher,
+		metrics,
+		logger,
+	)
+
 	// Initialize event handler
 	eventHandler := application.NewEventHandler(bracketService, logger)
+
+	// Initialize disconnect service (T112-T122: CS:GO-style disconnect handling)
+	disconnectService := application.NewDisconnectService(matchRepo, matchService, publisher, logger, metrics)
+
+	// Initialize WebSocket hub with disconnect callback (T112)
+	disconnectCallback := func(matchID, playerID uuid.UUID, disconnectedAt time.Time) {
+		ctx := context.Background()
+		err := disconnectService.HandleDisconnect(ctx, matchID, playerID)
+		if err != nil {
+			log.Printf("ERROR: Failed to handle disconnect: %v", err)
+		}
+	}
+	hub := websocket.NewHub(disconnectCallback)
+	go hub.Run()
 
 	// Initialize HTTP router
 	router := gin.New()
@@ -144,6 +165,11 @@ func main() {
 	router.GET("/ready", healthHandler.HandleReadiness)
 	router.GET("/live", healthHandler.HandleLiveness)
 
+	// Initialize HTTP handlers
+	bracketHandler := httphandlers.NewBracketHandler(bracketRepo, roundRepo, matchRepo)
+	matchHandler := httphandlers.NewMatchHandler(matchRepo, matchService)
+	websocketHandler := httphandlers.NewWebSocketHandler(hub, matchRepo, publisher)
+
 	// API v1 routes (auth required)
 	v1 := router.Group("/v1")
 	// JWT validation middleware - validates token and extracts user context
@@ -154,14 +180,17 @@ func main() {
 	}
 	v1.Use(authmiddleware.ValidateJWTMiddleware(jwtConfig))
 	{
-		// TODO: Register bracket, match, and WebSocket handlers here
-		// Example:
-		// v1.GET("/tournaments/:id/bracket", bracketHandler.GetBracket)
-		// v1.GET("/matches/:id", matchHandler.GetMatch)
-		// v1.GET("/matches/:id/lobby", websocketHandler.UpgradeConnection)
-		//
-		// Use httpx.RequireRole() or httpx.RequireAuth() for additional auth checks
-		// Use httpx.MustGetUser(c) in handlers to get the authenticated user
+		// Bracket endpoints
+		v1.GET("/brackets/:id", bracketHandler.GetBracket)
+		v1.GET("/tournaments/:id/bracket", bracketHandler.GetBracketByTournament)
+
+		// Match endpoints
+		v1.GET("/matches/:id", matchHandler.GetMatch)
+		v1.POST("/matches/:id/ready", matchHandler.MarkPlayerReady)
+		v1.POST("/matches/:id/claim-walkover", matchHandler.ClaimWalkover)
+
+		// WebSocket lobby endpoint
+		v1.GET("/matches/:id/lobby", websocketHandler.UpgradeLobbyConnection)
 	}
 
 	// Create HTTP server

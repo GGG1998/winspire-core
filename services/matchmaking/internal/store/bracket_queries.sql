@@ -58,6 +58,11 @@ LEFT JOIN tournament_matches m ON m.round_id = r.id
 WHERE b.tournament_id = $1
 ORDER BY r.round_number ASC, m.match_number ASC;
 
+-- name: UpdateBracketCompletedAt :exec
+UPDATE tournament_brackets
+SET completed_at = $2
+WHERE id = $1;
+
 -- name: DeleteBracket :exec
 DELETE FROM tournament_brackets
 WHERE id = $1;
