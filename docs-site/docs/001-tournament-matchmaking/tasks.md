@@ -389,10 +389,11 @@
 
 ### Security Hardening
 
-- [ ] T135 Add rate limiting to API endpoints (prevent abuse)
-- [ ] T136 Implement request size limits for WebSocket messages (prevent DoS)
-- [ ] T137 Add HTTPS/WSS requirement validation for production deployment
-- [ ] T138 Audit all SQL queries for injection vulnerabilities (SQLC provides protection, but double-check)
+- [X] T135 Add rate limiting to API endpoints (prevent abuse)
+- [X] T136 Implement request size limits for WebSocket messages (prevent DoS)
+- [X] T137 Make sure that WS support serverless
+- [X] T138 Add HTTPS/WSS requirement validation for production deployment
+- [X] T139 Audit all SQL queries for injection vulnerabilities (SQLC provides protection, but double-check)
 
 ### Testing Support
 

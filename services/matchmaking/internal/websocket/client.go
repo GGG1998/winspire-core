@@ -18,7 +18,8 @@ const (
 	// Send pings to peer with this period. Must be less than pongWait
 	pingPeriod = (pongWait * 9) / 10
 
-	// Maximum message size allowed from peer
+	// T136: Maximum message size allowed from peer (prevent DoS attacks)
+	// Reasonable limit for game lobby messages (heartbeats, ready status, etc.)
 	maxMessageSize = 8192 // 8KB
 )
 
@@ -147,4 +148,3 @@ func (c *Client) IsConnected() bool {
 func (c *Client) TimeSinceLastHeartbeat() time.Duration {
 	return time.Since(c.lastHeartbeat)
 }
-

@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // MatchResult represents a validated match result from the Game API
@@ -37,9 +35,9 @@ const (
 
 // GameAPIClient handles communication with the Game API
 type GameAPIClient struct {
-	baseURL      string
-	httpClient   *http.Client
-	
+	baseURL    string
+	httpClient *http.Client
+
 	// T094: Circuit breaker for Game API calls
 	circuitState        CircuitBreakerState
 	consecutiveFailures int
@@ -59,7 +57,7 @@ func NewGameAPIClient(baseURL string) *GameAPIClient {
 		circuitState:        CircuitClosed,
 		consecutiveFailures: 0,
 		circuitOpenDuration: 30 * time.Second, // Circuit stays open for 30s before retry
-		failureThreshold:    5,                 // Open after 5 consecutive failures
+		failureThreshold:    5,                // Open after 5 consecutive failures
 	}
 }
 
@@ -201,4 +199,3 @@ func (c *GameAPIClient) GetConsecutiveFailures() int {
 	defer c.mu.RUnlock()
 	return c.consecutiveFailures
 }
-

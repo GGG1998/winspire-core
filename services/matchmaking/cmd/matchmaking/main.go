@@ -151,8 +151,13 @@ func main() {
 	httpxConfig.ServiceName = "matchmaking"
 
 	// Apply middleware (order matters!)
-	router.Use(httpx.Recovery(slogLogger))         // Recover from panics
-	router.Use(httpx.RequestLogger(slogLogger))    // Log requests with trace IDs
+	router.Use(httpx.Recovery(slogLogger))      // Recover from panics
+	router.Use(httpx.RequestLogger(slogLogger)) // Log requests with trace IDs
+
+	// T135: Rate limiting (100 requests per minute per IP)
+	rateLimiter := httphandlers.NewRateLimiter(100, time.Minute)
+	router.Use(rateLimiter.Middleware()) // Rate limiting to prevent abuse
+
 	router.Use(httpx.CORS(httpxConfig))            // Handle CORS
 	router.Use(httpx.SecurityHeaders(httpxConfig)) // Add security headers
 
