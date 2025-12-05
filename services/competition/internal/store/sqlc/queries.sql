@@ -302,6 +302,20 @@ SELECT
 FROM tournaments
 WHERE external_id = $1 AND host_id = $2;
 
+3-- name: ListTournamentsByStatus :many
+-- Lists tournaments by status for scheduler
+SELECT 
+    id, host_id, name, description, external_id,
+    status, scheduled_start_time_at, registration_window_open_at,
+    actual_start_time_at, completed_at, cancelled_at,
+    minimum_team_count, maximum_team_count, team_size, auto_force_ready,
+    game_id, space_id, template_id,
+    ready_window, prize,
+    created_at, updated_at
+FROM tournaments
+WHERE status = ANY($1::text[])
+ORDER BY scheduled_start_time_at ASC NULLS LAST, created_at ASC;
+
 -- ============================================================================
 -- TOURNAMENT REGISTRATION QUERIES
 -- Scalable participant management for tournaments (10K+ participants)

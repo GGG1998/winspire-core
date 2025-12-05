@@ -102,19 +102,19 @@ export function TournamentDetailPage() {
     }
   }, [tournamentId])
 
-  // Handle confirm participation (take a spot)
+  // Handle registration for tournament (take a spot)
   const handleConfirmParticipation = async () => {
     if (!tournamentId) return
     
     try {
       await tournamentApi.confirmParticipation(tournamentId)
-      // Refetch tournament to update userParticipationStatus
+      // Refetch tournament to update participation status (will be 'registered')
       await refetchTournament()
     } catch (err) {
-      console.error('Failed to confirm participation:', err)
+      console.error('Failed to register for tournament:', err)
       setError({
         type: 'unknown',
-        message: err instanceof Error ? err.message : 'Nie udało się potwierdzić uczestnictwa',
+        message: err instanceof Error ? err.message : 'Nie udało się zarejestrować do turnieju',
         details: err
       })
     }

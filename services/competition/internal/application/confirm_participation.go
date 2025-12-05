@@ -31,15 +31,15 @@ func NewConfirmParticipationUseCase(
 	}
 }
 
-// Execute confirms a user's participation in a tournament.
+// Execute registers a user's participation in a tournament.
 // Business flow:
-// 1. Validate tournament exists and is open for confirmations
+// 1. Validate tournament exists and is open for registrations
 // 2. Get or create participant (upsert pattern)
-// 3. Confirm participation using domain logic
+// 3. Register participation using domain logic
 // 4. Update participant status in database
 // 5. Check if all places are taken and close registration if needed
 func (uc *ConfirmParticipationUseCase) Execute(ctx context.Context, tournamentID, userID uuid.UUID, displayName string) error {
-	// 1. Get tournament and validate confirmation window
+	// 1. Get tournament and validate registration window
 	tournament, err := uc.tournamentRepo.GetByID(ctx, tournamentID)
 	if err != nil {
 		uc.logger.Error("failed to get tournament", "error", err, "tournamentId", tournamentID)
@@ -47,8 +47,8 @@ func (uc *ConfirmParticipationUseCase) Execute(ctx context.Context, tournamentID
 	}
 
 	if err := tournament.CanConfirmParticipation(); err != nil {
-		uc.logger.Warn("cannot confirm participation", "error", err, "tournamentId", tournamentID, "status", tournament.Status)
-		return fmt.Errorf("confirmation window not open: %w", err)
+		uc.logger.Warn("cannot register for tournament", "error", err, "tournamentId", tournamentID, "status", tournament.Status)
+		return fmt.Errorf("registration window not open: %w", err)
 	}
 
 	// 2. Get or create participant
@@ -75,36 +75,36 @@ func (uc *ConfirmParticipationUseCase) Execute(ctx context.Context, tournamentID
 		}
 	}
 
-	// 3. Confirm participation using domain logic
-	if err := participant.ConfirmParticipation(); err != nil {
-		uc.logger.Warn("cannot confirm participation", "error", err, "tournamentId", tournamentID, "userId", userID, "currentStatus", participant.Status)
-		return fmt.Errorf("cannot confirm participation: %w", err)
+	// 3. Register participation using domain logic
+	if err := participant.RegisterParticipation(); err != nil {
+		uc.logger.Warn("cannot register participation", "error", err, "tournamentId", tournamentID, "userId", userID, "currentStatus", participant.Status)
+		return fmt.Errorf("cannot register participation: %w", err)
 	}
 
 	// 4. Update participant status
 	if err := uc.participantRepo.UpdateStatus(ctx, tournamentID, userID, participant.Status); err != nil {
 		uc.logger.Error("failed to update participant status", "error", err, "tournamentId", tournamentID, "userId", userID)
-		return fmt.Errorf("failed to confirm participation: %w", err)
+		return fmt.Errorf("failed to register participation: %w", err)
 	}
 
-	uc.logger.Info("participation confirmed", "tournamentId", tournamentID, "userId", userID)
+	uc.logger.Info("participation registered", "tournamentId", tournamentID, "userId", userID)
 
 	// 5. Check if all places are taken and close registration
-	confirmedCount, err := uc.participantRepo.CountByTournamentAndStatus(ctx, tournamentID, domain.StatusConfirmed)
+	registeredCount, err := uc.participantRepo.CountByTournamentAndStatus(ctx, tournamentID, domain.StatusRegistered)
 	if err != nil {
-		uc.logger.Warn("failed to count confirmed participants", "error", err, "tournamentId", tournamentID)
+		uc.logger.Warn("failed to count registered participants", "error", err, "tournamentId", tournamentID)
 		// Continue without closing registration
 		return nil
 	}
 
-	if tournament.ShouldCloseRegistration(confirmedCount) {
+	if tournament.ShouldCloseRegistration(registeredCount) {
 		tournament.CloseRegistration()
 		if _, err := uc.tournamentRepo.Save(ctx, tournament); err != nil {
 			uc.logger.Error("failed to close registration", "error", err, "tournamentId", tournamentID)
 			// Don't fail the whole operation if auto-close fails
 			return nil
 		}
-		uc.logger.Info("registration auto-closed - all places taken", "tournamentId", tournamentID, "confirmedCount", confirmedCount)
+		uc.logger.Info("registration auto-closed - all places taken", "tournamentId", tournamentID, "registeredCount", registeredCount)
 	}
 
 	return nil

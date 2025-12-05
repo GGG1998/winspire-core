@@ -25,13 +25,13 @@ function formatDate(date: Date): string {
 }
 
 /**
- * Get full URL from room link (handles both relative and absolute URLs)
+ * Get full URL from details link (handles both relative and absolute URLs)
  */
-function getFullUrl(roomLink: string): string {
-  if (roomLink.startsWith('http://') || roomLink.startsWith('https://')) {
-    return roomLink
+function getFullUrl(detailsLink: string): string {
+  if (detailsLink.startsWith('http://') || detailsLink.startsWith('https://')) {
+    return detailsLink
   }
-  return `${window.location.origin}${roomLink.startsWith('/') ? '' : '/'}${roomLink}`
+  return `${window.location.origin}${detailsLink.startsWith('/') ? '' : '/'}${detailsLink}`
 }
 
 /**
@@ -44,14 +44,15 @@ export function TournamentSuccessModal({
   onGoToRoom
 }: TournamentSuccessModalProps) {
   const { copy, isCopied } = useClipboard()
-  const fullUrl = getFullUrl(tournament.roomLink)
+  const tournamentDetailsLink = `/h/${tournament.creatorId}/tournaments/${tournament.id}`
+  const fullUrl = getFullUrl(tournamentDetailsLink)
 
   const handleCopyLink = async () => {
-    await copy(tournament.roomLink)
+    await copy(tournamentDetailsLink)
   }
 
   const handleGoToRoom = () => {
-    onGoToRoom(tournament.roomLink)
+    onGoToRoom(tournamentDetailsLink)
   }
 
   return (
@@ -119,7 +120,7 @@ export function TournamentSuccessModal({
             </div>
           </div>
 
-          {/* Room link section */}
+          {/* Details link section */}
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Link do pokoju
@@ -127,7 +128,7 @@ export function TournamentSuccessModal({
             <div className="flex items-center gap-2">
               <div className="flex-1 overflow-hidden rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
                 <p className="truncate text-sm text-gray-700">
-                  {tournament.roomLink}
+                  {fullUrl}
                 </p>
               </div>
               <button

@@ -18,6 +18,7 @@ import (
 	"github.com/winspire/competition/internal/application"
 	"github.com/winspire/competition/internal/config"
 	httpx "github.com/winspire/competition/internal/http"
+	"github.com/winspire/competition/internal/pubsub"
 	"github.com/winspire/competition/internal/repository"
 	"github.com/winspire/competition/internal/scheduler"
 )
@@ -107,6 +108,26 @@ func main() {
 		logger,
 	)
 
+	// Initialize event publisher
+	eventPublisher := pubsub.NewEventPublisher(redisClient)
+
+	// Initialize event subscriber for saga coordination
+	eventSubscriber := pubsub.NewEventSubscriber(redisClient, logger)
+	eventHandler := application.NewEventHandler(tournamentPersistenceRepo, eventPublisher, logger)
+	eventHandler.RegisterHandlers(eventSubscriber)
+
+	// Start event subscriber in background
+	go func() {
+		channels := []string{
+			"events:matchmaking:grace_period_started",
+			"events:matchmaking:bracket_generation_failed",
+		}
+		logger.Info("event subscriber starting", "channels", channels)
+		if err := eventSubscriber.Start(ctx, channels); err != nil {
+			logger.Error("event subscriber error", "error", err)
+		}
+	}()
+
 	// Create router with dependencies
 	router := httpx.NewRouter(httpx.ServerDeps{
 		Config:                 cfg,
@@ -114,6 +135,7 @@ func main() {
 		HealthCheck:            healthCheck,
 		Pool:                   pool,
 		Redis:                  redisClient,
+		EventPublisher:         eventPublisher,
 		ConfirmParticipationUC: confirmParticipationUC,
 		JoinTournamentUC:       joinTournamentUC,
 		ParticipantRepo:        participantDomainRepo,

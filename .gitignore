@@ -54,3 +54,6 @@ coverage/
 *.swp
 
 .vscode/
+
+playwright-report/
+test-results/

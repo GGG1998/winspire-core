@@ -1,0 +1,365 @@
+openapi: 3.0.3
+info:
+  title: Tournament Pre-Lobby API
+  description: |
+    REST and WebSocket API for tournament pre-lobby functionality.
+    Part of the matchmaking service.
+  version: 1.0.0
+  contact:
+    name: Winspire Team
+
+servers:
+  - url: /api/v1
+    description: API base path
+
+tags:
+  - name: Pre-Lobby
+    description: Tournament pre-lobby operations
+
+paths:
+  /tournaments/{tournamentId}/lobby:
+    get:
+      tags:
+        - Pre-Lobby
+      summary: Get pre-lobby state
+      description: |
+        Returns the current state of the tournament pre-lobby including:
+        - Tournament metadata
+        - List of connected participants
+        - Current status (waiting, grace_period, started)
+        - Grace period timing (if active)
+        - Recent activity feed
+        
+        Requires authenticated user who is registered for the tournament.
+      operationId: getPreLobbyState
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Tournament ID
+      responses:
+        '200':
+          description: Pre-lobby state retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreLobbyState'
+        '401':
+          description: Unauthorized - missing or invalid JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - user not registered for tournament
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Tournament not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conflict - tournament not in valid state for pre-lobby
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Service unavailable - competition service unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      security:
+        - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    PreLobbyState:
+      type: object
+      required:
+        - tournamentId
+        - tournamentName
+        - status
+        - participants
+        - participantCount
+        - minParticipants
+        - startTime
+        - activityFeed
+      properties:
+        tournamentId:
+          type: string
+          format: uuid
+          description: Tournament ID
+        tournamentName:
+          type: string
+          description: Tournament display name
+        status:
+          type: string
+          enum:
+            - waiting
+            - grace_period
+            - generating_bracket
+            - started
+            - cancelled
+          description: Current pre-lobby status
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreLobbyParticipant'
+          description: List of currently connected participants
+        participantCount:
+          type: integer
+          minimum: 0
+          description: Number of connected participants
+        minParticipants:
+          type: integer
+          minimum: 2
+          description: Minimum participants required to start
+        startTime:
+          type: string
+          format: date-time
+          description: Scheduled tournament start time
+        gracePeriod:
+          $ref: '#/components/schemas/GracePeriodInfo'
+        activityFeed:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityFeedItem'
+          description: Recent activity events (max 20)
+
+    PreLobbyParticipant:
+      type: object
+      required:
+        - userId
+        - displayName
+        - joinedAt
+      properties:
+        userId:
+          type: string
+          format: uuid
+          description: User ID
+        displayName:
+          type: string
+          description: Player display name
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: Player avatar URL
+        joinedAt:
+          type: string
+          format: date-time
+          description: When player connected to pre-lobby
+
+    GracePeriodInfo:
+      type: object
+      required:
+        - startTime
+        - endTime
+        - remainingSeconds
+      properties:
+        startTime:
+          type: string
+          format: date-time
+          description: When grace period started
+        endTime:
+          type: string
+          format: date-time
+          description: When grace period ends
+        remainingSeconds:
+          type: integer
+          minimum: 0
+          maximum: 30
+          description: Seconds remaining in grace period
+
+    ActivityFeedItem:
+      type: object
+      required:
+        - id
+        - eventType
+        - message
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Event ID
+        eventType:
+          type: string
+          enum:
+            - participant_joined
+            - participant_left
+            - grace_period_started
+            - grace_period_ended
+            - tournament_cancelled
+            - system_message
+          description: Type of event
+        message:
+          type: string
+          description: Human-readable event message
+        participantName:
+          type: string
+          nullable: true
+          description: Name of participant (for join/leave events)
+        createdAt:
+          type: string
+          format: date-time
+          description: Event timestamp
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code
+          example: NOT_REGISTERED
+        message:
+          type: string
+          description: Human-readable error message
+          example: User is not registered for this tournament
+
+---
+# WebSocket API Documentation
+# Endpoint: WS /api/v1/tournaments/{tournamentId}/lobby
+
+# Connection
+# - Requires JWT in query param: ?token=<jwt>
+# - Validates user is registered for tournament
+# - Adds user to pre-lobby participant list
+
+# Server → Client Messages
+
+# 1. prelobby_state (sent on connection)
+# {
+#   "type": "prelobby_state",
+#   "timestamp": "2025-12-05T10:00:00Z",
+#   "payload": {
+#     "tournament_id": "uuid",
+#     "status": "waiting",
+#     "participants": [...],
+#     "participant_count": 5,
+#     "min_participants": 8,
+#     "start_time": "2025-12-05T10:05:00Z",
+#     "grace_period": null,
+#     "activity_feed": [...]
+#   }
+# }
+
+# 2. participant_joined
+# {
+#   "type": "participant_joined",
+#   "timestamp": "2025-12-05T10:01:00Z",
+#   "payload": {
+#     "user_id": "uuid",
+#     "display_name": "PlayerName",
+#     "avatar_url": "https://...",
+#     "joined_at": "2025-12-05T10:01:00Z"
+#   }
+# }
+
+# 3. participant_left
+# {
+#   "type": "participant_left",
+#   "timestamp": "2025-12-05T10:02:00Z",
+#   "payload": {
+#     "user_id": "uuid",
+#     "display_name": "PlayerName"
+#   }
+# }
+
+# 4. grace_period_started
+# {
+#   "type": "grace_period_started",
+#   "timestamp": "2025-12-05T10:05:00Z",
+#   "payload": {
+#     "start_time": "2025-12-05T10:05:00Z",
+#     "end_time": "2025-12-05T10:05:30Z",
+#     "participant_count": 12
+#   }
+# }
+
+# 5. roster_updated (during grace period)
+# {
+#   "type": "roster_updated",
+#   "timestamp": "2025-12-05T10:05:15Z",
+#   "payload": {
+#     "participant_count": 13,
+#     "action": "joined",
+#     "user_id": "uuid",
+#     "display_name": "LatePlayer"
+#   }
+# }
+
+# 6. grace_period_ended
+# {
+#   "type": "grace_period_ended",
+#   "timestamp": "2025-12-05T10:05:30Z",
+#   "payload": {
+#     "final_participant_count": 13,
+#     "status": "generating_bracket"
+#   }
+# }
+
+# 7. match_assigned
+# {
+#   "type": "match_assigned",
+#   "timestamp": "2025-12-05T10:05:35Z",
+#   "payload": {
+#     "match_id": "uuid",
+#     "round_number": 1,
+#     "match_number": 3,
+#     "opponent": {
+#       "user_id": "uuid",
+#       "display_name": "OpponentName",
+#       "avatar_url": "https://..."
+#     }
+#   }
+# }
+
+# 8. tournament_cancelled
+# {
+#   "type": "tournament_cancelled",
+#   "timestamp": "2025-12-05T10:05:30Z",
+#   "payload": {
+#     "reason": "Insufficient participants (3/8 minimum)"
+#   }
+# }
+
+# 9. error
+# {
+#   "type": "error",
+#   "timestamp": "2025-12-05T10:00:00Z",
+#   "payload": {
+#     "code": "NOT_REGISTERED",
+#     "message": "User is not registered for this tournament"
+#   }
+# }
+
+# Client → Server Messages
+
+# 1. heartbeat (every 30s to maintain connection)
+# {
+#   "type": "heartbeat",
+#   "timestamp": "2025-12-05T10:00:30Z",
+#   "payload": {
+#     "player_id": "uuid"
+#   }
+# }
+

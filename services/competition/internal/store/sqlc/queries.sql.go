@@ -1207,6 +1207,89 @@ func (q *Queries) ListTournamentsByHostIDWithStatus(ctx context.Context, arg Lis
 	return items, nil
 }
 
+const listTournamentsByStatus = `-- name: ListTournamentsByStatus :many
+SELECT 
+    id, host_id, name, description, external_id,
+    status, scheduled_start_time_at, registration_window_open_at,
+    actual_start_time_at, completed_at, cancelled_at,
+    minimum_team_count, maximum_team_count, team_size, auto_force_ready,
+    game_id, space_id, template_id,
+    ready_window, prize,
+    created_at, updated_at
+FROM tournaments
+WHERE status = ANY($1::text[])
+ORDER BY scheduled_start_time_at ASC NULLS LAST, created_at ASC
+`
+
+type ListTournamentsByStatusRow struct {
+	ID                       pgtype.UUID        `json:"id"`
+	HostID                   pgtype.UUID        `json:"host_id"`
+	Name                     string             `json:"name"`
+	Description              pgtype.Text        `json:"description"`
+	ExternalID               pgtype.Text        `json:"external_id"`
+	Status                   string             `json:"status"`
+	ScheduledStartTimeAt     pgtype.Timestamptz `json:"scheduled_start_time_at"`
+	RegistrationWindowOpenAt pgtype.Timestamptz `json:"registration_window_open_at"`
+	ActualStartTimeAt        pgtype.Timestamptz `json:"actual_start_time_at"`
+	CompletedAt              pgtype.Timestamptz `json:"completed_at"`
+	CancelledAt              pgtype.Timestamptz `json:"cancelled_at"`
+	MinimumTeamCount         pgtype.Int4        `json:"minimum_team_count"`
+	MaximumTeamCount         pgtype.Int4        `json:"maximum_team_count"`
+	TeamSize                 int32              `json:"team_size"`
+	AutoForceReady           pgtype.Bool        `json:"auto_force_ready"`
+	GameID                   pgtype.UUID        `json:"game_id"`
+	SpaceID                  pgtype.UUID        `json:"space_id"`
+	TemplateID               pgtype.UUID        `json:"template_id"`
+	ReadyWindow              []byte             `json:"ready_window"`
+	Prize                    []byte             `json:"prize"`
+	CreatedAt                pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Lists tournaments by status for scheduler
+func (q *Queries) ListTournamentsByStatus(ctx context.Context, dollar_1 []string) ([]ListTournamentsByStatusRow, error) {
+	rows, err := q.db.Query(ctx, listTournamentsByStatus, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTournamentsByStatusRow{}
+	for rows.Next() {
+		var i ListTournamentsByStatusRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.HostID,
+			&i.Name,
+			&i.Description,
+			&i.ExternalID,
+			&i.Status,
+			&i.ScheduledStartTimeAt,
+			&i.RegistrationWindowOpenAt,
+			&i.ActualStartTimeAt,
+			&i.CompletedAt,
+			&i.CancelledAt,
+			&i.MinimumTeamCount,
+			&i.MaximumTeamCount,
+			&i.TeamSize,
+			&i.AutoForceReady,
+			&i.GameID,
+			&i.SpaceID,
+			&i.TemplateID,
+			&i.ReadyWindow,
+			&i.Prize,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const removeHostMember = `-- name: RemoveHostMember :exec
 DELETE FROM host_members
 WHERE host_id = $1 AND user_id = $2

@@ -15,7 +15,11 @@ import type {
   TournamentApiData,
   CreateTournamentResponse,
   EditTournamentResponse,
-  TournamentParticipant
+  TournamentParticipant,
+  Bracket,
+  Match,
+  MatchWithPlayers,
+  MatchPlayer
 } from '../types'
 
 /**
@@ -76,7 +80,7 @@ export function apiToUiTournament(apiData: TournamentApiData): Tournament {
     gameLogoUrl: apiData.gameLogoUrl,
     bannerUrl: apiData.bannerUrl,
     creatorId: apiData.creatorId || '',
-    roomLink: apiData.roomLink || `${window.location.origin}/tournament/${apiData.id}`,
+    roomLink: apiData.roomLink || `${window.location.origin}/h/${apiData.creatorId}/tournaments/${apiData.id}`,
     isCompleted: apiData.isCompleted || false,
     createdAt: new Date(apiData.createdAt),
     updatedAt: apiData.updatedAt ? new Date(apiData.updatedAt) : new Date(apiData.createdAt),
@@ -88,6 +92,7 @@ export function apiToUiTournament(apiData: TournamentApiData): Tournament {
       endsAt: new Date(apiData.readyWindow.endsAt)
     } : undefined,
     prize: apiData.prize,
+    me: apiData.me,
     participants: apiData.participants?.map(p => ({
       ...p,
       registeredAt: new Date(p.registeredAt)
@@ -108,7 +113,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.get<{ tournaments: TournamentApiData[] }>(
-        `/${hostId}/tournaments`
+        `/v1/${hostId}/tournaments`
       )
 
       if (response.error) {
@@ -134,7 +139,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.get<{ tournament: TournamentApiData }>(
-        `/${hostId}/tournaments/${tournamentId}`
+        `/v1/${hostId}/tournaments/${tournamentId}`
       )
 
       if (response.error) {
@@ -165,7 +170,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.post<CreateTournamentResponse>(
-        `/${hostId}/tournaments`,
+        `/v1/${hostId}/tournaments`,
         input
       )
 
@@ -210,7 +215,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.put<EditTournamentResponse>(
-        `/${hostId}/tournaments/${tournamentId}`,
+        `/v1/${hostId}/tournaments/${tournamentId}`,
         input
       )
 
@@ -286,7 +291,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.post<{ success: boolean }>(
-        `/${hostId}/tournaments/${tournamentId}/confirm-participation`,
+        `/v1/${hostId}/tournaments/${tournamentId}/confirm-participation`,
         {}
       )
 
@@ -311,7 +316,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.post<{ success: boolean; roomLink?: string }>(
-        `/${hostId}/tournaments/${tournamentId}/join`,
+        `/v1/${hostId}/tournaments/${tournamentId}/join`,
         {}
       )
 
@@ -351,7 +356,7 @@ export const tournamentApi = {
         total: number
         limit: number
         offset: number
-      }>(`/${hostId}/tournaments/${tournamentId}/participants?limit=${limit}&offset=${offset}`)
+      }>(`/v1/${hostId}/tournaments/${tournamentId}/participants?limit=${limit}&offset=${offset}`)
 
       if (response.error) {
         throw new Error(response.error.message)
@@ -371,6 +376,102 @@ export const tournamentApi = {
       }))
     } catch (error) {
       console.error('Failed to fetch participants:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Get tournament bracket with all rounds and matches
+   */
+  async getBracket(tournamentId: string): Promise<Bracket> {
+    try {
+      const hostId = await getCurrentHostId()
+      const response = await apiClient.get<{ bracket: Bracket }>(
+        `/v1/matchmaking/tournaments/${tournamentId}/bracket`
+      )
+
+      if (response.error) {
+        throw new Error(response.error.message)
+      }
+
+      if (!response.data?.bracket) {
+        throw new Error('Bracket not found')
+      }
+
+      return response.data.bracket
+    } catch (error) {
+      console.error('Failed to fetch bracket:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Get all matches for a tournament (grouped by round)
+   * Returns matches with player details
+   */
+  async getMatches(tournamentId: string): Promise<MatchWithPlayers[]> {
+    try {
+      const hostId = await getCurrentHostId()
+      const response = await apiClient.get<{
+        matches: Array<{
+          match: Match
+          participant1: MatchPlayer | null
+          participant2: MatchPlayer | null
+          roundNumber: number
+          roundName: string
+        }>
+      }>(`/v1/matchmaking/tournaments/${tournamentId}/matches`)
+
+      if (response.error) {
+        throw new Error(response.error.message)
+      }
+
+      if (!response.data?.matches) {
+        return []
+      }
+
+      // Transform to MatchWithPlayers format
+      return response.data.matches.map(item => ({
+        ...item.match,
+        player1: item.participant1,
+        player2: item.participant2,
+      }))
+    } catch (error) {
+      console.error('Failed to fetch matches:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Submit manual result for a match (host only)
+   * Used when game API fails or is unavailable
+   */
+  async submitManualResult(
+    matchId: string, 
+    winnerId: string, 
+    scorePlayer1: number | null = null, 
+    scorePlayer2: number | null = null
+  ): Promise<void> {
+    try {
+      const hostId = await getCurrentHostId()
+      const response = await apiClient.post<{ success: boolean }>(
+        `/v1/matchmaking/matches/${matchId}/manual-result`,
+        {
+          winnerId,
+          scorePlayer1,
+          scorePlayer2,
+        }
+      )
+
+      if (response.error) {
+        throw new Error(response.error.message)
+      }
+
+      if (!response.data?.success) {
+        throw new Error('Failed to submit manual result')
+      }
+    } catch (error) {
+      console.error('Failed to submit manual result:', error)
       throw error
     }
   }

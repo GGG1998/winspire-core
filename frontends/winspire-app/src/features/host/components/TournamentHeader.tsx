@@ -61,22 +61,22 @@ function TournamentHeaderComponent({
   const statusConfig = TOURNAMENT_STATUS_CONFIG[status]
   const labels = UI_LABELS.detail
 
-  // Calculate minutes until tournament start
-  const minutesUntilStart = Math.floor((tournament.startTime.getTime() - Date.now()) / (1000 * 60))
+  // Calculate seconds until tournament start for more precision
+  const secondsUntilStart = Math.floor((tournament.startTime.getTime() - Date.now()) / 1000)
   
-  // Determine if user can confirm participation (take a spot)
-  const canConfirmParticipation = (
+  // Determine if user can register for tournament (take a spot)
+  const canRegisterForTournament = (
     (status === 'registration_open' || status === 'scheduled') &&
-    (!tournament.userParticipationStatus || tournament.userParticipationStatus === 'registered') &&
+    (!tournament.me?.participationStatus) &&
     (!tournament.format?.maxSlots || !tournament.participantCount || tournament.participantCount < tournament.format.maxSlots)
   )
-  console.log(canConfirmParticipation)
-  // Determine if user can join tournament
+  
+  // Determine if user can join tournament (5 minutes before start, up to 30s after)
   const canJoinTournament = (
-    (tournament.userParticipationStatus === 'confirmed' || tournament.userParticipationStatus === 'checked_in') &&
+    (tournament.me?.participationStatus === 'registered' || tournament.me?.participationStatus === 'confirmed' || tournament.me?.participationStatus === 'checked_in') &&
     (status === 'registration_open' || status === 'registration_closed' || status === 'scheduled') &&
-    minutesUntilStart <= JOIN_BUTTON_MINUTES_BEFORE_START &&
-    minutesUntilStart > 0
+    secondsUntilStart <= JOIN_BUTTON_MINUTES_BEFORE_START * 60 &&
+    secondsUntilStart > -30  // Hide 30s after 00:00
   )
 
   return (
@@ -178,7 +178,7 @@ function TournamentHeaderComponent({
                     {countdown}
                   </div>
                 </div>
-                {canConfirmParticipation && (
+                {canRegisterForTournament && (
                   <Button color="orange" onClick={onConfirmParticipation}>
                     Zajmij miejsce
                   </Button>

@@ -1,0 +1,814 @@
+# Domain Event Schemas: Tournament Matchmaking
+# Feature: 001-tournament-matchmaking
+# Date: 2025-12-04
+#
+# Based on DDD event catalog from .specify/darft/001-matchmaking.md
+# Format: CloudEvents-compatible JSON schemas
+
+version: "1.0.0"
+
+events:
+  # ===================================================================
+  # BOUNDED CONTEXT: TournamentManagement (In-Scope Events Only)
+  # ===================================================================
+  
+  TournamentStarted:
+    description: "Host started tournament, triggers bracket generation"
+    bounded_context: TournamentManagement
+    aggregate: Tournament
+    actor: Host
+    command: StartTournament
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+          description: "Unique event identifier (ULID for time-based ordering)"
+        event_type:
+          type: string
+          enum: [TournamentStarted]
+        aggregate_id:
+          type: string
+          format: uuid
+          description: "Tournament ID"
+        aggregate_type:
+          type: string
+          const: Tournament
+        bounded_context:
+          type: string
+          const: TournamentManagement
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [tournament_id, participant_count, minimum_team_count, scheduled_start_time]
+          properties:
+            tournament_id:
+              type: string
+              format: uuid
+            tournament_name:
+              type: string
+            participant_count:
+              type: integer
+              minimum: 2
+            minimum_team_count:
+              type: integer
+            scheduled_start_time:
+              type: string
+              format: date-time
+            host_id:
+              type: string
+              format: uuid
+        metadata:
+          type: object
+          properties:
+            correlation_id:
+              type: string
+            causation_id:
+              type: string
+            user_id:
+              type: string
+              format: uuid
+    invariants:
+      - "participant_count >= minimum_team_count"
+      - "Tournament was in 'registration_open' or 'registration_closed' state"
+      - "All participants are 'confirmed' or 'checked_in'"
+  
+  ParticipantCheckedIn:
+    description: "Player checked in 15 minutes before start"
+    bounded_context: TournamentManagement
+    aggregate: TournamentParticipant
+    actor: User
+    command: CheckInToTournament
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [ParticipantCheckedIn]
+        aggregate_id:
+          type: string
+          format: uuid
+          description: "Participant registration ID"
+        bounded_context:
+          type: string
+          const: TournamentManagement
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [tournament_id, user_id, display_name]
+          properties:
+            tournament_id:
+              type: string
+              format: uuid
+            user_id:
+              type: string
+              format: uuid
+            display_name:
+              type: string
+    invariants:
+      - "Participant status was 'confirmed'"
+      - "Time to tournament start <= 15 minutes"
+      - "Tournament not yet started"
+
+  TournamentCompleted:
+    description: "Tournament ended with winner declared"
+    bounded_context: TournamentManagement
+    aggregate: Tournament
+    actor: System
+    command: CompleteTournament
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [TournamentCompleted]
+        aggregate_id:
+          type: string
+          format: uuid
+        bounded_context:
+          type: string
+          const: TournamentManagement
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [tournament_id, winner_id, winner_name, total_matches]
+          properties:
+            tournament_id:
+              type: string
+              format: uuid
+            winner_id:
+              type: string
+              format: uuid
+            winner_name:
+              type: string
+            runner_up_id:
+              type: string
+              format: uuid
+            runner_up_name:
+              type: string
+            total_matches:
+              type: integer
+            duration_minutes:
+              type: integer
+    invariants:
+      - "Tournament was in 'started' state"
+      - "All matches completed"
+      - "Winner declared"
+
+  TournamentCancelled:
+    description: "Host cancelled tournament"
+    bounded_context: TournamentManagement
+    aggregate: Tournament
+    actor: Host
+    command: CancelTournament
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [TournamentCancelled]
+        aggregate_id:
+          type: string
+          format: uuid
+        bounded_context:
+          type: string
+          const: TournamentManagement
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [tournament_id, host_id, reason]
+          properties:
+            tournament_id:
+              type: string
+              format: uuid
+            host_id:
+              type: string
+              format: uuid
+            reason:
+              type: string
+            active_matches_count:
+              type: integer
+    invariants:
+      - "Tournament not in 'completed' state"
+      - "Host owns tournament"
+      - "No active matches (or allowed by host override)"
+
+  # ===================================================================
+  # BOUNDED CONTEXT: Matchmaking
+  # ===================================================================
+
+  BracketGenerated:
+    description: "System generated tournament bracket structure"
+    bounded_context: Matchmaking
+    aggregate: Bracket
+    actor: System
+    command: GenerateBracket
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [BracketGenerated]
+        aggregate_id:
+          type: string
+          format: uuid
+          description: "Bracket ID"
+        bounded_context:
+          type: string
+          const: Matchmaking
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [bracket_id, tournament_id, total_rounds, total_matches, byes_count]
+          properties:
+            bracket_id:
+              type: string
+              format: uuid
+            tournament_id:
+              type: string
+              format: uuid
+            total_rounds:
+              type: integer
+              minimum: 1
+            total_matches:
+              type: integer
+              minimum: 1
+            byes_count:
+              type: integer
+              minimum: 0
+            participant_count:
+              type: integer
+    invariants:
+      - "Tournament in 'started' state"
+      - "participant_count >= minimum_team_count"
+      - "Bracket not already generated"
+
+  RoundCreated:
+    description: "System created a round in the bracket"
+    bounded_context: Matchmaking
+    aggregate: Bracket
+    actor: System
+    command: CreateRound
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [RoundCreated]
+        aggregate_id:
+          type: string
+          format: uuid
+          description: "Round ID"
+        bounded_context:
+          type: string
+          const: Matchmaking
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [round_id, bracket_id, round_number, round_name, matches_count]
+          properties:
+            round_id:
+              type: string
+              format: uuid
+            bracket_id:
+              type: string
+              format: uuid
+            round_number:
+              type: integer
+              minimum: 1
+            round_name:
+              type: string
+              description: "e.g., 'Quarter-finals', 'Semi-finals', 'Final'"
+            matches_count:
+              type: integer
+              minimum: 1
+    invariants:
+      - "Bracket must exist"
+      - "Previous round completed (if not first round)"
+
+  MatchCreated:
+    description: "System created a match with assigned participants"
+    bounded_context: Matchmaking
+    aggregate: Match
+    actor: System
+    command: CreateMatch
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [MatchCreated]
+        aggregate_id:
+          type: string
+          format: uuid
+          description: "Match ID"
+        bounded_context:
+          type: string
+          const: Matchmaking
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [match_id, round_id, match_number, participant1_id]
+          properties:
+            match_id:
+              type: string
+              format: uuid
+            round_id:
+              type: string
+              format: uuid
+            match_number:
+              type: integer
+            participant1_id:
+              type: string
+              format: uuid
+            participant1_name:
+              type: string
+            participant2_id:
+              type: string
+              format: uuid
+              nullable: true
+              description: "Null if participant1 has a bye"
+            participant2_name:
+              type: string
+              nullable: true
+            next_match_id:
+              type: string
+              format: uuid
+              nullable: true
+              description: "Null for final match"
+    invariants:
+      - "Round must exist"
+      - "Both participants active (or participant2 null for bye)"
+
+  MatchStarted:
+    description: "Match began (both players ready or auto_force_ready)"
+    bounded_context: Matchmaking
+    aggregate: Match
+    actor: System|Host
+    command: StartMatch
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [MatchStarted]
+        aggregate_id:
+          type: string
+          format: uuid
+        bounded_context:
+          type: string
+          const: Matchmaking
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [match_id, tournament_id, participant1_id]
+          properties:
+            match_id:
+              type: string
+              format: uuid
+            tournament_id:
+              type: string
+              format: uuid
+            participant1_id:
+              type: string
+              format: uuid
+            participant2_id:
+              type: string
+              format: uuid
+              nullable: true
+            game_api_match_id:
+              type: string
+              description: "External game system match ID"
+    invariants:
+      - "Match in 'pending' or 'ready' state"
+      - "Both players ready (or auto_force_ready=true)"
+
+  MatchCompleted:
+    description: "Match finished with result"
+    bounded_context: Matchmaking
+    aggregate: Match
+    actor: System
+    command: CompleteMatch
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [MatchCompleted]
+        aggregate_id:
+          type: string
+          format: uuid
+        bounded_context:
+          type: string
+          const: Matchmaking
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [match_id, winner_id, result_source]
+          properties:
+            match_id:
+              type: string
+              format: uuid
+            tournament_id:
+              type: string
+              format: uuid
+            winner_id:
+              type: string
+              format: uuid
+            winner_name:
+              type: string
+            loser_id:
+              type: string
+              format: uuid
+            loser_name:
+              type: string
+            score_player1:
+              type: integer
+            score_player2:
+              type: integer
+            result_source:
+              type: string
+              enum: [game_api, host_manual, walkover]
+            duration_seconds:
+              type: integer
+    invariants:
+      - "Match in 'started' state"
+      - "Result submitted and accepted"
+
+  ParticipantEliminated:
+    description: "Player lost match and eliminated from tournament"
+    bounded_context: Matchmaking
+    aggregate: TournamentParticipant
+    actor: System
+    command: EliminateParticipant
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [ParticipantEliminated]
+        aggregate_id:
+          type: string
+          format: uuid
+        bounded_context:
+          type: string
+          const: Matchmaking
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [tournament_id, participant_id, match_id, round_number]
+          properties:
+            tournament_id:
+              type: string
+              format: uuid
+            participant_id:
+              type: string
+              format: uuid
+            participant_name:
+              type: string
+            match_id:
+              type: string
+              format: uuid
+            round_number:
+              type: integer
+            final_placement:
+              type: integer
+              description: "e.g., 3rd place if lost in semi-final"
+    invariants:
+      - "Participant was active"
+      - "Match completed"
+      - "Participant lost match"
+
+  ParticipantAdvanced:
+    description: "Player won match and advanced to next round"
+    bounded_context: Matchmaking
+    aggregate: TournamentParticipant
+    actor: System
+    command: AdvanceParticipant
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [ParticipantAdvanced]
+        aggregate_id:
+          type: string
+          format: uuid
+        bounded_context:
+          type: string
+          const: Matchmaking
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [tournament_id, participant_id, from_match_id, to_match_id, next_round_number]
+          properties:
+            tournament_id:
+              type: string
+              format: uuid
+            participant_id:
+              type: string
+              format: uuid
+            participant_name:
+              type: string
+            from_match_id:
+              type: string
+              format: uuid
+            to_match_id:
+              type: string
+              format: uuid
+              nullable: true
+              description: "Null if won tournament (final match)"
+            current_round_number:
+              type: integer
+            next_round_number:
+              type: integer
+              nullable: true
+    invariants:
+      - "Participant was active"
+      - "Match completed"
+      - "Participant won match"
+
+  WalkoverGranted:
+    description: "Walkover awarded (opponent no-show or forfeit)"
+    bounded_context: Matchmaking
+    aggregate: Match
+    actor: System|Host
+    command: GrantWalkover
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [WalkoverGranted]
+        aggregate_id:
+          type: string
+          format: uuid
+        bounded_context:
+          type: string
+          const: Matchmaking
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [match_id, winner_id, loser_id, reason]
+          properties:
+            match_id:
+              type: string
+              format: uuid
+            tournament_id:
+              type: string
+              format: uuid
+            winner_id:
+              type: string
+              format: uuid
+              description: "Player who showed up"
+            loser_id:
+              type: string
+              format: uuid
+              description: "Player who didn't show / forfeited"
+            reason:
+              type: string
+              enum: [no_show, forfeit, timeout, disconnection]
+    invariants:
+      - "Match in 'pending' or 'started' state"
+      - "One player absent or forfeited"
+
+  PlayerConnectionLost:
+    description: "Player disconnected during match (CS:GO style)"
+    bounded_context: Matchmaking
+    aggregate: Match
+    actor: System
+    command: MarkPlayerDisconnected
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [PlayerConnectionLost]
+        aggregate_id:
+          type: string
+          format: uuid
+        bounded_context:
+          type: string
+          const: Matchmaking
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [match_id, player_id, disconnected_at]
+          properties:
+            match_id:
+              type: string
+              format: uuid
+            player_id:
+              type: string
+              format: uuid
+            disconnected_at:
+              type: string
+              format: date-time
+            opponent_id:
+              type: string
+              format: uuid
+            opponent_awarded_point:
+              type: boolean
+              description: "true = opponent gets +1 point (CS:GO rule)"
+    invariants:
+      - "Match exists"
+      - "Player is participant"
+      - "Match in 'started' state"
+
+  PlayerConnectionRestored:
+    description: "Player reconnected within 30s window"
+    bounded_context: Matchmaking
+    aggregate: Match
+    actor: System
+    command: MarkPlayerReconnected
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [PlayerConnectionRestored]
+        aggregate_id:
+          type: string
+          format: uuid
+        bounded_context:
+          type: string
+          const: Matchmaking
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [match_id, player_id, reconnected_at, elapsed_seconds]
+          properties:
+            match_id:
+              type: string
+              format: uuid
+            player_id:
+              type: string
+              format: uuid
+            reconnected_at:
+              type: string
+              format: date-time
+            elapsed_seconds:
+              type: integer
+              description: "Time disconnected (must be <= 30)"
+    invariants:
+      - "PlayerConnectionLost occurred previously"
+      - "Match not ended"
+      - "elapsed_seconds <= 30"
+
+  ParticipantJoinedLobby:
+    description: "Player joined match lobby"
+    bounded_context: Matchmaking
+    aggregate: TournamentLobby
+    actor: User
+    command: JoinTournamentLobby
+    schema:
+      type: object
+      required: [event_id, event_type, aggregate_id, timestamp, payload]
+      properties:
+        event_id:
+          type: string
+          format: ulid
+        event_type:
+          type: string
+          enum: [ParticipantJoinedLobby]
+        aggregate_id:
+          type: string
+          format: uuid
+        bounded_context:
+          type: string
+          const: Matchmaking
+        timestamp:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          required: [match_id, participant_id]
+          properties:
+            match_id:
+              type: string
+              format: uuid
+            tournament_id:
+              type: string
+              format: uuid
+            participant_id:
+              type: string
+              format: uuid
+            participant_name:
+              type: string
+            opponent_id:
+              type: string
+              format: uuid
+              nullable: true
+            opponent_name:
+              type: string
+              nullable: true
+    invariants:
+      - "Participant is 'confirmed' or 'checked_in'"
+      - "Tournament in joining window (15 min before start)"
+      - "Tournament not ended"
+
+# ===================================================================
+# Event Versioning Strategy
+# ===================================================================
+# - All events include `event_id` (ULID) for time-based ordering
+# - `event_type` is immutable - new versions get new event names
+# - Breaking changes → new event type (e.g., MatchCompletedV2)
+# - `metadata.schema_version` can be added if needed
+# ===================================================================
+
+# ===================================================================
+# Publishing Channels (Redis Pub/Sub)
+# ===================================================================
+# Format: events:{bounded_context}:{event_name}
+#
+# Examples:
+# - events:tournament_management:tournament_started
+# - events:matchmaking:bracket_generated
+# - events:matchmaking:match_created
+# - events:matchmaking:match_completed
+# ===================================================================
+
+
+

@@ -74,6 +74,14 @@ export interface TournamentOrganizer {
 }
 
 /**
+ * User-specific tournament information
+ */
+export interface TournamentMeInfo {
+  /** Current user's participation status */
+  participationStatus?: 'registered' | 'confirmed' | 'checked_in' | null
+}
+
+/**
  * Tournament entity representing a gaming competition
  */
 export interface Tournament {
@@ -127,6 +135,9 @@ export interface Tournament {
   
   /** Last update timestamp */
   updatedAt: Date
+  
+  /** User-specific tournament information */
+  me?: TournamentMeInfo
   
   /** Number of confirmed participants */
   participantCount?: number
@@ -376,7 +387,7 @@ export interface TournamentApiData {
   id: string
   /** Tournament name */
   name: string
-  /** Tournament status (draft, open, started, completed, cancelled) */
+  /** Tournament status (draft, scheduled, registration_open, registration_closed, starting, started, completed, cancelled) */
   status: string
   /** Scheduled start time (ISO 8601, optional) */
   scheduledStartTimeAt?: string
@@ -423,7 +434,11 @@ export interface TournamentApiData {
     value?: number
     currency?: string
   }
-  /** Current user's participation status */
+  /** User-specific tournament information */
+  me?: {
+    participationStatus?: 'registered' | 'confirmed' | 'checked_in' | null
+  }
+  /** Current user's participation status (deprecated - use me.participationStatus) */
   userParticipationStatus?: 'registered' | 'confirmed' | 'checked_in' | null
   /** Number of confirmed participants */
   participantCount?: number
@@ -537,6 +552,105 @@ export interface UseClipboardReturn {
   isCopied: boolean
   error: Error | null
   reset: () => void
+}
+
+// ============================================================================
+// Bracket & Match Types (for tournament detail viewing)
+// ============================================================================
+
+/**
+ * Match status
+ */
+export type MatchStatus = 
+  | 'ready'       // Both players present, waiting for ready
+  | 'started'     // Game in progress
+  | 'paused'      // Game paused
+  | 'completed'   // Match finished
+  | 'disputed'    // Result under review
+  | 'cancelled';  // Match cancelled
+
+/**
+ * Result source
+ */
+export type ResultSource = 
+  | 'game_api'      // Result from game
+  | 'manual_host'   // Host manually set winner
+  | 'walkover';     // One player didn't show
+
+/**
+ * Match entity
+ */
+export interface Match {
+  id: string;
+  roundId: string;
+  matchNumber: number;
+  nextMatchId: string | null;
+  participant1Id: string;
+  participant2Id: string | null;
+  status: MatchStatus;
+  participant1Ready: boolean;
+  participant2Ready: boolean;
+  winnerId: string | null;
+  scorePlayer1: number | null;
+  scorePlayer2: number | null;
+  resultSource: ResultSource | null;
+  disconnectedPlayerId: string | null;
+  disconnectedAt: string | null;
+  gameApiMatchId: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  updatedAt: string;
+}
+
+/**
+ * Round status
+ */
+export type RoundStatus = 
+  | 'pending'     // Not yet started
+  | 'in_progress' // Some matches active
+  | 'completed';  // All matches done
+
+/**
+ * Round in bracket
+ */
+export interface Round {
+  id: string;
+  roundNumber: number;
+  roundName: string;
+  matchesCount: number;
+  status: RoundStatus;
+  matches: Match[];
+}
+
+/**
+ * Bracket structure
+ */
+export interface Bracket {
+  id: string;
+  tournamentId: string;
+  totalRounds: number;
+  totalMatches: number;
+  byesCount: number;
+  generatedAt: string;
+  rounds: Round[];
+}
+
+/**
+ * Player display info (for matches/bracket display)
+ */
+export interface MatchPlayer {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+
+/**
+ * Match with player details (for display)
+ */
+export interface MatchWithPlayers extends Match {
+  player1: MatchPlayer | null;
+  player2: MatchPlayer | null;
 }
 
 

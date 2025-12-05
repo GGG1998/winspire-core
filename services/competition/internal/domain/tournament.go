@@ -13,6 +13,7 @@ const (
 	StatusScheduled          = "scheduled"
 	StatusRegistrationOpen   = "registration_open"
 	StatusRegistrationClosed = "registration_closed"
+	StatusStarting           = "starting" // Transient state during tournament start saga
 	StatusStarted            = "started"
 	StatusCompleted          = "completed"
 	StatusCancelled          = "cancelled"
@@ -48,6 +49,7 @@ func (t *Tournament) CanConfirmParticipation() error {
 // Business rules:
 // - Tournament must have a scheduled start time
 // - Current time must be within 15 minutes before start
+// - Users can join up to 30 seconds after start time
 func (t *Tournament) CanJoin() (time.Duration, error) {
 	if t.ScheduledStartTimeAt == nil {
 		return 0, fmt.Errorf("tournament has no scheduled start time")
@@ -55,8 +57,8 @@ func (t *Tournament) CanJoin() (time.Duration, error) {
 
 	timeUntilStart := time.Until(*t.ScheduledStartTimeAt)
 
-	// Tournament already started
-	if timeUntilStart < 0 {
+	// Tournament already started (more than 30 seconds ago)
+	if timeUntilStart < -30*time.Second {
 		return timeUntilStart, fmt.Errorf("tournament has already started")
 	}
 

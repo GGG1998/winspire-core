@@ -34,11 +34,61 @@ services/<service-name>/
 │           ├── db.go        # Wygenerowany przez sqlc
 │           ├── models.go    # Wygenerowany przez sqlc
 │           └── queries.sql.go # Wygenerowany przez sqlc
-├── migrations/              # Schema SQL (używane przez sqlc)
+├── migrations/              # Database migrations (Atlas)
+│   ├── 000001_initial.sql
+│   └── 000002_add_table.sql
+├── atlas.hcl                # Atlas configuration
 ├── go.mod
 ├── sqlc.yaml               # Konfiguracja sqlc
 └── Makefile
 ```
+
+## Database Migrations - Atlas
+
+**KRYTYCZNE**: Używamy [Atlas](https://atlasgo.io/) do zarządzania migracjami bazy danych. Każdy serwis ma własne migracje w katalogu `migrations/`.
+
+### Uruchamianie migracji
+
+```bash
+# Przejdź do katalogu serwisu
+cd services/<service-name>
+
+# Uruchom migracje
+export DATABASE_URL="postgresql://user:pass@host:port/db"
+make migrate-up
+
+# Sprawdź status migracji
+make migrate-status
+```
+
+### Konwencja plików migracji
+
+- Numerowane sekwencyjnie: `000001_`, `000002_`, etc.
+- Opisowa nazwa: `create_users_table.sql`, `add_tournaments_index.sql`
+- Format: `{number}_{description}.sql`
+
+### Przykład migracji
+
+```sql
+-- 000001_create_users_table.sql
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_users_email ON users(email);
+```
+
+### Workflow z migracjami
+
+1. **Utwórz nową migrację** w `services/<service>/migrations/000XXX_description.sql`
+2. **Uruchom migracje**: `cd services/<service> && make migrate-up`
+3. **Zweryfikuj schemat**: Sprawdź czy tabele zostały utworzone
+4. **Zaktualizuj SQLC queries**: Jeśli dodałeś nowe tabele, dodaj queries w `internal/store/sqlc/queries.sql`
+5. **Wygeneruj kod**: `make sqlc`
+
+**WAŻNE**: Przed pierwszym uruchomieniem nowego serwisu, zawsze uruchom migracje!
 
 ## SQLC - Type-Safe SQL Code Generation
 

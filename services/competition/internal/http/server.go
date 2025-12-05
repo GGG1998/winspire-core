@@ -14,6 +14,7 @@ import (
 	"github.com/winspire/competition/internal/config"
 	"github.com/winspire/competition/internal/domain"
 	"github.com/winspire/competition/internal/http/handlers"
+	"github.com/winspire/competition/internal/pubsub"
 	"github.com/winspire/competition/internal/repository"
 )
 
@@ -27,6 +28,7 @@ type ServerDeps struct {
 	HealthCheck            HealthFunc
 	Pool                   *pgxpool.Pool
 	Redis                  *redis.Client
+	EventPublisher         *pubsub.EventPublisher
 	ConfirmParticipationUC *application.ConfirmParticipationUseCase
 	JoinTournamentUC       *application.JoinTournamentUseCase
 	ParticipantRepo        domain.ParticipantRepository
@@ -62,6 +64,13 @@ func NewRouter(deps ServerDeps) *gin.Engine {
 	tournamentPersistenceRepo := repository.NewTournamentRepository(deps.Pool)
 	registrationPersistenceRepo := repository.NewRegistrationRepository(deps.Pool)
 
+	// Register internal routes (no auth - service-to-service communication)
+	handlers.RegisterInternalRoutes(router, handlers.InternalDeps{
+		TournamentRepo:   tournamentPersistenceRepo,
+		RegistrationRepo: registrationPersistenceRepo,
+		Logger:           deps.Logger,
+	})
+
 	// API routes with auth
 	api := router.Group("/v1")
 	if deps.Config.HasAuth() {
@@ -90,6 +99,7 @@ func NewRouter(deps ServerDeps) *gin.Engine {
 		TournamentRepo:   tournamentPersistenceRepo,
 		RegistrationRepo: registrationPersistenceRepo,
 		ParticipantRepo:  deps.ParticipantRepo,
+		EventPublisher:   deps.EventPublisher,
 		Logger:           deps.Logger,
 	})
 

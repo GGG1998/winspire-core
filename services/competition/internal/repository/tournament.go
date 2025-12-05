@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	pgtypeconv "github.com/winspire/winspire-core/libs/go/pgtype"
 
 	"github.com/winspire/competition/internal/store/sqlc"
 )
@@ -165,16 +166,43 @@ func (t *Tournament) OpenRegistration() error {
 	return nil
 }
 
-// Start transitions tournament to started state.
+// Start transitions tournament to starting state (transient).
 // Business rule: tournament must be in registration_open or registration_closed status.
+// This is part of the tournament start saga - the tournament will transition to "started"
+// after downstream services (matchmaking) confirm successful initialization.
 func (t *Tournament) Start() error {
 	if t.Status != "registration_open" && t.Status != "registration_closed" {
-		return fmt.Errorf("%w: cannot transition from %s to started", ErrMustBeOpen, t.Status)
+		return fmt.Errorf("%w: cannot transition from %s to starting", ErrMustBeOpen, t.Status)
 	}
 
 	now := time.Now()
-	t.Status = "started"
+	t.Status = "starting"
 	t.ActualStartTimeAt = &now
+	return nil
+}
+
+// ConfirmStart transitions tournament from starting to started state.
+// Business rule: tournament must be in starting status.
+// This is called when the matchmaking service confirms successful grace period initialization.
+func (t *Tournament) ConfirmStart() error {
+	if t.Status != "starting" {
+		return fmt.Errorf("%w: cannot confirm start from %s status", ErrInvalidStatusTransition, t.Status)
+	}
+
+	t.Status = "started"
+	return nil
+}
+
+// RollbackStart transitions tournament from starting back to registration_open.
+// Business rule: tournament must be in starting status.
+// This is a compensating action when the tournament start saga fails (e.g., bracket generation fails).
+func (t *Tournament) RollbackStart() error {
+	if t.Status != "starting" {
+		return fmt.Errorf("%w: cannot rollback start from %s status", ErrInvalidStatusTransition, t.Status)
+	}
+
+	t.Status = "registration_open"
+	t.ActualStartTimeAt = nil // Clear the actual start time
 	return nil
 }
 
@@ -207,7 +235,7 @@ func (t *Tournament) Cancel() error {
 
 // GetByID retrieves a tournament by ID.
 func (r *TournamentRepository) GetByID(ctx context.Context, id uuid.UUID) (*Tournament, error) {
-	row, err := r.queries.GetTournamentByID(ctx, uuidToPgtype(id))
+	row, err := r.queries.GetTournamentByID(ctx, pgtypeconv.UUIDToPgtype(id))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrTournamentNotFound
@@ -216,24 +244,24 @@ func (r *TournamentRepository) GetByID(ctx context.Context, id uuid.UUID) (*Tour
 	}
 
 	return &Tournament{
-		ID:                       pgtypeToUUID(row.ID),
-		HostID:                   pgtypeToUUID(row.HostID),
+		ID:                       pgtypeconv.PgtypeToUUID(row.ID),
+		HostID:                   pgtypeconv.PgtypeToUUID(row.HostID),
 		Name:                     row.Name,
-		Description:              pgtypeTextToString(row.Description),
-		ExternalID:               pgtypeTextToString(row.ExternalID),
+		Description:              pgtypeconv.PgtypeToStringPtr(row.Description),
+		ExternalID:               pgtypeconv.PgtypeToStringPtr(row.ExternalID),
 		Status:                   row.Status,
-		ScheduledStartTimeAt:     pgtypeTimestampToTime(row.ScheduledStartTimeAt),
-		RegistrationWindowOpenAt: pgtypeTimestampToTime(row.RegistrationWindowOpenAt),
-		ActualStartTimeAt:        pgtypeTimestampToTime(row.ActualStartTimeAt),
-		CompletedAt:              pgtypeTimestampToTime(row.CompletedAt),
-		CancelledAt:              pgtypeTimestampToTime(row.CancelledAt),
-		MinimumTeamCount:         pgtypeInt4ToInt32(row.MinimumTeamCount),
-		MaximumTeamCount:         pgtypeInt4ToInt32Ptr(row.MaximumTeamCount),
+		ScheduledStartTimeAt:     pgtypeconv.PgtypeTimestamptzToTimePtr(row.ScheduledStartTimeAt),
+		RegistrationWindowOpenAt: pgtypeconv.PgtypeTimestamptzToTimePtr(row.RegistrationWindowOpenAt),
+		ActualStartTimeAt:        pgtypeconv.PgtypeTimestamptzToTimePtr(row.ActualStartTimeAt),
+		CompletedAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CompletedAt),
+		CancelledAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CancelledAt),
+		MinimumTeamCount:         pgtypeconv.PgtypeToInt32(row.MinimumTeamCount),
+		MaximumTeamCount:         pgtypeconv.PgtypeToInt32Ptr(row.MaximumTeamCount),
 		TeamSize:                 row.TeamSize,
 		AutoForceReady:           row.AutoForceReady.Bool,
-		GameID:                   pgtypeUUIDToUUIDPtr(row.GameID),
-		SpaceID:                  pgtypeUUIDToUUIDPtr(row.SpaceID),
-		TemplateID:               pgtypeUUIDToUUIDPtr(row.TemplateID),
+		GameID:                   pgtypeconv.PgtypeToUUIDPtr(row.GameID),
+		SpaceID:                  pgtypeconv.PgtypeToUUIDPtr(row.SpaceID),
+		TemplateID:               pgtypeconv.PgtypeToUUIDPtr(row.TemplateID),
 		ReadyWindow:              row.ReadyWindow,
 		Prize:                    row.Prize,
 		CreatedAt:                row.CreatedAt.Time,
@@ -244,8 +272,8 @@ func (r *TournamentRepository) GetByID(ctx context.Context, id uuid.UUID) (*Tour
 // GetByHostAndID retrieves a tournament ensuring it belongs to the provided host.
 func (r *TournamentRepository) GetByHostAndID(ctx context.Context, hostID, tournamentID uuid.UUID) (*Tournament, error) {
 	params := sqlc.GetTournamentByHostAndIDParams{
-		HostID: uuidToPgtype(hostID),
-		ID:     uuidToPgtype(tournamentID),
+		HostID: pgtypeconv.UUIDToPgtype(hostID),
+		ID:     pgtypeconv.UUIDToPgtype(tournamentID),
 	}
 
 	row, err := r.queries.GetTournamentByHostAndID(ctx, params)
@@ -257,24 +285,24 @@ func (r *TournamentRepository) GetByHostAndID(ctx context.Context, hostID, tourn
 	}
 
 	return &Tournament{
-		ID:                       pgtypeToUUID(row.ID),
-		HostID:                   pgtypeToUUID(row.HostID),
+		ID:                       pgtypeconv.PgtypeToUUID(row.ID),
+		HostID:                   pgtypeconv.PgtypeToUUID(row.HostID),
 		Name:                     row.Name,
-		Description:              pgtypeTextToString(row.Description),
-		ExternalID:               pgtypeTextToString(row.ExternalID),
+		Description:              pgtypeconv.PgtypeToStringPtr(row.Description),
+		ExternalID:               pgtypeconv.PgtypeToStringPtr(row.ExternalID),
 		Status:                   row.Status,
-		ScheduledStartTimeAt:     pgtypeTimestampToTime(row.ScheduledStartTimeAt),
-		RegistrationWindowOpenAt: pgtypeTimestampToTime(row.RegistrationWindowOpenAt),
-		ActualStartTimeAt:        pgtypeTimestampToTime(row.ActualStartTimeAt),
-		CompletedAt:              pgtypeTimestampToTime(row.CompletedAt),
-		CancelledAt:              pgtypeTimestampToTime(row.CancelledAt),
-		MinimumTeamCount:         pgtypeInt4ToInt32(row.MinimumTeamCount),
-		MaximumTeamCount:         pgtypeInt4ToInt32Ptr(row.MaximumTeamCount),
+		ScheduledStartTimeAt:     pgtypeconv.PgtypeTimestamptzToTimePtr(row.ScheduledStartTimeAt),
+		RegistrationWindowOpenAt: pgtypeconv.PgtypeTimestamptzToTimePtr(row.RegistrationWindowOpenAt),
+		ActualStartTimeAt:        pgtypeconv.PgtypeTimestamptzToTimePtr(row.ActualStartTimeAt),
+		CompletedAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CompletedAt),
+		CancelledAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CancelledAt),
+		MinimumTeamCount:         pgtypeconv.PgtypeToInt32(row.MinimumTeamCount),
+		MaximumTeamCount:         pgtypeconv.PgtypeToInt32Ptr(row.MaximumTeamCount),
 		TeamSize:                 row.TeamSize,
 		AutoForceReady:           row.AutoForceReady.Bool,
-		GameID:                   pgtypeUUIDToUUIDPtr(row.GameID),
-		SpaceID:                  pgtypeUUIDToUUIDPtr(row.SpaceID),
-		TemplateID:               pgtypeUUIDToUUIDPtr(row.TemplateID),
+		GameID:                   pgtypeconv.PgtypeToUUIDPtr(row.GameID),
+		SpaceID:                  pgtypeconv.PgtypeToUUIDPtr(row.SpaceID),
+		TemplateID:               pgtypeconv.PgtypeToUUIDPtr(row.TemplateID),
 		ReadyWindow:              row.ReadyWindow,
 		Prize:                    row.Prize,
 		CreatedAt:                row.CreatedAt.Time,
@@ -284,7 +312,7 @@ func (r *TournamentRepository) GetByHostAndID(ctx context.Context, hostID, tourn
 
 // ListByHostID retrieves all tournaments for a specific host.
 func (r *TournamentRepository) ListByHostID(ctx context.Context, hostID uuid.UUID) ([]TournamentListItem, error) {
-	sqlcTournaments, err := r.queries.ListTournamentsByHostID(ctx, uuidToPgtype(hostID))
+	sqlcTournaments, err := r.queries.ListTournamentsByHostID(ctx, pgtypeconv.UUIDToPgtype(hostID))
 	if err != nil {
 		return nil, fmt.Errorf("list tournaments: %w", err)
 	}
@@ -292,15 +320,53 @@ func (r *TournamentRepository) ListByHostID(ctx context.Context, hostID uuid.UUI
 	items := make([]TournamentListItem, len(sqlcTournaments))
 	for i, t := range sqlcTournaments {
 		items[i] = TournamentListItem{
-			ID:                   pgtypeToUUID(t.ID),
+			ID:                   pgtypeconv.PgtypeToUUID(t.ID),
 			Name:                 t.Name,
 			Status:               t.Status,
-			ScheduledStartTimeAt: pgtypeTimestampToTime(t.ScheduledStartTimeAt),
+			ScheduledStartTimeAt: pgtypeconv.PgtypeTimestamptzToTimePtr(t.ScheduledStartTimeAt),
 			CreatedAt:            t.CreatedAt.Time,
 		}
 	}
 
 	return items, nil
+}
+
+// ListByStatus retrieves tournaments by status for scheduler.
+func (r *TournamentRepository) ListByStatus(ctx context.Context, statuses []string) ([]*Tournament, error) {
+	sqlcTournaments, err := r.queries.ListTournamentsByStatus(ctx, statuses)
+	if err != nil {
+		return nil, fmt.Errorf("list tournaments by status: %w", err)
+	}
+
+	tournaments := make([]*Tournament, len(sqlcTournaments))
+	for i, row := range sqlcTournaments {
+		tournaments[i] = &Tournament{
+			ID:                       pgtypeconv.PgtypeToUUID(row.ID),
+			HostID:                   pgtypeconv.PgtypeToUUID(row.HostID),
+			Name:                     row.Name,
+			Description:              pgtypeconv.PgtypeToStringPtr(row.Description),
+			ExternalID:               pgtypeconv.PgtypeToStringPtr(row.ExternalID),
+			Status:                   row.Status,
+			ScheduledStartTimeAt:     pgtypeconv.PgtypeTimestamptzToTimePtr(row.ScheduledStartTimeAt),
+			RegistrationWindowOpenAt: pgtypeconv.PgtypeTimestamptzToTimePtr(row.RegistrationWindowOpenAt),
+			ActualStartTimeAt:        pgtypeconv.PgtypeTimestamptzToTimePtr(row.ActualStartTimeAt),
+			CompletedAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CompletedAt),
+			CancelledAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CancelledAt),
+			MinimumTeamCount:         pgtypeconv.PgtypeToInt32(row.MinimumTeamCount),
+			MaximumTeamCount:         pgtypeconv.PgtypeToInt32Ptr(row.MaximumTeamCount),
+			TeamSize:                 row.TeamSize,
+			AutoForceReady:           row.AutoForceReady.Bool,
+			GameID:                   pgtypeconv.PgtypeToUUIDPtr(row.GameID),
+			SpaceID:                  pgtypeconv.PgtypeToUUIDPtr(row.SpaceID),
+			TemplateID:               pgtypeconv.PgtypeToUUIDPtr(row.TemplateID),
+			ReadyWindow:              row.ReadyWindow,
+			Prize:                    row.Prize,
+			CreatedAt:                row.CreatedAt.Time,
+			UpdatedAt:                row.UpdatedAt.Time,
+		}
+	}
+
+	return tournaments, nil
 }
 
 // CreateTournamentParams contains parameters for creating a tournament.
@@ -326,20 +392,20 @@ type CreateTournamentParams struct {
 // Create creates a new tournament.
 func (r *TournamentRepository) Create(ctx context.Context, params CreateTournamentParams) (*Tournament, error) {
 	sqlcParams := sqlc.CreateTournamentParams{
-		HostID:                   uuidToPgtype(params.HostID),
+		HostID:                   pgtypeconv.UUIDToPgtype(params.HostID),
 		Name:                     params.Name,
-		Description:              stringToPgtypeText(params.Description),
-		ExternalID:               stringToPgtypeText(params.ExternalID),
+		Description:              pgtypeconv.StringPtrToPgtype(params.Description),
+		ExternalID:               pgtypeconv.StringPtrToPgtype(params.ExternalID),
 		Status:                   "draft",
-		ScheduledStartTimeAt:     timeToPgtypeTimestamp(params.ScheduledStartTimeAt),
-		RegistrationWindowOpenAt: timeToPgtypeTimestamp(params.RegistrationWindowOpenAt),
-		MinimumTeamCount:         int32ToPgtypeInt4(params.MinimumTeamCount),
-		MaximumTeamCount:         int32ToPgtypeInt4(params.MaximumTeamCount),
+		ScheduledStartTimeAt:     pgtypeconv.TimePtrToPgtypeTimestamptz(params.ScheduledStartTimeAt),
+		RegistrationWindowOpenAt: pgtypeconv.TimePtrToPgtypeTimestamptz(params.RegistrationWindowOpenAt),
+		MinimumTeamCount:         pgtypeconv.Int32PtrToPgtype(params.MinimumTeamCount),
+		MaximumTeamCount:         pgtypeconv.Int32PtrToPgtype(params.MaximumTeamCount),
 		TeamSize:                 params.TeamSize,
-		AutoForceReady:           boolToPgtypeBool(params.AutoForceReady),
-		GameID:                   uuidToPgtypeUUID(params.GameID),
-		SpaceID:                  uuidToPgtypeUUID(params.SpaceID),
-		TemplateID:               uuidToPgtypeUUID(params.TemplateID),
+		AutoForceReady:           pgtypeconv.BoolPtrToPgtype(params.AutoForceReady),
+		GameID:                   pgtypeconv.UUIDPtrToPgtype(params.GameID),
+		SpaceID:                  pgtypeconv.UUIDPtrToPgtype(params.SpaceID),
+		TemplateID:               pgtypeconv.UUIDPtrToPgtype(params.TemplateID),
 	}
 
 	row, err := r.queries.CreateTournament(ctx, sqlcParams)
@@ -348,24 +414,24 @@ func (r *TournamentRepository) Create(ctx context.Context, params CreateTourname
 	}
 
 	return &Tournament{
-		ID:                       pgtypeToUUID(row.ID),
-		HostID:                   pgtypeToUUID(row.HostID),
+		ID:                       pgtypeconv.PgtypeToUUID(row.ID),
+		HostID:                   pgtypeconv.PgtypeToUUID(row.HostID),
 		Name:                     row.Name,
-		Description:              pgtypeTextToString(row.Description),
-		ExternalID:               pgtypeTextToString(row.ExternalID),
+		Description:              pgtypeconv.PgtypeToStringPtr(row.Description),
+		ExternalID:               pgtypeconv.PgtypeToStringPtr(row.ExternalID),
 		Status:                   row.Status,
-		ScheduledStartTimeAt:     pgtypeTimestampToTime(row.ScheduledStartTimeAt),
-		RegistrationWindowOpenAt: pgtypeTimestampToTime(row.RegistrationWindowOpenAt),
-		ActualStartTimeAt:        pgtypeTimestampToTime(row.ActualStartTimeAt),
-		CompletedAt:              pgtypeTimestampToTime(row.CompletedAt),
-		CancelledAt:              pgtypeTimestampToTime(row.CancelledAt),
-		MinimumTeamCount:         pgtypeInt4ToInt32(row.MinimumTeamCount),
-		MaximumTeamCount:         pgtypeInt4ToInt32Ptr(row.MaximumTeamCount),
+		ScheduledStartTimeAt:     pgtypeconv.PgtypeTimestamptzToTimePtr(row.ScheduledStartTimeAt),
+		RegistrationWindowOpenAt: pgtypeconv.PgtypeTimestamptzToTimePtr(row.RegistrationWindowOpenAt),
+		ActualStartTimeAt:        pgtypeconv.PgtypeTimestamptzToTimePtr(row.ActualStartTimeAt),
+		CompletedAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CompletedAt),
+		CancelledAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CancelledAt),
+		MinimumTeamCount:         pgtypeconv.PgtypeToInt32(row.MinimumTeamCount),
+		MaximumTeamCount:         pgtypeconv.PgtypeToInt32Ptr(row.MaximumTeamCount),
 		TeamSize:                 row.TeamSize,
 		AutoForceReady:           row.AutoForceReady.Bool,
-		GameID:                   pgtypeUUIDToUUIDPtr(row.GameID),
-		SpaceID:                  pgtypeUUIDToUUIDPtr(row.SpaceID),
-		TemplateID:               pgtypeUUIDToUUIDPtr(row.TemplateID),
+		GameID:                   pgtypeconv.PgtypeToUUIDPtr(row.GameID),
+		SpaceID:                  pgtypeconv.PgtypeToUUIDPtr(row.SpaceID),
+		TemplateID:               pgtypeconv.PgtypeToUUIDPtr(row.TemplateID),
 		ReadyWindow:              row.ReadyWindow,
 		Prize:                    row.Prize,
 		CreatedAt:                row.CreatedAt.Time,
@@ -387,12 +453,12 @@ type UpdateTournamentParams struct {
 // Deprecated: Use Save method with Tournament aggregate instead.
 func (r *TournamentRepository) Update(ctx context.Context, id uuid.UUID, params UpdateTournamentParams) (*Tournament, error) {
 	sqlcParams := sqlc.UpdateTournamentParams{
-		ID:                   uuidToPgtype(id),
-		Name:                 stringToPgtypeText(params.Name),
-		Description:          stringToPgtypeText(params.Description),
-		ScheduledStartTimeAt: timeToPgtypeTimestamp(params.ScheduledStartTimeAt),
-		MinimumTeamCount:     int32ToPgtypeInt4(params.MinimumTeamCount),
-		MaximumTeamCount:     int32ToPgtypeInt4(params.MaximumTeamCount),
+		ID:                   pgtypeconv.UUIDToPgtype(id),
+		Name:                 pgtypeconv.StringPtrToPgtype(params.Name),
+		Description:          pgtypeconv.StringPtrToPgtype(params.Description),
+		ScheduledStartTimeAt: pgtypeconv.TimePtrToPgtypeTimestamptz(params.ScheduledStartTimeAt),
+		MinimumTeamCount:     pgtypeconv.Int32PtrToPgtype(params.MinimumTeamCount),
+		MaximumTeamCount:     pgtypeconv.Int32PtrToPgtype(params.MaximumTeamCount),
 	}
 
 	row, err := r.queries.UpdateTournament(ctx, sqlcParams)
@@ -401,24 +467,24 @@ func (r *TournamentRepository) Update(ctx context.Context, id uuid.UUID, params 
 	}
 
 	return &Tournament{
-		ID:                       pgtypeToUUID(row.ID),
-		HostID:                   pgtypeToUUID(row.HostID),
+		ID:                       pgtypeconv.PgtypeToUUID(row.ID),
+		HostID:                   pgtypeconv.PgtypeToUUID(row.HostID),
 		Name:                     row.Name,
-		Description:              pgtypeTextToString(row.Description),
-		ExternalID:               pgtypeTextToString(row.ExternalID),
+		Description:              pgtypeconv.PgtypeToStringPtr(row.Description),
+		ExternalID:               pgtypeconv.PgtypeToStringPtr(row.ExternalID),
 		Status:                   row.Status,
-		ScheduledStartTimeAt:     pgtypeTimestampToTime(row.ScheduledStartTimeAt),
-		RegistrationWindowOpenAt: pgtypeTimestampToTime(row.RegistrationWindowOpenAt),
-		ActualStartTimeAt:        pgtypeTimestampToTime(row.ActualStartTimeAt),
-		CompletedAt:              pgtypeTimestampToTime(row.CompletedAt),
-		CancelledAt:              pgtypeTimestampToTime(row.CancelledAt),
-		MinimumTeamCount:         pgtypeInt4ToInt32(row.MinimumTeamCount),
-		MaximumTeamCount:         pgtypeInt4ToInt32Ptr(row.MaximumTeamCount),
+		ScheduledStartTimeAt:     pgtypeconv.PgtypeTimestamptzToTimePtr(row.ScheduledStartTimeAt),
+		RegistrationWindowOpenAt: pgtypeconv.PgtypeTimestamptzToTimePtr(row.RegistrationWindowOpenAt),
+		ActualStartTimeAt:        pgtypeconv.PgtypeTimestamptzToTimePtr(row.ActualStartTimeAt),
+		CompletedAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CompletedAt),
+		CancelledAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CancelledAt),
+		MinimumTeamCount:         pgtypeconv.PgtypeToInt32(row.MinimumTeamCount),
+		MaximumTeamCount:         pgtypeconv.PgtypeToInt32Ptr(row.MaximumTeamCount),
 		TeamSize:                 row.TeamSize,
 		AutoForceReady:           row.AutoForceReady.Bool,
-		GameID:                   pgtypeUUIDToUUIDPtr(row.GameID),
-		SpaceID:                  pgtypeUUIDToUUIDPtr(row.SpaceID),
-		TemplateID:               pgtypeUUIDToUUIDPtr(row.TemplateID),
+		GameID:                   pgtypeconv.PgtypeToUUIDPtr(row.GameID),
+		SpaceID:                  pgtypeconv.PgtypeToUUIDPtr(row.SpaceID),
+		TemplateID:               pgtypeconv.PgtypeToUUIDPtr(row.TemplateID),
 		ReadyWindow:              nil, // UpdateTournament doesn't return these fields
 		Prize:                    nil,
 		CreatedAt:                row.CreatedAt.Time,
@@ -430,16 +496,16 @@ func (r *TournamentRepository) Update(ctx context.Context, id uuid.UUID, params 
 // This method saves the full aggregate state after business methods have been applied.
 func (r *TournamentRepository) Save(ctx context.Context, tournament *Tournament) (*Tournament, error) {
 	sqlcParams := sqlc.SaveTournamentParams{
-		ID:                   uuidToPgtype(tournament.ID),
+		ID:                   pgtypeconv.UUIDToPgtype(tournament.ID),
 		Name:                 tournament.Name,
-		Description:          stringToPgtypeText(tournament.Description),
+		Description:          pgtypeconv.StringPtrToPgtype(tournament.Description),
 		Status:               tournament.Status,
-		ScheduledStartTimeAt: timeToPgtypeTimestamp(tournament.ScheduledStartTimeAt),
-		ActualStartTimeAt:    timeToPgtypeTimestamp(tournament.ActualStartTimeAt),
-		CompletedAt:          timeToPgtypeTimestamp(tournament.CompletedAt),
-		CancelledAt:          timeToPgtypeTimestamp(tournament.CancelledAt),
-		MinimumTeamCount:     int32ValueToPgtypeInt4(tournament.MinimumTeamCount),
-		MaximumTeamCount:     int32ToPgtypeInt4(tournament.MaximumTeamCount),
+		ScheduledStartTimeAt: pgtypeconv.TimePtrToPgtypeTimestamptz(tournament.ScheduledStartTimeAt),
+		ActualStartTimeAt:    pgtypeconv.TimePtrToPgtypeTimestamptz(tournament.ActualStartTimeAt),
+		CompletedAt:          pgtypeconv.TimePtrToPgtypeTimestamptz(tournament.CompletedAt),
+		CancelledAt:          pgtypeconv.TimePtrToPgtypeTimestamptz(tournament.CancelledAt),
+		MinimumTeamCount:     pgtypeconv.Int32ToPgtype(tournament.MinimumTeamCount),
+		MaximumTeamCount:     pgtypeconv.Int32PtrToPgtype(tournament.MaximumTeamCount),
 		ReadyWindow:          tournament.ReadyWindow,
 		Prize:                tournament.Prize,
 	}
@@ -450,24 +516,24 @@ func (r *TournamentRepository) Save(ctx context.Context, tournament *Tournament)
 	}
 
 	return &Tournament{
-		ID:                       pgtypeToUUID(row.ID),
-		HostID:                   pgtypeToUUID(row.HostID),
+		ID:                       pgtypeconv.PgtypeToUUID(row.ID),
+		HostID:                   pgtypeconv.PgtypeToUUID(row.HostID),
 		Name:                     row.Name,
-		Description:              pgtypeTextToString(row.Description),
-		ExternalID:               pgtypeTextToString(row.ExternalID),
+		Description:              pgtypeconv.PgtypeToStringPtr(row.Description),
+		ExternalID:               pgtypeconv.PgtypeToStringPtr(row.ExternalID),
 		Status:                   row.Status,
-		ScheduledStartTimeAt:     pgtypeTimestampToTime(row.ScheduledStartTimeAt),
-		RegistrationWindowOpenAt: pgtypeTimestampToTime(row.RegistrationWindowOpenAt),
-		ActualStartTimeAt:        pgtypeTimestampToTime(row.ActualStartTimeAt),
-		CompletedAt:              pgtypeTimestampToTime(row.CompletedAt),
-		CancelledAt:              pgtypeTimestampToTime(row.CancelledAt),
-		MinimumTeamCount:         pgtypeInt4ToInt32(row.MinimumTeamCount),
-		MaximumTeamCount:         pgtypeInt4ToInt32Ptr(row.MaximumTeamCount),
+		ScheduledStartTimeAt:     pgtypeconv.PgtypeTimestamptzToTimePtr(row.ScheduledStartTimeAt),
+		RegistrationWindowOpenAt: pgtypeconv.PgtypeTimestamptzToTimePtr(row.RegistrationWindowOpenAt),
+		ActualStartTimeAt:        pgtypeconv.PgtypeTimestamptzToTimePtr(row.ActualStartTimeAt),
+		CompletedAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CompletedAt),
+		CancelledAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CancelledAt),
+		MinimumTeamCount:         pgtypeconv.PgtypeToInt32(row.MinimumTeamCount),
+		MaximumTeamCount:         pgtypeconv.PgtypeToInt32Ptr(row.MaximumTeamCount),
 		TeamSize:                 row.TeamSize,
 		AutoForceReady:           row.AutoForceReady.Bool,
-		GameID:                   pgtypeUUIDToUUIDPtr(row.GameID),
-		SpaceID:                  pgtypeUUIDToUUIDPtr(row.SpaceID),
-		TemplateID:               pgtypeUUIDToUUIDPtr(row.TemplateID),
+		GameID:                   pgtypeconv.PgtypeToUUIDPtr(row.GameID),
+		SpaceID:                  pgtypeconv.PgtypeToUUIDPtr(row.SpaceID),
+		TemplateID:               pgtypeconv.PgtypeToUUIDPtr(row.TemplateID),
 		ReadyWindow:              row.ReadyWindow,
 		Prize:                    row.Prize,
 		CreatedAt:                row.CreatedAt.Time,
@@ -477,7 +543,7 @@ func (r *TournamentRepository) Save(ctx context.Context, tournament *Tournament)
 
 // Start marks a tournament as started.
 func (r *TournamentRepository) Start(ctx context.Context, id uuid.UUID) error {
-	if err := r.queries.StartTournament(ctx, uuidToPgtype(id)); err != nil {
+	if err := r.queries.StartTournament(ctx, pgtypeconv.UUIDToPgtype(id)); err != nil {
 		return fmt.Errorf("start tournament: %w", err)
 	}
 	return nil
@@ -485,7 +551,7 @@ func (r *TournamentRepository) Start(ctx context.Context, id uuid.UUID) error {
 
 // Cancel marks a tournament as cancelled.
 func (r *TournamentRepository) Cancel(ctx context.Context, id uuid.UUID) error {
-	if err := r.queries.CancelTournament(ctx, uuidToPgtype(id)); err != nil {
+	if err := r.queries.CancelTournament(ctx, pgtypeconv.UUIDToPgtype(id)); err != nil {
 		return fmt.Errorf("cancel tournament: %w", err)
 	}
 	return nil
@@ -497,24 +563,24 @@ func (r *TournamentRepository) Cancel(ctx context.Context, id uuid.UUID) error {
 
 func sqlcTournamentToTournament(t sqlc.Tournament) *Tournament {
 	return &Tournament{
-		ID:                       pgtypeToUUID(t.ID),
-		HostID:                   pgtypeToUUID(t.HostID),
+		ID:                       pgtypeconv.PgtypeToUUID(t.ID),
+		HostID:                   pgtypeconv.PgtypeToUUID(t.HostID),
 		Name:                     t.Name,
-		Description:              pgtypeTextToString(t.Description),
-		ExternalID:               pgtypeTextToString(t.ExternalID),
+		Description:              pgtypeconv.PgtypeToStringPtr(t.Description),
+		ExternalID:               pgtypeconv.PgtypeToStringPtr(t.ExternalID),
 		Status:                   t.Status,
-		ScheduledStartTimeAt:     pgtypeTimestampToTime(t.ScheduledStartTimeAt),
-		RegistrationWindowOpenAt: pgtypeTimestampToTime(t.RegistrationWindowOpenAt),
-		ActualStartTimeAt:        pgtypeTimestampToTime(t.ActualStartTimeAt),
-		CompletedAt:              pgtypeTimestampToTime(t.CompletedAt),
-		CancelledAt:              pgtypeTimestampToTime(t.CancelledAt),
-		MinimumTeamCount:         pgtypeInt4ToInt32(t.MinimumTeamCount),
-		MaximumTeamCount:         pgtypeInt4ToInt32Ptr(t.MaximumTeamCount),
+		ScheduledStartTimeAt:     pgtypeconv.PgtypeTimestamptzToTimePtr(t.ScheduledStartTimeAt),
+		RegistrationWindowOpenAt: pgtypeconv.PgtypeTimestamptzToTimePtr(t.RegistrationWindowOpenAt),
+		ActualStartTimeAt:        pgtypeconv.PgtypeTimestamptzToTimePtr(t.ActualStartTimeAt),
+		CompletedAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(t.CompletedAt),
+		CancelledAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(t.CancelledAt),
+		MinimumTeamCount:         pgtypeconv.PgtypeToInt32(t.MinimumTeamCount),
+		MaximumTeamCount:         pgtypeconv.PgtypeToInt32Ptr(t.MaximumTeamCount),
 		TeamSize:                 t.TeamSize,
 		AutoForceReady:           t.AutoForceReady.Bool,
-		GameID:                   pgtypeUUIDToUUIDPtr(t.GameID),
-		SpaceID:                  pgtypeUUIDToUUIDPtr(t.SpaceID),
-		TemplateID:               pgtypeUUIDToUUIDPtr(t.TemplateID),
+		GameID:                   pgtypeconv.PgtypeToUUIDPtr(t.GameID),
+		SpaceID:                  pgtypeconv.PgtypeToUUIDPtr(t.SpaceID),
+		TemplateID:               pgtypeconv.PgtypeToUUIDPtr(t.TemplateID),
 		ReadyWindow:              t.ReadyWindow,
 		Prize:                    t.Prize,
 		CreatedAt:                t.CreatedAt.Time,

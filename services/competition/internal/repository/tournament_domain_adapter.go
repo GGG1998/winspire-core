@@ -44,15 +44,17 @@ func (r *TournamentDomainRepository) Save(ctx context.Context, tournament *domai
 
 // ListByStatus retrieves tournaments by status.
 func (r *TournamentDomainRepository) ListByStatus(ctx context.Context, statuses []string) ([]*domain.Tournament, error) {
-	// Use existing ListByHostID and filter by status
-	// This is a simplified implementation - for production, you'd want a dedicated query
+	tournaments, err := r.repo.ListByStatus(ctx, statuses)
+	if err != nil {
+		return nil, fmt.Errorf("list tournaments by status: %w", err)
+	}
 
-	// For scheduler purposes, we need a way to get all tournaments with specific statuses
-	// Since we don't have a direct method, we'll need to add one to the base repository
-	// For now, return empty list and implement this properly
+	domainTournaments := make([]*domain.Tournament, len(tournaments))
+	for i, t := range tournaments {
+		domainTournaments[i] = r.toDomain(t)
+	}
 
-	// TODO: Add ListByStatus query to store/sqlc/queries.sql and implement in TournamentRepository
-	return nil, fmt.Errorf("ListByStatus not yet implemented - needs database query")
+	return domainTournaments, nil
 }
 
 // toDomain converts a persistence Tournament to a domain Tournament.
@@ -90,5 +92,3 @@ func (r *TournamentDomainRepository) fromDomain(t *domain.Tournament) *Tournamen
 		UpdatedAt:            t.UpdatedAt,
 	}
 }
-
-

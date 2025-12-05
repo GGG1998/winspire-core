@@ -298,6 +298,6 @@ export const COPY_FEEDBACK_DURATION_MS = 2000
 /**
  * Number of minutes before tournament start when join button becomes available
  */
-export const JOIN_BUTTON_MINUTES_BEFORE_START = 15
+export const JOIN_BUTTON_MINUTES_BEFORE_START = 5
 
 

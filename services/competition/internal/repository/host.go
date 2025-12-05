@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	pgtypeconv "github.com/winspire/winspire-core/libs/go/pgtype"
 
 	"github.com/winspire/competition/internal/store/sqlc"
 )
@@ -31,8 +31,8 @@ func NewHostRepository(pool *pgxpool.Pool) *HostRepository {
 // Returns true if the user has admin rights for the host.
 func (r *HostRepository) IsUserHostAdmin(ctx context.Context, hostID, userID uuid.UUID) (bool, error) {
 	isAdmin, err := r.queries.IsUserHostAdmin(ctx, sqlc.IsUserHostAdminParams{
-		HostID: uuidToPgtype(hostID),
-		UserID: uuidToPgtype(userID),
+		HostID: pgtypeconv.UUIDToPgtype(hostID),
+		UserID: pgtypeconv.UUIDToPgtype(userID),
 	})
 	if err != nil {
 		return false, fmt.Errorf("check host admin: %w", err)
@@ -43,7 +43,7 @@ func (r *HostRepository) IsUserHostAdmin(ctx context.Context, hostID, userID uui
 // GetHostByID retrieves host information by ID.
 // Returns error if host doesn't exist.
 func (r *HostRepository) GetHostByID(ctx context.Context, hostID uuid.UUID) (*Host, error) {
-	host, err := r.queries.GetHostByID(ctx, uuidToPgtype(hostID))
+	host, err := r.queries.GetHostByID(ctx, pgtypeconv.UUIDToPgtype(hostID))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("host not found")
@@ -97,12 +97,12 @@ func (r *HostRepository) createPersonalHost(ctx context.Context, userID uuid.UUI
 
 	// Create host with user's ID as host ID using CTE that creates both host and member
 	sqlcHost, err := qtx.CreateHostWithOwner(ctx, sqlc.CreateHostWithOwnerParams{
-		ID:          uuidToPgtype(userID),
+		ID:          pgtypeconv.UUIDToPgtype(userID),
 		Name:        "Personal Host",
-		Description: pgtypeText("Auto-created personal host for tournament management"),
-		LogoUrl:     pgtype.Text{}, // NULL
-		WebsiteUrl:  pgtype.Text{}, // NULL
-		UserID:      uuidToPgtype(userID),
+		Description: pgtypeconv.StringToPgtype("Auto-created personal host for tournament management"),
+		LogoUrl:     pgtypeconv.StringPtrToPgtype(nil), // NULL
+		WebsiteUrl:  pgtypeconv.StringPtrToPgtype(nil), // NULL
+		UserID:      pgtypeconv.UUIDToPgtype(userID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create host with owner: %w", err)
@@ -117,7 +117,7 @@ func (r *HostRepository) createPersonalHost(ctx context.Context, userID uuid.UUI
 
 // GetUserHosts returns all hosts where the user is a member.
 func (r *HostRepository) GetUserHosts(ctx context.Context, userID uuid.UUID) ([]Host, error) {
-	sqlcHosts, err := r.queries.GetUserHosts(ctx, uuidToPgtype(userID))
+	sqlcHosts, err := r.queries.GetUserHosts(ctx, pgtypeconv.UUIDToPgtype(userID))
 	if err != nil {
 		return nil, fmt.Errorf("query user hosts: %w", err)
 	}
@@ -148,25 +148,25 @@ type Host struct {
 // sqlcHostToHost converts sqlc.Host to repository.Host
 func sqlcHostToHost(h sqlc.Host) *Host {
 	return &Host{
-		ID:          pgtypeToUUID(h.ID),
+		ID:          pgtypeconv.PgtypeToUUID(h.ID),
 		Name:        h.Name,
-		Description: pgtypeTextToString(h.Description),
-		LogoURL:     pgtypeTextToString(h.LogoUrl),
-		WebsiteURL:  pgtypeTextToString(h.WebsiteUrl),
-		CreatedAt:   pgtypeTimestampToString(h.CreatedAt),
-		UpdatedAt:   pgtypeTimestampToString(h.UpdatedAt),
+		Description: pgtypeconv.PgtypeToStringPtr(h.Description),
+		LogoURL:     pgtypeconv.PgtypeToStringPtr(h.LogoUrl),
+		WebsiteURL:  pgtypeconv.PgtypeToStringPtr(h.WebsiteUrl),
+		CreatedAt:   pgtypeconv.PgtypeTimestamptzToString(h.CreatedAt),
+		UpdatedAt:   pgtypeconv.PgtypeTimestamptzToString(h.UpdatedAt),
 	}
 }
 
 // sqlcCreateHostWithOwnerRowToHost converts sqlc.CreateHostWithOwnerRow to repository.Host
 func sqlcCreateHostWithOwnerRowToHost(h sqlc.CreateHostWithOwnerRow) *Host {
 	return &Host{
-		ID:          pgtypeToUUID(h.ID),
+		ID:          pgtypeconv.PgtypeToUUID(h.ID),
 		Name:        h.Name,
-		Description: pgtypeTextToString(h.Description),
-		LogoURL:     pgtypeTextToString(h.LogoUrl),
-		WebsiteURL:  pgtypeTextToString(h.WebsiteUrl),
-		CreatedAt:   pgtypeTimestampToString(h.CreatedAt),
-		UpdatedAt:   pgtypeTimestampToString(h.UpdatedAt),
+		Description: pgtypeconv.PgtypeToStringPtr(h.Description),
+		LogoURL:     pgtypeconv.PgtypeToStringPtr(h.LogoUrl),
+		WebsiteURL:  pgtypeconv.PgtypeToStringPtr(h.WebsiteUrl),
+		CreatedAt:   pgtypeconv.PgtypeTimestamptzToString(h.CreatedAt),
+		UpdatedAt:   pgtypeconv.PgtypeTimestamptzToString(h.UpdatedAt),
 	}
 }

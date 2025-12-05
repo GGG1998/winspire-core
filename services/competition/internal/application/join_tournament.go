@@ -32,9 +32,10 @@ func NewJoinTournamentUseCase(
 // Execute allows a confirmed participant to join the tournament.
 // Business flow:
 // 1. Validate tournament exists and is within join window
-// 2. Validate user has confirmed participation
+// 2. Validate user has confirmed participation (or is registered)
+// 2.5. Auto-confirm if status is 'registered'
 // 3. Return room link
-func (uc *JoinTournamentUseCase) Execute(ctx context.Context, tournamentID, userID uuid.UUID) (string, error) {
+func (uc *JoinTournamentUseCase) Execute(ctx context.Context, tournamentID, userID, hostID uuid.UUID) (string, error) {
 	// 1. Get tournament and validate join window
 	tournament, err := uc.tournamentRepo.GetByID(ctx, tournamentID)
 	if err != nil {
@@ -60,11 +61,27 @@ func (uc *JoinTournamentUseCase) Execute(ctx context.Context, tournamentID, user
 		return "", fmt.Errorf("participation not confirmed or join window not open")
 	}
 
+	// 2.5. Auto-confirm participation if status is 'registered'
+	if participant.Status == domain.StatusRegistered {
+		if err := participant.ConfirmParticipation(); err != nil {
+			uc.logger.Warn("failed to auto-confirm participation", "error", err, "tournamentId", tournamentID, "userId", userID)
+			// Continue anyway - participant is already registered which is sufficient
+		} else {
+			// Update participant status to 'confirmed'
+			if err := uc.participantRepo.UpdateStatus(ctx, tournamentID, userID, participant.Status); err != nil {
+				uc.logger.Error("failed to update participant status to confirmed", "error", err, "tournamentId", tournamentID, "userId", userID)
+				// Continue anyway - the join can still proceed
+			} else {
+				uc.logger.Info("auto-confirmed participation", "tournamentId", tournamentID, "userId", userID)
+			}
+		}
+	}
+
 	// 3. Generate room link
 	// TODO: This could be enhanced to use tournament's space_id or other configuration
-	roomLink := fmt.Sprintf("/tournaments/%s/room", tournamentID)
+	roomLink := fmt.Sprintf("/tournaments/%s/lobby", tournamentID)
 
-	uc.logger.Info("user joining tournament", "tournamentId", tournamentID, "userId", userID, "roomLink", roomLink)
+	uc.logger.Info("user joining tournament", "tournamentId", tournamentID, "userId", userID, "hostId", hostID, "roomLink", roomLink)
 
 	return roomLink, nil
 }

@@ -1,0 +1,541 @@
+package websocket
+
+import (
+	"encoding/json"
+	"log"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// RoomType identifies the type of room (match or tournament pre-lobby)
+type RoomType string
+
+const (
+	RoomTypeMatch       RoomType = "match"
+	RoomTypeTournament  RoomType = "tournament"
+)
+
+// DisconnectCallback is called when a player disconnects (T112)
+type DisconnectCallback func(matchID, playerID uuid.UUID, disconnectedAt time.Time)
+
+// TournamentDisconnectCallback is called when a participant disconnects from pre-lobby
+type TournamentDisconnectCallback func(tournamentID, userID uuid.UUID, disconnectedAt time.Time)
+
+// Hub maintains active WebSocket connections and broadcasts messages
+type Hub struct {
+	// Registered clients organized by match ID
+	matches map[uuid.UUID]map[uuid.UUID]*Client
+
+	// T081: Track lobby join timestamps for no-show detection
+	lobbyJoinTimes map[uuid.UUID]map[uuid.UUID]time.Time
+
+	// Pre-lobby connections organized by tournament ID
+	tournaments map[uuid.UUID]map[uuid.UUID]*Client
+
+	// Track tournament join timestamps
+	tournamentJoinTimes map[uuid.UUID]map[uuid.UUID]time.Time
+
+	// Register requests from clients
+	register chan *Client
+
+	// Unregister requests from clients
+	unregister chan *Client
+
+	// Broadcast message to specific match
+	broadcast chan *BroadcastMessage
+
+	// Callback for disconnect handling
+	onDisconnect DisconnectCallback
+
+	// Callback for tournament pre-lobby disconnect handling
+	onTournamentDisconnect TournamentDisconnectCallback
+
+	// Mutex for thread-safe access
+	mu sync.RWMutex
+}
+
+// BroadcastMessage represents a message to broadcast to a match or tournament
+type BroadcastMessage struct {
+	RoomType RoomType
+	RoomID   uuid.UUID // MatchID or TournamentID
+	MatchID  uuid.UUID // Deprecated: use RoomID with RoomType
+	Message  []byte
+}
+
+// NewHub creates a new WebSocket hub
+func NewHub(onDisconnect DisconnectCallback) *Hub {
+	return &Hub{
+		matches:             make(map[uuid.UUID]map[uuid.UUID]*Client),
+		lobbyJoinTimes:      make(map[uuid.UUID]map[uuid.UUID]time.Time),
+		tournaments:         make(map[uuid.UUID]map[uuid.UUID]*Client),
+		tournamentJoinTimes: make(map[uuid.UUID]map[uuid.UUID]time.Time),
+		register:            make(chan *Client, 256),
+		unregister:          make(chan *Client, 256),
+		broadcast:           make(chan *BroadcastMessage, 256),
+		onDisconnect:        onDisconnect,
+	}
+}
+
+// SetTournamentDisconnectCallback sets the callback for tournament disconnections
+func (h *Hub) SetTournamentDisconnectCallback(cb TournamentDisconnectCallback) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.onTournamentDisconnect = cb
+}
+
+// Run starts the hub's main loop
+func (h *Hub) Run() {
+	// Start heartbeat monitor
+	go h.monitorHeartbeats()
+
+	for {
+		select {
+		case client := <-h.register:
+			h.registerClient(client)
+
+		case client := <-h.unregister:
+			h.unregisterClient(client)
+
+		case message := <-h.broadcast:
+			// Route to appropriate room type
+			switch message.RoomType {
+			case RoomTypeTournament:
+				h.broadcastToTournament(message.RoomID, message.Message)
+			default:
+				// Default to match broadcast for backward compatibility
+				roomID := message.RoomID
+				if roomID == uuid.Nil {
+					roomID = message.MatchID // Backward compatibility
+				}
+				h.broadcastToMatch(roomID, message.Message)
+			}
+		}
+	}
+}
+
+// registerClient registers a new client connection
+func (h *Hub) registerClient(client *Client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	// Initialize match map if it doesn't exist
+	if h.matches[client.MatchID] == nil {
+		h.matches[client.MatchID] = make(map[uuid.UUID]*Client)
+	}
+
+	// T081: Initialize lobby join times map if needed
+	if h.lobbyJoinTimes[client.MatchID] == nil {
+		h.lobbyJoinTimes[client.MatchID] = make(map[uuid.UUID]time.Time)
+	}
+
+	// Register client and track join time
+	h.matches[client.MatchID][client.PlayerID] = client
+	h.lobbyJoinTimes[client.MatchID][client.PlayerID] = time.Now()
+
+	log.Printf("[Hub] Player %s connected to match %s (total clients: %d)",
+		client.PlayerID, client.MatchID, len(h.matches[client.MatchID]))
+
+	// Send current lobby state to the newly connected client
+	h.sendLobbyStateToClient(client)
+}
+
+// unregisterClient unregisters a client connection
+func (h *Hub) unregisterClient(client *Client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	matchClients, exists := h.matches[client.MatchID]
+	if !exists {
+		return
+	}
+
+	if _, exists := matchClients[client.PlayerID]; exists {
+		delete(matchClients, client.PlayerID)
+		close(client.send)
+
+		// Clean up lobby join time tracking
+		if joinTimes, exists := h.lobbyJoinTimes[client.MatchID]; exists {
+			delete(joinTimes, client.PlayerID)
+			if len(joinTimes) == 0 {
+				delete(h.lobbyJoinTimes, client.MatchID)
+			}
+		}
+
+		log.Printf("[Hub] Player %s disconnected from match %s (remaining clients: %d)",
+			client.PlayerID, client.MatchID, len(matchClients))
+
+		// Clean up empty match
+		if len(matchClients) == 0 {
+			delete(h.matches, client.MatchID)
+			log.Printf("[Hub] Match %s has no more clients, cleaned up", client.MatchID)
+		}
+
+		// Trigger disconnect callback
+		if h.onDisconnect != nil {
+			go h.onDisconnect(client.MatchID, client.PlayerID, time.Now())
+		}
+	}
+}
+
+// BroadcastToMatch sends a message to all clients in a match
+func (h *Hub) BroadcastToMatch(matchID uuid.UUID, message *Message) {
+	messageBytes, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("[Hub] ERROR: Failed to marshal message for match %s: %v", matchID, err)
+		return
+	}
+
+	h.broadcast <- &BroadcastMessage{
+		MatchID: matchID,
+		Message: messageBytes,
+	}
+}
+
+// broadcastToMatch (internal) sends bytes to all match clients
+func (h *Hub) broadcastToMatch(matchID uuid.UUID, message []byte) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	matchClients, exists := h.matches[matchID]
+	if !exists {
+		return
+	}
+
+	for _, client := range matchClients {
+		select {
+		case client.send <- message:
+		default:
+			// Client buffer full, will be cleaned up by unregister
+			log.Printf("[Hub] WARN: Client buffer full for player %s", client.PlayerID)
+		}
+	}
+}
+
+// SendToPlayer sends a message to a specific player
+func (h *Hub) SendToPlayer(matchID, playerID uuid.UUID, message *Message) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	matchClients, exists := h.matches[matchID]
+	if !exists {
+		return
+	}
+
+	client, exists := matchClients[playerID]
+	if !exists {
+		return
+	}
+
+	messageBytes, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("[Hub] ERROR: Failed to marshal message for player %s: %v", playerID, err)
+		return
+	}
+
+	client.Send(messageBytes)
+}
+
+// GetConnectedPlayers returns list of connected player IDs for a match
+func (h *Hub) GetConnectedPlayers(matchID uuid.UUID) []uuid.UUID {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	matchClients, exists := h.matches[matchID]
+	if !exists {
+		return []uuid.UUID{}
+	}
+
+	playerIDs := make([]uuid.UUID, 0, len(matchClients))
+	for playerID := range matchClients {
+		playerIDs = append(playerIDs, playerID)
+	}
+
+	return playerIDs
+}
+
+// IsPlayerConnected checks if a player is connected to a match
+func (h *Hub) IsPlayerConnected(matchID, playerID uuid.UUID) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	matchClients, exists := h.matches[matchID]
+	if !exists {
+		return false
+	}
+
+	client, exists := matchClients[playerID]
+	if !exists {
+		return false
+	}
+
+	return client.IsConnected()
+}
+
+// monitorHeartbeats checks for stale connections and triggers disconnects
+func (h *Hub) monitorHeartbeats() {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		h.mu.Lock()
+		for matchID, matchClients := range h.matches {
+			for playerID, client := range matchClients {
+				timeSinceHeartbeat := client.TimeSinceLastHeartbeat()
+				if timeSinceHeartbeat > pongWait {
+					log.Printf("[Hub] Player %s heartbeat timeout (%v), disconnecting", playerID, timeSinceHeartbeat)
+					h.mu.Unlock()
+					h.unregister <- client
+					h.mu.Lock()
+
+					// Trigger disconnect callback
+					if h.onDisconnect != nil {
+						disconnectedAt := time.Now().Add(-timeSinceHeartbeat)
+						go h.onDisconnect(matchID, playerID, disconnectedAt)
+					}
+				}
+			}
+		}
+		h.mu.Unlock()
+	}
+}
+
+// handleClientMessage processes incoming client messages
+func (h *Hub) handleClientMessage(client *Client, messageBytes []byte) {
+	var msg Message
+	if err := json.Unmarshal(messageBytes, &msg); err != nil {
+		log.Printf("[Hub] ERROR: Failed to unmarshal message from player %s: %v", client.PlayerID, err)
+		return
+	}
+
+	switch msg.Type {
+	case MessageTypeHeartbeat:
+		// Heartbeat handled by ReadPump (updates lastHeartbeat)
+		// No additional action needed
+
+	default:
+		log.Printf("[Hub] Received message type %s from player %s in match %s",
+			msg.Type, client.PlayerID, client.MatchID)
+		// Additional message types handled by application layer
+	}
+}
+
+// sendLobbyStateToClient sends current lobby state to a client
+func (h *Hub) sendLobbyStateToClient(client *Client) {
+	// This would fetch current match state from database
+	// For now, just acknowledge connection
+	payload := map[string]interface{}{
+		"match_id":  client.MatchID,
+		"player_id": client.PlayerID,
+		"connected": true,
+	}
+
+	msg, err := NewMessage(MessageTypeLobbyState, payload)
+	if err != nil {
+		log.Printf("[Hub] ERROR: Failed to create lobby state message: %v", err)
+		return
+	}
+
+	messageBytes, _ := json.Marshal(msg)
+	client.Send(messageBytes)
+}
+
+// ============================================================================
+// Tournament Pre-Lobby Methods
+// ============================================================================
+
+// TournamentClient represents a client connected to a tournament pre-lobby
+type TournamentClient struct {
+	*Client
+	TournamentID uuid.UUID
+	UserID       uuid.UUID
+	DisplayName  string
+	AvatarURL    *string
+}
+
+// RegisterTournamentClient registers a client to a tournament pre-lobby
+func (h *Hub) RegisterTournamentClient(tournamentID, userID uuid.UUID, displayName string, avatarURL *string, client *Client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	// Initialize tournament map if it doesn't exist
+	if h.tournaments[tournamentID] == nil {
+		h.tournaments[tournamentID] = make(map[uuid.UUID]*Client)
+	}
+
+	// Initialize tournament join times map if needed
+	if h.tournamentJoinTimes[tournamentID] == nil {
+		h.tournamentJoinTimes[tournamentID] = make(map[uuid.UUID]time.Time)
+	}
+
+	// Register client and track join time
+	h.tournaments[tournamentID][userID] = client
+	h.tournamentJoinTimes[tournamentID][userID] = time.Now()
+
+	log.Printf("[Hub] User %s (%s) connected to tournament %s (total participants: %d)",
+		userID, displayName, tournamentID, len(h.tournaments[tournamentID]))
+}
+
+// UnregisterTournamentClient unregisters a client from a tournament pre-lobby
+func (h *Hub) UnregisterTournamentClient(tournamentID, userID uuid.UUID) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	tournamentClients, exists := h.tournaments[tournamentID]
+	if !exists {
+		return
+	}
+
+	client, exists := tournamentClients[userID]
+	if !exists {
+		return
+	}
+
+	delete(tournamentClients, userID)
+	close(client.send)
+
+	// Clean up tournament join time tracking
+	if joinTimes, exists := h.tournamentJoinTimes[tournamentID]; exists {
+		delete(joinTimes, userID)
+		if len(joinTimes) == 0 {
+			delete(h.tournamentJoinTimes, tournamentID)
+		}
+	}
+
+	log.Printf("[Hub] User %s disconnected from tournament %s (remaining participants: %d)",
+		userID, tournamentID, len(tournamentClients))
+
+	// Clean up empty tournament
+	if len(tournamentClients) == 0 {
+		delete(h.tournaments, tournamentID)
+		log.Printf("[Hub] Tournament %s has no more participants, cleaned up", tournamentID)
+	}
+
+	// Trigger disconnect callback
+	if h.onTournamentDisconnect != nil {
+		go h.onTournamentDisconnect(tournamentID, userID, time.Now())
+	}
+}
+
+// GetTournamentParticipants returns list of connected user IDs for a tournament
+func (h *Hub) GetTournamentParticipants(tournamentID uuid.UUID) []uuid.UUID {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	tournamentClients, exists := h.tournaments[tournamentID]
+	if !exists {
+		return []uuid.UUID{}
+	}
+
+	userIDs := make([]uuid.UUID, 0, len(tournamentClients))
+	for userID := range tournamentClients {
+		userIDs = append(userIDs, userID)
+	}
+
+	return userIDs
+}
+
+// GetTournamentParticipantCount returns the number of connected participants
+func (h *Hub) GetTournamentParticipantCount(tournamentID uuid.UUID) int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	tournamentClients, exists := h.tournaments[tournamentID]
+	if !exists {
+		return 0
+	}
+
+	return len(tournamentClients)
+}
+
+// IsTournamentParticipantConnected checks if a user is connected to a tournament
+func (h *Hub) IsTournamentParticipantConnected(tournamentID, userID uuid.UUID) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	tournamentClients, exists := h.tournaments[tournamentID]
+	if !exists {
+		return false
+	}
+
+	client, exists := tournamentClients[userID]
+	if !exists {
+		return false
+	}
+
+	return client.IsConnected()
+}
+
+// BroadcastToTournament sends a message to all clients in a tournament pre-lobby
+func (h *Hub) BroadcastToTournament(tournamentID uuid.UUID, message *Message) {
+	messageBytes, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("[Hub] ERROR: Failed to marshal message for tournament %s: %v", tournamentID, err)
+		return
+	}
+
+	h.broadcast <- &BroadcastMessage{
+		RoomType: RoomTypeTournament,
+		RoomID:   tournamentID,
+		Message:  messageBytes,
+	}
+}
+
+// broadcastToTournament (internal) sends bytes to all tournament clients
+func (h *Hub) broadcastToTournament(tournamentID uuid.UUID, message []byte) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	tournamentClients, exists := h.tournaments[tournamentID]
+	if !exists {
+		return
+	}
+
+	for _, client := range tournamentClients {
+		select {
+		case client.send <- message:
+		default:
+			// Client buffer full, will be cleaned up by unregister
+			log.Printf("[Hub] WARN: Client buffer full for tournament participant")
+		}
+	}
+}
+
+// SendToTournamentParticipant sends a message to a specific participant in a tournament
+func (h *Hub) SendToTournamentParticipant(tournamentID, userID uuid.UUID, message *Message) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	tournamentClients, exists := h.tournaments[tournamentID]
+	if !exists {
+		return
+	}
+
+	client, exists := tournamentClients[userID]
+	if !exists {
+		return
+	}
+
+	messageBytes, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("[Hub] ERROR: Failed to marshal message for tournament participant %s: %v", userID, err)
+		return
+	}
+
+	client.Send(messageBytes)
+}
+
+// GetTournamentJoinTime returns when a user joined a tournament pre-lobby
+func (h *Hub) GetTournamentJoinTime(tournamentID, userID uuid.UUID) (time.Time, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	joinTimes, exists := h.tournamentJoinTimes[tournamentID]
+	if !exists {
+		return time.Time{}, false
+	}
+
+	joinTime, exists := joinTimes[userID]
+	return joinTime, exists
+}
