@@ -113,7 +113,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.get<{ tournaments: TournamentApiData[] }>(
-        `/${hostId}/tournaments`
+        `/v1/${hostId}/tournaments`
       )
 
       if (response.error) {
@@ -139,7 +139,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.get<{ tournament: TournamentApiData }>(
-        `/${hostId}/tournaments/${tournamentId}`
+        `/v1/${hostId}/tournaments/${tournamentId}`
       )
 
       if (response.error) {
@@ -170,7 +170,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.post<CreateTournamentResponse>(
-        `/${hostId}/tournaments`,
+        `/v1/${hostId}/tournaments`,
         input
       )
 
@@ -215,7 +215,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.put<EditTournamentResponse>(
-        `/${hostId}/tournaments/${tournamentId}`,
+        `/v1/${hostId}/tournaments/${tournamentId}`,
         input
       )
 
@@ -291,7 +291,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.post<{ success: boolean }>(
-        `/${hostId}/tournaments/${tournamentId}/confirm-participation`,
+        `/v1/${hostId}/tournaments/${tournamentId}/confirm-participation`,
         {}
       )
 
@@ -316,7 +316,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.post<{ success: boolean; roomLink?: string }>(
-        `/${hostId}/tournaments/${tournamentId}/join`,
+        `/v1/${hostId}/tournaments/${tournamentId}/join`,
         {}
       )
 
@@ -356,7 +356,7 @@ export const tournamentApi = {
         total: number
         limit: number
         offset: number
-      }>(`/${hostId}/tournaments/${tournamentId}/participants?limit=${limit}&offset=${offset}`)
+      }>(`/v1/${hostId}/tournaments/${tournamentId}/participants?limit=${limit}&offset=${offset}`)
 
       if (response.error) {
         throw new Error(response.error.message)
@@ -387,7 +387,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.get<{ bracket: Bracket }>(
-        `/matchmaking/v1/tournaments/${tournamentId}/bracket`
+        `/v1/matchmaking/tournaments/${tournamentId}/bracket`
       )
 
       if (response.error) {
@@ -420,7 +420,7 @@ export const tournamentApi = {
           roundNumber: number
           roundName: string
         }>
-      }>(`/matchmaking/v1/tournaments/${tournamentId}/matches`)
+      }>(`/v1/matchmaking/tournaments/${tournamentId}/matches`)
 
       if (response.error) {
         throw new Error(response.error.message)
@@ -455,7 +455,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.post<{ success: boolean }>(
-        `/matchmaking/v1/matches/${matchId}/manual-result`,
+        `/v1/matchmaking/matches/${matchId}/manual-result`,
         {
           winnerId,
           scorePlayer1,

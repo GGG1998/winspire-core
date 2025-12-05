@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../../../shared/hooks/useWebSocket';
 import { getPreLobbyState, getPreLobbyWebSocketUrl } from '../api/matchmakingApi';
+import { WS_BASE_URL } from '../../../shared/config/websocket';
+import { supabase } from '../../../shared/api/supabase';
 import type {
   TournamentPreLobbyState,
   PreLobbyParticipant,
@@ -16,9 +18,6 @@ import type {
   ConnectionState,
 } from '../types';
 import { MATCH_ASSIGNED_NOTIFICATION_DURATION } from '../constants';
-
-// WebSocket base URL from environment
-const WS_BASE_URL = import.meta.env.VITE_MATCHMAKING_WS_URL || 'ws://localhost:8082/api/matchmaking';
 
 interface UseTournamentPreLobbyReturn {
   preLobbyState: TournamentPreLobbyState | null;
@@ -60,8 +59,8 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
   const [byeInfo, setByeInfo] = useState<{ roundName: string; nextMatchSlot: string } | null>(null);
 
   // Refs
-  const gracePeriodTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const participantUpdateTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const gracePeriodTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const participantUpdateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ========================================================================
   // WebSocket Message Handlers
@@ -76,6 +75,7 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
     setPreLobbyState({
       tournamentId: payload.tournament.id,
       tournamentName: payload.tournament.name,
+      creatorId: '', // Will be set from REST API
       startTime: payload.tournament.startTime,
       status: 'waiting',
       participants: payload.participants,
@@ -98,25 +98,33 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
     setPreLobbyState((prev) => {
       if (!prev) return prev;
 
+      // Transform backend payload to frontend participant format
+      const participant: PreLobbyParticipant = {
+        id: payload.user_id,
+        displayName: payload.display_name,
+        avatarUrl: payload.avatar_url || null,
+        joinedAt: payload.joined_at,
+      };
+
       // Add participant if not already in list
-      const exists = prev.participants.some((p) => p.id === payload.participant.id);
+      const exists = prev.participants.some((p) => p.id === participant.id);
       const newParticipants = exists
         ? prev.participants
-        : [...prev.participants, payload.participant];
+        : [...prev.participants, participant];
 
       // Add activity feed item
       const feedItem: ActivityFeedItem = {
         id: crypto.randomUUID(),
         type: 'participant_joined',
-        message: `${payload.participant.displayName} dołączył do turnieju`,
+        message: `${participant.displayName} dołączył do turnieju`,
         timestamp: new Date().toISOString(),
-        participantName: payload.participant.displayName,
+        participantName: participant.displayName,
       };
 
       return {
         ...prev,
         participants: newParticipants,
-        participantCount: payload.totalCount,
+        participantCount: newParticipants.length,
         activityFeed: [...prev.activityFeed, feedItem],
       };
     });
@@ -143,22 +151,21 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
       if (!prev) return prev;
 
       // Remove participant from list
-      const participant = prev.participants.find((p) => p.id === payload.participantId);
-      const newParticipants = prev.participants.filter((p) => p.id !== payload.participantId);
+      const newParticipants = prev.participants.filter((p) => p.id !== payload.user_id);
 
       // Add activity feed item
       const feedItem: ActivityFeedItem = {
         id: crypto.randomUUID(),
         type: 'participant_left',
-        message: `${participant?.displayName || 'Gracz'} opuścił turniej`,
+        message: `${payload.display_name} opuścił turniej`,
         timestamp: new Date().toISOString(),
-        participantName: participant?.displayName,
+        participantName: payload.display_name,
       };
 
       return {
         ...prev,
         participants: newParticipants,
-        participantCount: payload.totalCount,
+        participantCount: newParticipants.length,
         activityFeed: [...prev.activityFeed, feedItem],
       };
     });
@@ -366,8 +373,15 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
 
   const wsUrl = tournamentId ? getPreLobbyWebSocketUrl(tournamentId, WS_BASE_URL) : null;
 
+  // Get authentication token for WebSocket connection
+  const getToken = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  }, []);
+
   const { status: connectionStatus } = useWebSocket({
     url: wsUrl,
+    getToken,
     onMessage: handleWebSocketMessage,
     onOpen: () => console.log('[PreLobby] WebSocket connected'),
     onClose: () => console.log('[PreLobby] WebSocket disconnected'),

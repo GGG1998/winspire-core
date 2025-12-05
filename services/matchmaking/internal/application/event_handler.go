@@ -88,48 +88,59 @@ func (h *EventHandler) HandleTournamentStarted(ctx context.Context, eventType st
 			return nil
 		}
 
-		// Start grace period - bracket will be generated after grace period ends
-		err = h.preLobbyService.StartGracePeriod(ctx, tournamentID, func(tournamentID uuid.UUID, participantIDs []uuid.UUID) {
-			// This callback is called when grace period ends
-			h.logger.Info("Grace period ended, generating bracket", map[string]interface{}{
-				"tournament_id":     tournamentID.String(),
-				"participant_count": len(participantIDs),
-			})
-
-			if len(participantIDs) < 2 {
-				h.logger.Error("Insufficient participants for bracket generation after grace period", map[string]interface{}{
-					"tournament_id":     tournamentID.String(),
-					"participant_count": len(participantIDs),
-				})
-				return
-			}
-
-			// Generate bracket with participants from snapshot
-			if err := h.bracketService.GenerateBracket(context.Background(), tournamentID, participantIDs); err != nil {
-				h.logger.Error("Failed to generate bracket after grace period", map[string]interface{}{
-					"tournament_id": tournamentID.String(),
-					"error":         err.Error(),
-				})
-				return
-			}
-
-			h.logger.Info("Bracket generated successfully after grace period", map[string]interface{}{
-				"tournament_id": tournamentID.String(),
-				"participants":  len(participantIDs),
-			})
-		})
-
+		// Ensure pre-lobby exists before starting grace period
+		// This fixes "pre-lobby not found" error when no one joined before tournament start
+		_, err = h.preLobbyService.GetOrCreatePreLobby(ctx, tournamentID, 2)
 		if err != nil {
-			h.logger.Error("Failed to start grace period", map[string]interface{}{
+			h.logger.Error("Failed to get or create pre-lobby", map[string]interface{}{
 				"tournament_id": tournamentID.String(),
 				"error":         err.Error(),
 			})
 			// Fall back to immediate bracket generation
 		} else {
-			h.logger.Info("Grace period started successfully", map[string]interface{}{
-				"tournament_id": tournamentID.String(),
+			// Start grace period - bracket will be generated after grace period ends
+			err = h.preLobbyService.StartGracePeriod(ctx, tournamentID, func(tournamentID uuid.UUID, participantIDs []uuid.UUID) {
+				// This callback is called when grace period ends
+				h.logger.Info("Grace period ended, generating bracket", map[string]interface{}{
+					"tournament_id":     tournamentID.String(),
+					"participant_count": len(participantIDs),
+				})
+
+				if len(participantIDs) < 2 {
+					h.logger.Error("Insufficient participants for bracket generation after grace period", map[string]interface{}{
+						"tournament_id":     tournamentID.String(),
+						"participant_count": len(participantIDs),
+					})
+					return
+				}
+
+				// Generate bracket with participants from snapshot
+				if err := h.bracketService.GenerateBracket(context.Background(), tournamentID, participantIDs); err != nil {
+					h.logger.Error("Failed to generate bracket after grace period", map[string]interface{}{
+						"tournament_id": tournamentID.String(),
+						"error":         err.Error(),
+					})
+					return
+				}
+
+				h.logger.Info("Bracket generated successfully after grace period", map[string]interface{}{
+					"tournament_id": tournamentID.String(),
+					"participants":  len(participantIDs),
+				})
 			})
-			return nil
+
+			if err != nil {
+				h.logger.Error("Failed to start grace period", map[string]interface{}{
+					"tournament_id": tournamentID.String(),
+					"error":         err.Error(),
+				})
+				// Fall back to immediate bracket generation
+			} else {
+				h.logger.Info("Grace period started successfully", map[string]interface{}{
+					"tournament_id": tournamentID.String(),
+				})
+				return nil
+			}
 		}
 	}
 
@@ -173,8 +184,89 @@ func (h *EventHandler) HandleTournamentStarted(ctx context.Context, eventType st
 	return nil
 }
 
+// HandleBracketGenerated processes BracketGenerated events
+// Sends match_assigned notifications to all players in first round
+func (h *EventHandler) HandleBracketGenerated(ctx context.Context, eventType string, payload map[string]interface{}, metadata map[string]string) error {
+	h.logger.Info("Received BracketGenerated event", map[string]interface{}{
+		"event_type": eventType,
+	})
+
+	// Parse tournament ID from payload
+	tournamentIDStr, ok := payload["tournament_id"].(string)
+	if !ok {
+		return fmt.Errorf("missing or invalid tournament_id in payload")
+	}
+
+	tournamentID, err := uuid.Parse(tournamentIDStr)
+	if err != nil {
+		return fmt.Errorf("parse tournament_id: %w", err)
+	}
+
+	// Get all matches from round 1
+	matches, err := h.bracketService.GetMatchesByRound(ctx, tournamentID, 1)
+	if err != nil {
+		h.logger.Error("Failed to get round 1 matches", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"error":         err.Error(),
+		})
+		return fmt.Errorf("get round 1 matches: %w", err)
+	}
+
+	// Round 1 by definition has round_number = 1
+	roundNumber := 1
+
+	// Send match_assigned to each participant
+	for _, match := range matches {
+		// Send to participant 1
+		if match.Participant1ID != uuid.Nil {
+			var opponent *PreLobbyParticipantInfo
+			if match.Participant2ID != nil && *match.Participant2ID != uuid.Nil {
+				// Create opponent info (using placeholder for display name)
+				opponent = &PreLobbyParticipantInfo{
+					UserID:      *match.Participant2ID,
+					DisplayName: "Opponent",
+				}
+			}
+
+			h.preLobbyService.BroadcastMatchAssigned(
+				tournamentID,
+				match.Participant1ID,
+				match.ID,
+				roundNumber,
+				match.MatchNumber,
+				opponent,
+			)
+		}
+
+		// Send to participant 2 (if not BYE)
+		if match.Participant2ID != nil && *match.Participant2ID != uuid.Nil {
+			opponent := &PreLobbyParticipantInfo{
+				UserID:      match.Participant1ID,
+				DisplayName: "Opponent",
+			}
+
+			h.preLobbyService.BroadcastMatchAssigned(
+				tournamentID,
+				*match.Participant2ID,
+				match.ID,
+				roundNumber,
+				match.MatchNumber,
+				opponent,
+			)
+		}
+	}
+
+	h.logger.Info("Sent match assignments", map[string]interface{}{
+		"tournament_id": tournamentID.String(),
+		"match_count":   len(matches),
+	})
+
+	return nil
+}
+
 // RegisterHandlers registers all event handlers with the subscriber
 func (h *EventHandler) RegisterHandlers(subscriber *pubsub.EventSubscriber) {
 	subscriber.Subscribe("TournamentStarted", h.HandleTournamentStarted)
-	log.Println("[EventHandler] Registered handler for TournamentStarted")
+	subscriber.Subscribe("BracketGenerated", h.HandleBracketGenerated)
+	log.Println("[EventHandler] Registered handlers for TournamentStarted, BracketGenerated")
 }

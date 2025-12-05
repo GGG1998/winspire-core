@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useWebSocket } from '../../../shared/hooks/useWebSocket';
-import { matchmakingApi } from '../api/matchmakingApi';
+import { matchmakingApi, getMatchLobbyWebSocketUrl } from '../api/matchmakingApi';
+import { WS_BASE_URL } from '../../../shared/config/websocket';
+import { supabase } from '../../../shared/api/supabase';
 import { useAuth } from '../../auth';
 import type {
   Match,
@@ -76,16 +78,22 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
   // Track if initial data is loaded
   const initialLoadComplete = useRef(false);
 
-  // Construct WebSocket URL
-  // Note: The actual WS base URL would be configured in environment
-  const wsUrl = matchId ? `/v1/matches/${matchId}/lobby` : '';
+  // Construct WebSocket URL using centralized config
+  const wsUrl = matchId ? getMatchLobbyWebSocketUrl(matchId, WS_BASE_URL) : null;
 
   // Track previous connection status for auto-refresh on reconnect
   const previousStatusRef = useRef<ConnectionState | null>(null);
 
+  // Get authentication token for WebSocket connection
+  const getToken = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  }, []);
+
   // Initialize WebSocket connection
   const { status: connectionStatus } = useWebSocket({
     url: wsUrl,
+    getToken,
     onMessage: handleWebSocketMessage,
     onOpen: () => {
       console.log('[useMatchLobby] WebSocket connected');

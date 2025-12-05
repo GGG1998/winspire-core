@@ -23,6 +23,14 @@ SELECT * FROM tournament_matches
 WHERE round_id = $1
 ORDER BY match_number ASC;
 
+-- name: GetMatchesByTournamentAndRound :many
+-- Get all matches for a specific tournament and round number
+SELECT m.* FROM tournament_matches m
+JOIN tournament_rounds r ON m.round_id = r.id
+JOIN tournament_brackets b ON r.bracket_id = b.id
+WHERE b.tournament_id = $1 AND r.round_number = $2
+ORDER BY m.match_number ASC;
+
 -- name: GetMatchesForPlayer :many
 -- Get all matches for a specific player (participant1 or participant2)
 SELECT * FROM tournament_matches

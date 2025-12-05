@@ -232,13 +232,15 @@ export interface PreLobbyStatePayload {
 }
 
 export interface ParticipantJoinedPayload {
-  participant: PreLobbyParticipant;
-  totalCount: number;
+  user_id: string;
+  display_name: string;
+  avatar_url?: string | null;
+  joined_at: string;
 }
 
 export interface ParticipantLeftPayload {
-  participantId: string;
-  totalCount: number;
+  user_id: string;
+  display_name: string;
 }
 
 export interface GracePeriodStartedPayload {

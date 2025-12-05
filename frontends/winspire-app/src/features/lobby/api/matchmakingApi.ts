@@ -211,7 +211,7 @@ export async function claimWalkover(
 /**
  * Get WebSocket URL for tournament pre-lobby
  * @param tournamentId Tournament UUID
- * @param wsBaseUrl WebSocket base URL (e.g., ws://localhost:8082/api/matchmaking)
+ * @param wsBaseUrl WebSocket base URL (e.g., ws://localhost for Traefik)
  * @returns Full WebSocket URL for pre-lobby connection
  */
 export function getPreLobbyWebSocketUrl(tournamentId: string, wsBaseUrl: string): string {
@@ -221,7 +221,7 @@ export function getPreLobbyWebSocketUrl(tournamentId: string, wsBaseUrl: string)
 /**
  * Get WebSocket URL for match lobby
  * @param matchId Match UUID
- * @param wsBaseUrl WebSocket base URL (e.g., ws://localhost:8082/api/matchmaking)
+ * @param wsBaseUrl WebSocket base URL (e.g., ws://localhost for Traefik)
  * @returns Full WebSocket URL for match lobby connection
  */
 export function getMatchLobbyWebSocketUrl(matchId: string, wsBaseUrl: string): string {

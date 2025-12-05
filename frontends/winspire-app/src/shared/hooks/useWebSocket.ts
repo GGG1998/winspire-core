@@ -7,6 +7,7 @@ import type { ConnectionState } from '../../features/lobby/types';
 
 interface UseWebSocketOptions {
   url: string | null; // WebSocket URL (null = don't connect)
+  getToken?: () => Promise<string | null>; // Async function to get auth token
   onMessage?: (event: MessageEvent) => void;
   onOpen?: () => void;
   onClose?: () => void;
@@ -64,6 +65,7 @@ const DEFAULT_MESSAGE_QUEUE_MAX_SIZE = 100;
 export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const {
     url,
+    getToken,
     onMessage,
     onOpen,
     onClose,
@@ -224,7 +226,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   /**
    * Connect to WebSocket
    */
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (!url) {
       console.warn('[WebSocket] No URL provided, skipping connection');
       return;
@@ -236,11 +238,22 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     }
 
     try {
+      // Build WebSocket URL with authentication token if available
+      let wsUrl = url;
+      if (getToken) {
+        const token = await getToken();
+        if (token) {
+          const separator = url.includes('?') ? '&' : '?';
+          wsUrl = `${url}${separator}token=${token}`;
+          console.log('[WebSocket] Connecting with authentication token');
+        }
+      }
+
       console.log('[WebSocket] Connecting to:', url);
       setStatus('connecting');
       isManualCloseRef.current = false;
 
-      const ws = new WebSocket(url);
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = handleOpen;
@@ -252,7 +265,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       setStatus('error');
       setError(err instanceof Error ? err.message : 'Failed to connect');
     }
-  }, [url, handleOpen, handleMessage, handleError, handleClose]);
+  }, [url, getToken, handleOpen, handleMessage, handleError, handleClose]);
 
   /**
    * Close WebSocket connection

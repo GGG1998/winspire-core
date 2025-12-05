@@ -43,7 +43,7 @@ func NewCompetitionClient(baseURL string, logger *observability.Logger) *Competi
 
 // GetTournamentInfo fetches tournament information from the competition service
 func (c *CompetitionClient) GetTournamentInfo(ctx context.Context, tournamentID uuid.UUID) (*TournamentInfo, error) {
-	url := fmt.Sprintf("%s/api/v1/tournaments/%s", c.baseURL, tournamentID)
+	url := fmt.Sprintf("%s/internal/tournaments/%s", c.baseURL, tournamentID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -112,7 +112,7 @@ func (c *CompetitionClient) IsUserRegistered(ctx context.Context, tournamentID, 
 	c.registrationCacheMu.RUnlock()
 
 	// Fetch from competition service
-	url := fmt.Sprintf("%s/v1/tournaments/%s/participants/%s", c.baseURL, tournamentID, userID)
+	url := fmt.Sprintf("%s/internal/tournaments/%s/registrations/%s", c.baseURL, tournamentID, userID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

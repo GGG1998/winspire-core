@@ -244,7 +244,6 @@ func (h *PreLobbyHandler) buildStateResponse(state *application.PreLobbyState) P
 // isValidTournamentStatus checks if tournament status allows pre-lobby access
 func isValidTournamentStatus(status string) bool {
 	validStatuses := map[string]bool{
-		"scheduled":           true,
 		"registration_open":   true,
 		"registration_closed": true,
 		"started":             true, // Allow during grace period

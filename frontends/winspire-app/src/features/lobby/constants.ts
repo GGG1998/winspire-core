@@ -106,25 +106,25 @@ export const ERROR_MESSAGES = {
 } as const;
 
 // ============================================================================
-// API Endpoints (relative to API base URL which already includes /api/v1)
+// API Endpoints (full paths - API_BASE_URL is empty)
 // ============================================================================
 
 export const API_ENDPOINTS = {
-  // Tournament Pre-Lobby
-  GET_PRE_LOBBY_STATE: (tournamentId: string) => `/tournaments/${tournamentId}/lobby`,
-  WS_PRE_LOBBY: (tournamentId: string) => `/tournaments/${tournamentId}/lobby`,
+  // Tournament Pre-Lobby (Matchmaking Service)
+  GET_PRE_LOBBY_STATE: (tournamentId: string) => `/v1/matchmaking/tournaments/${tournamentId}/lobby`,
+  WS_PRE_LOBBY: (tournamentId: string) => `/v1/matchmaking/tournaments/${tournamentId}/lobby/ws`,
 
-  // Match Lobby
-  GET_MATCH: (matchId: string) => `/matches/${matchId}`,
-  MARK_READY: (matchId: string) => `/matches/${matchId}/ready`,
-  CLAIM_WALKOVER: (matchId: string) => `/matches/${matchId}/walkover`,
-  WS_MATCH_LOBBY: (matchId: string) => `/matches/${matchId}/lobby`,
+  // Match Lobby (Matchmaking Service)
+  GET_MATCH: (matchId: string) => `/v1/matchmaking/matches/${matchId}`,
+  MARK_READY: (matchId: string) => `/v1/matchmaking/matches/${matchId}/ready`,
+  CLAIM_WALKOVER: (matchId: string) => `/v1/matchmaking/matches/${matchId}/claim-walkover`,
+  WS_MATCH_LOBBY: (matchId: string) => `/v1/matchmaking/matches/${matchId}/lobby`,
 
-  // Bracket
-  GET_BRACKET: (tournamentId: string) => `/tournaments/${tournamentId}/bracket`,
+  // Bracket (Matchmaking Service)
+  GET_BRACKET: (tournamentId: string) => `/v1/matchmaking/tournaments/${tournamentId}/bracket`,
 
-  // Matches List
-  GET_MATCHES: (tournamentId: string) => `/tournaments/${tournamentId}/matches`,
+  // Matches List (Matchmaking Service)
+  GET_MATCHES: (tournamentId: string) => `/v1/matchmaking/tournaments/${tournamentId}/matches`,
 } as const;
 
 // ============================================================================

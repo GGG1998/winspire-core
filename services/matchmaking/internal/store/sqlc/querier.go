@@ -65,6 +65,8 @@ type Querier interface {
 	GetFinalMatch(ctx context.Context, tournamentID pgtype.UUID) (TournamentMatch, error)
 	GetMatchByID(ctx context.Context, id pgtype.UUID) (TournamentMatch, error)
 	GetMatchesByRoundID(ctx context.Context, roundID pgtype.UUID) ([]TournamentMatch, error)
+	// Get all matches for a specific tournament and round number
+	GetMatchesByTournamentAndRound(ctx context.Context, arg GetMatchesByTournamentAndRoundParams) ([]TournamentMatch, error)
 	// Get matches that need Game API polling
 	GetMatchesForGameAPIPolling(ctx context.Context, limit int32) ([]TournamentMatch, error)
 	// Get all matches for a specific player (participant1 or participant2)

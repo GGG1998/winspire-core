@@ -196,31 +196,31 @@ func main() {
 	// Set tournament disconnect callback on hub
 	hub.SetTournamentDisconnectCallback(preLobbyWSHandler.HandleTournamentDisconnect)
 
-	// API v1 routes (auth required)
-	v1 := router.Group("/v1")
+	// API matchmaking routes (auth required)
+	matchmaking := router.Group("/v1/matchmaking")
 	// JWT validation middleware - validates token and extracts user context
 	jwtConfig := authmiddleware.Config{
 		JWTSecret: cfg.HostJWTSecret,
 		Issuer:    cfg.HostJWTIssuer,
 		Audience:  cfg.HostJWTAudience,
 	}
-	v1.Use(authmiddleware.ValidateJWTMiddleware(jwtConfig))
+	matchmaking.Use(authmiddleware.ValidateJWTMiddleware(jwtConfig))
 	{
 		// Bracket endpoints
-		v1.GET("/brackets/:id", bracketHandler.GetBracket)
-		v1.GET("/tournaments/:id/bracket", bracketHandler.GetBracketByTournament)
+		matchmaking.GET("/brackets/:id", bracketHandler.GetBracket)
+		matchmaking.GET("/tournaments/:id/bracket", bracketHandler.GetBracketByTournament)
 
 		// Match endpoints
-		v1.GET("/matches/:id", matchHandler.GetMatch)
-		v1.POST("/matches/:id/ready", matchHandler.MarkPlayerReady)
-		v1.POST("/matches/:id/claim-walkover", matchHandler.ClaimWalkover)
+		matchmaking.GET("/matches/:id", matchHandler.GetMatch)
+		matchmaking.POST("/matches/:id/ready", matchHandler.MarkPlayerReady)
+		matchmaking.POST("/matches/:id/claim-walkover", matchHandler.ClaimWalkover)
 
 		// WebSocket lobby endpoint
-		v1.GET("/matches/:id/lobby", websocketHandler.UpgradeLobbyConnection)
+		matchmaking.GET("/matches/:id/lobby", websocketHandler.UpgradeLobbyConnection)
 
 		// Pre-lobby endpoints (tournament waiting room)
-		v1.GET("/tournaments/:id/lobby", preLobbyHandler.GetPreLobbyState)
-		v1.GET("/tournaments/:id/lobby/ws", preLobbyWSHandler.UpgradePreLobbyConnection)
+		matchmaking.GET("/tournaments/:id/lobby", preLobbyHandler.GetPreLobbyState)
+		matchmaking.GET("/tournaments/:id/lobby/ws", preLobbyWSHandler.UpgradePreLobbyConnection)
 	}
 
 	// Create HTTP server

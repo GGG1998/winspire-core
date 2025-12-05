@@ -21,23 +21,30 @@ func ValidateJWTMiddleware(cfg Config) gin.HandlerFunc {
 	validator := jwt.NewValidator(cfg.JWTSecret, cfg.Issuer, cfg.Audience)
 
 	return func(c *gin.Context) {
-		// Extract token from Authorization header
+		var tokenString string
+
+		// Extract token from Authorization header (preferred method)
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
-			c.Abort()
-			return
+		if authHeader != "" {
+			// Check for Bearer token
+			parts := strings.Split(authHeader, " ")
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header format"})
+				c.Abort()
+				return
+			}
+			tokenString = parts[1]
+		} else {
+			// Fallback: Check query parameter for WebSocket connections
+			// WebSocket connections from browsers cannot set custom headers,
+			// so we support ?token=... as a fallback
+			tokenString = c.Query("token")
+			if tokenString == "" {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header or token query parameter"})
+				c.Abort()
+				return
+			}
 		}
-
-		// Check for Bearer token
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header format"})
-			c.Abort()
-			return
-		}
-
-		tokenString := parts[1]
 
 		// Validate token
 		claims, err := validator.ValidateToken(tokenString)

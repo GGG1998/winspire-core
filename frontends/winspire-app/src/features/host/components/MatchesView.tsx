@@ -61,7 +61,7 @@ export function MatchesView({ tournament }: MatchesViewProps) {
   }, [tournament.id]);
 
   // WebSocket connection for real-time match updates
-  const wsUrl = `/matchmaking/v1/tournaments/${tournament.id}/matches/ws`;
+  const wsUrl = `/v1/matchmaking/tournaments/${tournament.id}/matches/ws`;
   
   const handleWebSocketMessage = useCallback((event: MessageEvent) => {
     try {

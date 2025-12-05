@@ -253,6 +253,63 @@ func (q *Queries) GetMatchesByRoundID(ctx context.Context, roundID pgtype.UUID) 
 	return items, nil
 }
 
+const GetMatchesByTournamentAndRound = `-- name: GetMatchesByTournamentAndRound :many
+SELECT m.id, m.round_id, m.match_number, m.next_match_id, m.participant1_id, m.participant2_id, m.status, m.participant1_ready, m.participant2_ready, m.winner_id, m.score_player1, m.score_player2, m.result_source, m.disconnected_player_id, m.disconnected_at, m.game_api_match_id, m.game_api_poll_attempts, m.game_api_last_poll, m.created_at, m.started_at, m.completed_at, m.updated_at FROM tournament_matches m
+JOIN tournament_rounds r ON m.round_id = r.id
+JOIN tournament_brackets b ON r.bracket_id = b.id
+WHERE b.tournament_id = $1 AND r.round_number = $2
+ORDER BY m.match_number ASC
+`
+
+type GetMatchesByTournamentAndRoundParams struct {
+	TournamentID pgtype.UUID `json:"tournament_id"`
+	RoundNumber  int32       `json:"round_number"`
+}
+
+// Get all matches for a specific tournament and round number
+func (q *Queries) GetMatchesByTournamentAndRound(ctx context.Context, arg GetMatchesByTournamentAndRoundParams) ([]TournamentMatch, error) {
+	rows, err := q.db.Query(ctx, GetMatchesByTournamentAndRound, arg.TournamentID, arg.RoundNumber)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TournamentMatch{}
+	for rows.Next() {
+		var i TournamentMatch
+		if err := rows.Scan(
+			&i.ID,
+			&i.RoundID,
+			&i.MatchNumber,
+			&i.NextMatchID,
+			&i.Participant1ID,
+			&i.Participant2ID,
+			&i.Status,
+			&i.Participant1Ready,
+			&i.Participant2Ready,
+			&i.WinnerID,
+			&i.ScorePlayer1,
+			&i.ScorePlayer2,
+			&i.ResultSource,
+			&i.DisconnectedPlayerID,
+			&i.DisconnectedAt,
+			&i.GameApiMatchID,
+			&i.GameApiPollAttempts,
+			&i.GameApiLastPoll,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const GetMatchesForGameAPIPolling = `-- name: GetMatchesForGameAPIPolling :many
 SELECT id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, created_at, started_at, completed_at, updated_at FROM tournament_matches
 WHERE status = 'started'

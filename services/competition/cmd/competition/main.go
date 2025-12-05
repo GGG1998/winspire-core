@@ -18,6 +18,7 @@ import (
 	"github.com/winspire/competition/internal/application"
 	"github.com/winspire/competition/internal/config"
 	httpx "github.com/winspire/competition/internal/http"
+	"github.com/winspire/competition/internal/pubsub"
 	"github.com/winspire/competition/internal/repository"
 	"github.com/winspire/competition/internal/scheduler"
 )
@@ -107,6 +108,9 @@ func main() {
 		logger,
 	)
 
+	// Initialize event publisher
+	eventPublisher := pubsub.NewEventPublisher(redisClient)
+
 	// Create router with dependencies
 	router := httpx.NewRouter(httpx.ServerDeps{
 		Config:                 cfg,
@@ -114,6 +118,7 @@ func main() {
 		HealthCheck:            healthCheck,
 		Pool:                   pool,
 		Redis:                  redisClient,
+		EventPublisher:         eventPublisher,
 		ConfirmParticipationUC: confirmParticipationUC,
 		JoinTournamentUC:       joinTournamentUC,
 		ParticipantRepo:        participantDomainRepo,

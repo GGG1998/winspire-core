@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -13,6 +15,7 @@ import (
 	sharedhttp "github.com/winspire/winspire-core/libs/go/httpx"
 
 	"github.com/winspire/competition/internal/domain"
+	"github.com/winspire/competition/internal/pubsub"
 	"github.com/winspire/competition/internal/repository"
 )
 
@@ -22,6 +25,7 @@ type TournamentHostDeps struct {
 	TournamentRepo   *repository.TournamentRepository
 	RegistrationRepo *repository.RegistrationRepository
 	ParticipantRepo  domain.ParticipantRepository
+	EventPublisher   *pubsub.EventPublisher
 	Logger           *slog.Logger
 }
 
@@ -308,6 +312,70 @@ func RegisterTournamentHostRoutes(group *gin.RouterGroup, deps TournamentHostDep
 							Details: err.Error(),
 						})
 						return
+					}
+
+					// Publish TournamentStarted event after status change
+					if deps.EventPublisher != nil {
+						// Get registered participants count for the tournament
+						participantCount, err := deps.ParticipantRepo.CountByTournamentAndStatus(c.Request.Context(), tournamentID, "registered")
+						if err != nil {
+							deps.Logger.Warn("failed to count participants for event",
+								"error", err,
+								"tournamentId", tournamentID,
+							)
+							participantCount = 0
+						}
+
+						// Get registrations to extract participant IDs
+						participantIDs := []string{}
+						if deps.RegistrationRepo != nil {
+							// Use registration repository to get all registered users
+							registrations, err := deps.RegistrationRepo.ListByTournament(c.Request.Context(), tournamentID, 1000, 0)
+							if err != nil {
+								deps.Logger.Warn("failed to fetch registrations for event",
+									"error", err,
+									"tournamentId", tournamentID,
+								)
+							} else {
+								for _, reg := range registrations {
+									if reg.Status == "registered" {
+										participantIDs = append(participantIDs, reg.UserID.String())
+									}
+								}
+							}
+						}
+
+						// Publish TournamentStarted event
+						event := pubsub.DomainEvent{
+							EventID:       uuid.New().String(),
+							EventType:     "TournamentStarted",
+							AggregateID:   tournamentID.String(),
+							AggregateType: "Tournament",
+							Timestamp:     time.Now(),
+							Payload: map[string]interface{}{
+								"tournament_id": tournamentID.String(),
+								"host_id":       tournament.HostID.String(),
+								"participants":  participantIDs,
+								"game_id":       "", // TODO: Add game_id when available
+								"started_at":    time.Now().Format(time.RFC3339),
+							},
+							Metadata: map[string]string{
+								"correlation_id": c.GetString("correlation_id"),
+							},
+						}
+
+						if err := deps.EventPublisher.Publish(context.Background(), pubsub.ChannelTournamentStarted, event); err != nil {
+							deps.Logger.Error("failed to publish TournamentStarted event",
+								"error", err,
+								"tournamentId", tournamentID,
+							)
+							// Don't fail the request if event publishing fails
+						} else {
+							deps.Logger.Info("published TournamentStarted event",
+								"tournamentId", tournamentID,
+								"participantCount", participantCount,
+							)
+						}
 					}
 				case "completed":
 					if err := tournament.Complete(); err != nil {

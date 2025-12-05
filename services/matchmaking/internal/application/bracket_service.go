@@ -289,4 +289,8 @@ func (s *BracketService) getCorrelationID(ctx context.Context) string {
 	return uuid.New().String()
 }
 
+// GetMatchesByRound returns all matches for a specific round
+func (s *BracketService) GetMatchesByRound(ctx context.Context, tournamentID uuid.UUID, roundNumber int) ([]domain.Match, error) {
+	return s.matchRepo.GetByTournamentAndRound(ctx, tournamentID, roundNumber)
+}
 

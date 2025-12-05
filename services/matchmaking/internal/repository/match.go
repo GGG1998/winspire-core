@@ -16,6 +16,7 @@ import (
 type MatchRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Match, error)
 	GetByRoundID(ctx context.Context, roundID uuid.UUID) ([]domain.Match, error)
+	GetByTournamentAndRound(ctx context.Context, tournamentID uuid.UUID, roundNumber int) ([]domain.Match, error)
 	GetForPlayer(ctx context.Context, playerID uuid.UUID) ([]domain.Match, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status domain.MatchStatus) error
 	UpdateReady(ctx context.Context, id uuid.UUID, playerID uuid.UUID, ready bool) error
@@ -52,6 +53,24 @@ func (r *matchRepository) GetByRoundID(ctx context.Context, roundID uuid.UUID) (
 	rows, err := r.queries.GetMatchesByRoundID(ctx, pgtypeconv.UUIDToPgtype(roundID))
 	if err != nil {
 		return nil, fmt.Errorf("get matches by round ID: %w", err)
+	}
+
+	matches := make([]domain.Match, len(rows))
+	for i, row := range rows {
+		matches[i] = *r.rowToMatch(row)
+	}
+
+	return matches, nil
+}
+
+// GetByTournamentAndRound retrieves all matches for a specific tournament and round number
+func (r *matchRepository) GetByTournamentAndRound(ctx context.Context, tournamentID uuid.UUID, roundNumber int) ([]domain.Match, error) {
+	rows, err := r.queries.GetMatchesByTournamentAndRound(ctx, sqlc.GetMatchesByTournamentAndRoundParams{
+		TournamentID: pgtypeconv.UUIDToPgtype(tournamentID),
+		RoundNumber:  int32(roundNumber),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get matches by tournament and round: %w", err)
 	}
 
 	matches := make([]domain.Match, len(rows))
