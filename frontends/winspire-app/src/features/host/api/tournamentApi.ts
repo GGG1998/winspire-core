@@ -80,7 +80,7 @@ export function apiToUiTournament(apiData: TournamentApiData): Tournament {
     gameLogoUrl: apiData.gameLogoUrl,
     bannerUrl: apiData.bannerUrl,
     creatorId: apiData.creatorId || '',
-    roomLink: apiData.roomLink || `${window.location.origin}/tournament/${apiData.id}`,
+    roomLink: apiData.roomLink || `${window.location.origin}/h/${apiData.creatorId}/tournaments/${apiData.id}`,
     isCompleted: apiData.isCompleted || false,
     createdAt: new Date(apiData.createdAt),
     updatedAt: apiData.updatedAt ? new Date(apiData.updatedAt) : new Date(apiData.createdAt),

@@ -63,7 +63,6 @@ interface HostLayoutProps {
 
 export function HostLayout({ children }: HostLayoutProps) {
   const { user, isLoading, logout } = useAuth()
-  const { streamerId } = useParams<{ streamerId: string }>()
 
   if (isLoading && !user) {
     return (
@@ -87,7 +86,7 @@ export function HostLayout({ children }: HostLayoutProps) {
   return (
     <SidebarLayout
       navbar={<HostNavbar user={user} onLogout={logout} />}
-      sidebar={<HostSidebar user={user} streamerId={streamerId} onLogout={logout} />}
+      sidebar={<HostSidebar user={user} streamerId={user.id} onLogout={logout} />}
     >
       {children}
     </SidebarLayout>

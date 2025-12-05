@@ -200,9 +200,9 @@ func main() {
 	v1 := router.Group("/v1")
 	// JWT validation middleware - validates token and extracts user context
 	jwtConfig := authmiddleware.Config{
-		JWTSecret: cfg.JWTSecret,
-		Issuer:    "winspire",
-		Audience:  "winspire-api",
+		JWTSecret: cfg.HostJWTSecret,
+		Issuer:    cfg.HostJWTIssuer,
+		Audience:  cfg.HostJWTAudience,
 	}
 	v1.Use(authmiddleware.ValidateJWTMiddleware(jwtConfig))
 	{
@@ -219,8 +219,8 @@ func main() {
 		v1.GET("/matches/:id/lobby", websocketHandler.UpgradeLobbyConnection)
 
 		// Pre-lobby endpoints (tournament waiting room)
-		v1.GET("/tournaments/:tournamentId/lobby", preLobbyHandler.GetPreLobbyState)
-		v1.GET("/tournaments/:tournamentId/lobby/ws", preLobbyWSHandler.UpgradePreLobbyConnection)
+		v1.GET("/tournaments/:id/lobby", preLobbyHandler.GetPreLobbyState)
+		v1.GET("/tournaments/:id/lobby/ws", preLobbyWSHandler.UpgradePreLobbyConnection)
 	}
 
 	// Create HTTP server

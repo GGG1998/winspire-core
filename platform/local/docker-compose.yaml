@@ -166,9 +166,10 @@ services:
     labels:
       - "traefik.enable=true"
       # Path-based routing (like ALB)
-      - "traefik.http.routers.matchmaking.rule=PathPrefix(`/v1/matchmaking`) || PathPrefix(`/v1/tournaments`) || PathPrefix(`/v1/matches`) || PathPrefix(`/v1/players`)"
+      - "traefik.http.routers.matchmaking.rule=PathPrefix(`/v1/matchmaking`) || PathPrefix(`/v1/tournaments`) || PathPrefix(`/v1/matches`) || PathPrefix(`/v1/players`) || PathPrefix(`/v1/brackets`)"
       - "traefik.http.routers.matchmaking.entrypoints=web"
       - "traefik.http.routers.matchmaking.middlewares=matchmaking-cors"
+      - "traefik.http.routers.matchmaking.priority=100"
       - "traefik.http.services.matchmaking.loadbalancer.server.port=8081"
       # CORS middleware for development
       - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowmethods=GET,POST,PUT,PATCH,DELETE,OPTIONS"
@@ -178,7 +179,7 @@ services:
       - "traefik.http.middlewares.matchmaking-cors.headers.addvaryheader=true"
       - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowcredentials=true"
       # Health check
-      - "traefik.http.services.matchmaking.loadbalancer.healthcheck.path=/healthz"
+      - "traefik.http.services.matchmaking.loadbalancer.healthcheck.path=/health"
       - "traefik.http.services.matchmaking.loadbalancer.healthcheck.interval=30s"
     networks:
       - winspire-network

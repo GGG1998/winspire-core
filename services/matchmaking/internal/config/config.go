@@ -16,9 +16,9 @@ type Config struct {
 	GinMode string
 
 	// Database
-	DatabaseURL        string
-	DatabaseMaxConns   int32
-	DatabaseMaxIdle    int32
+	DatabaseURL      string
+	DatabaseMaxConns int32
+	DatabaseMaxIdle  int32
 
 	// Redis
 	RedisURL      string
@@ -26,13 +26,15 @@ type Config struct {
 	RedisDB       int
 
 	// JWT Authentication
-	JWTSecret string
+	HostJWTSecret   string
+	HostJWTIssuer   string
+	HostJWTAudience string
 
 	// Game API
-	GameAPIURL                   string
-	GameAPIKey                   string
-	GameAPIPollInterval          time.Duration
-	GameAPIPollTimeout           time.Duration
+	GameAPIURL                     string
+	GameAPIKey                     string
+	GameAPIPollInterval            time.Duration
+	GameAPIPollTimeout             time.Duration
 	GameAPICircuitBreakerThreshold int
 	GameAPICircuitBreakerTimeout   time.Duration
 
@@ -47,14 +49,14 @@ type Config struct {
 	CloudWatchNamespace string
 
 	// Feature Flags
-	EnableWebSocketLobbies    bool
-	EnableAutoScoreRetrieval  bool
-	EnableDisconnectHandling  bool
+	EnableWebSocketLobbies   bool
+	EnableAutoScoreRetrieval bool
+	EnableDisconnectHandling bool
 
 	// Timeouts
-	LobbyJoinTimeout         time.Duration
+	LobbyJoinTimeout          time.Duration
 	DisconnectReconnectWindow time.Duration
-	ReadyCheckTimeout        time.Duration
+	ReadyCheckTimeout         time.Duration
 
 	// Limits
 	MaxConcurrentTournaments     int
@@ -79,7 +81,9 @@ func Load() (*Config, error) {
 		RedisDB:       getEnvAsInt("REDIS_DB", 0),
 
 		// JWT
-		JWTSecret: getEnv("JWT_SECRET", ""),
+		HostJWTSecret:   getEnv("HOST_JWT_SECRET", ""),
+		HostJWTIssuer:   getEnv("HOST_JWT_ISSUER", ""),
+		HostJWTAudience: getEnv("HOST_JWT_AUDIENCE", ""),
 
 		// Game API
 		GameAPIURL:                     getEnv("GAME_API_URL", ""),
@@ -119,9 +123,9 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("DATABASE_URL is required")
 	}
 
-	if cfg.JWTSecret == "" {
-		log.Println("WARN: JWT_SECRET not set, using insecure default")
-		cfg.JWTSecret = "insecure-dev-secret"
+	if cfg.HostJWTSecret == "" {
+		log.Println("WARN: HOST_JWT_SECRET not set, using insecure default")
+		cfg.HostJWTSecret = "insecure-dev-secret"
 	}
 
 	return cfg, nil
@@ -178,5 +182,3 @@ func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 	}
 	return value
 }
-
-

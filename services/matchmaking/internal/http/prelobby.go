@@ -89,10 +89,10 @@ func NewPreLobbyHandler(
 }
 
 // GetPreLobbyState returns the current state of a tournament pre-lobby
-// GET /v1/tournaments/:tournamentId/lobby
+// GET /v1/tournaments/:id/lobby
 func (h *PreLobbyHandler) GetPreLobbyState(c *gin.Context) {
 	// Parse tournament ID
-	tournamentID, err := uuid.Parse(c.Param("tournamentId"))
+	tournamentID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid_tournament_id",
@@ -331,10 +331,10 @@ var preLobbyUpgrader = gorillaws.Upgrader{
 }
 
 // UpgradePreLobbyConnection upgrades HTTP connection to WebSocket for pre-lobby
-// GET /v1/tournaments/:tournamentId/lobby/ws
+// GET /v1/tournaments/:id/lobby/ws
 func (h *PreLobbyWebSocketHandler) UpgradePreLobbyConnection(c *gin.Context) {
 	// Parse tournament ID
-	tournamentID, err := uuid.Parse(c.Param("tournamentId"))
+	tournamentID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid_tournament_id",
@@ -585,4 +585,3 @@ func (h *PreLobbyWebSocketHandler) HandleTournamentDisconnect(tournamentID, user
 		h.preLobbyService.BroadcastParticipantLeft(tournamentID, participantInfo)
 	}()
 }
-
