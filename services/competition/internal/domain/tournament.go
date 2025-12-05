@@ -13,6 +13,7 @@ const (
 	StatusScheduled          = "scheduled"
 	StatusRegistrationOpen   = "registration_open"
 	StatusRegistrationClosed = "registration_closed"
+	StatusStarting           = "starting" // Transient state during tournament start saga
 	StatusStarted            = "started"
 	StatusCompleted          = "completed"
 	StatusCancelled          = "cancelled"

@@ -111,6 +111,23 @@ func main() {
 	// Initialize event publisher
 	eventPublisher := pubsub.NewEventPublisher(redisClient)
 
+	// Initialize event subscriber for saga coordination
+	eventSubscriber := pubsub.NewEventSubscriber(redisClient, logger)
+	eventHandler := application.NewEventHandler(tournamentPersistenceRepo, eventPublisher, logger)
+	eventHandler.RegisterHandlers(eventSubscriber)
+
+	// Start event subscriber in background
+	go func() {
+		channels := []string{
+			"events:matchmaking:grace_period_started",
+			"events:matchmaking:bracket_generation_failed",
+		}
+		logger.Info("event subscriber starting", "channels", channels)
+		if err := eventSubscriber.Start(ctx, channels); err != nil {
+			logger.Error("event subscriber error", "error", err)
+		}
+	}()
+
 	// Create router with dependencies
 	router := httpx.NewRouter(httpx.ServerDeps{
 		Config:                 cfg,

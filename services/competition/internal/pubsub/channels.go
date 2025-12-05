@@ -39,6 +39,16 @@ func toSnakeCase(s string) string {
 
 // Tournament Management event channels
 var (
+	// ChannelTournamentStartRequested represents a command/intent to start a tournament
+	// This triggers the tournament start saga (grace period → bracket generation → confirmation)
+	ChannelTournamentStartRequested = ChannelName(ContextTournamentManagement, "TournamentStartRequested")
+	
+	// ChannelTournamentStarted represents the fact that a tournament has successfully started
+	// This is published after the saga completes (after grace period and bracket generation)
 	ChannelTournamentStarted = ChannelName(ContextTournamentManagement, "TournamentStarted")
+	
+	// ChannelTournamentStartFailed represents a failed tournament start attempt
+	// This triggers compensating actions (status rollback)
+	ChannelTournamentStartFailed = ChannelName(ContextTournamentManagement, "TournamentStartFailed")
 )
 

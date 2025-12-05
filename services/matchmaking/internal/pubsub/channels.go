@@ -61,7 +61,18 @@ var (
 
 // Tournament Management event channels (consumed by matchmaking)
 var (
+	// ChannelTournamentStartRequested is the command/intent to start a tournament (saga initiation)
+	ChannelTournamentStartRequested = ChannelName(ContextTournamentManagement, "TournamentStartRequested")
+	
+	// ChannelTournamentStarted is the fact that a tournament has successfully started (saga completion)
 	ChannelTournamentStarted = ChannelName(ContextTournamentManagement, "TournamentStarted")
+)
+
+// Saga coordination event channels (published by matchmaking)
+var (
+	ChannelGracePeriodStarted           = ChannelName(ContextMatchmaking, "GracePeriodStarted")
+	ChannelBracketGenerationCompleted   = ChannelName(ContextMatchmaking, "BracketGenerationCompleted")
+	ChannelBracketGenerationFailed      = ChannelName(ContextMatchmaking, "BracketGenerationFailed")
 )
 
 // GetMatchmakingChannels returns all channels that matchmaking publishes to
@@ -83,13 +94,17 @@ func GetMatchmakingChannels() []string {
 		ChannelPreLobbyGracePeriodEnded,
 		ChannelPreLobbyParticipantSnapshot,
 		ChannelPreLobbyCancelled,
+		// Saga coordination channels
+		ChannelGracePeriodStarted,
+		ChannelBracketGenerationCompleted,
+		ChannelBracketGenerationFailed,
 	}
 }
 
 // GetSubscriptionChannels returns all channels that matchmaking subscribes to
 func GetSubscriptionChannels() []string {
 	return []string{
-		ChannelTournamentStarted,
+		ChannelTournamentStartRequested, // Changed from TournamentStarted to TournamentStartRequested
 	}
 }
 

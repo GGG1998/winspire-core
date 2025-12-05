@@ -194,12 +194,13 @@ func NewParticipantSnapshot(tournamentID uuid.UUID, participants []PreLobbyParti
 type ActivityFeedEventType string
 
 const (
-	ActivityEventParticipantJoined  ActivityFeedEventType = "participant_joined"
-	ActivityEventParticipantLeft    ActivityFeedEventType = "participant_left"
-	ActivityEventGracePeriodStarted ActivityFeedEventType = "grace_period_started"
-	ActivityEventGracePeriodEnded   ActivityFeedEventType = "grace_period_ended"
+	ActivityEventParticipantJoined   ActivityFeedEventType = "participant_joined"
+	ActivityEventParticipantLeft     ActivityFeedEventType = "participant_left"
+	ActivityEventGracePeriodStarted  ActivityFeedEventType = "grace_period_started"
+	ActivityEventGracePeriodEnded    ActivityFeedEventType = "grace_period_ended"
+	ActivityEventBracketGeneration   ActivityFeedEventType = "bracket_generation"
 	ActivityEventTournamentCancelled ActivityFeedEventType = "tournament_cancelled"
-	ActivityEventSystemMessage      ActivityFeedEventType = "system_message"
+	ActivityEventSystemMessage       ActivityFeedEventType = "system_message"
 )
 
 // ActivityFeedItem represents a single event in the pre-lobby history
@@ -223,4 +224,3 @@ func NewActivityFeedItem(tournamentID uuid.UUID, eventType ActivityFeedEventType
 		CreatedAt:       time.Now(),
 	}
 }
-

@@ -487,8 +487,9 @@ func (s *PreLobbyService) StartGracePeriod(ctx context.Context, tournamentID uui
 		s.BroadcastGracePeriodStarted(tournamentID, *preLobby.GracePeriodStart, *preLobby.GracePeriodEnd, participantCount)
 	}
 
-	// Publish event
+	// Publish events
 	if preLobby.GracePeriodStart != nil && preLobby.GracePeriodEnd != nil {
+		// Publish PreLobbyGracePeriodStarted (for internal tracking)
 		event := domain.NewPreLobbyGracePeriodStarted(
 			tournamentID,
 			*preLobby.GracePeriodStart,
@@ -498,6 +499,20 @@ func (s *PreLobbyService) StartGracePeriod(ctx context.Context, tournamentID uui
 		)
 		if err := s.publisher.Publish(ctx, event); err != nil {
 			s.logger.Warn("failed to publish grace period started event", map[string]interface{}{
+				"tournament_id": tournamentID.String(),
+				"error":         err.Error(),
+			})
+		}
+
+		// Publish GracePeriodStarted (for saga coordination with competition service)
+		sagaEvent := domain.NewGracePeriodStarted(
+			tournamentID,
+			*preLobby.GracePeriodStart,
+			*preLobby.GracePeriodEnd,
+			nil,
+		)
+		if err := s.publisher.Publish(ctx, sagaEvent); err != nil {
+			s.logger.Warn("failed to publish GracePeriodStarted saga event", map[string]interface{}{
 				"tournament_id": tournamentID.String(),
 				"error":         err.Error(),
 			})
@@ -570,7 +585,12 @@ func (s *PreLobbyService) finalizeGracePeriod(ctx context.Context, tournamentID 
 	// Check minimum participants
 	if participantCount < preLobby.MinParticipants {
 		// Cancel tournament
-		s.cancelTournament(ctx, tournamentID, "Insufficient participants")
+		if err := s.cancelTournament(ctx, tournamentID, "Insufficient participants"); err != nil {
+			s.logger.Error("failed to cancel tournament", map[string]interface{}{
+				"tournament_id": tournamentID.String(),
+				"error":         err.Error(),
+			})
+		}
 		return
 	}
 
@@ -608,6 +628,9 @@ func (s *PreLobbyService) finalizeGracePeriod(ctx context.Context, tournamentID 
 	// Record activity feed event
 	s.RecordGracePeriodEnded(ctx, tournamentID, participantCount)
 
+	// Record bracket generation starting
+	s.RecordBracketGeneration(ctx, tournamentID)
+
 	// Broadcast grace period ended
 	s.BroadcastGracePeriodEnded(tournamentID, participantCount, "generating_bracket")
 
@@ -644,8 +667,13 @@ func (s *PreLobbyService) finalizeGracePeriod(ctx context.Context, tournamentID 
 	})
 }
 
+// CancelTournamentWithError cancels the tournament with an error reason (public for SAGA compensation)
+func (s *PreLobbyService) CancelTournamentWithError(ctx context.Context, tournamentID uuid.UUID, reason string) error {
+	return s.cancelTournament(ctx, tournamentID, reason)
+}
+
 // cancelTournament cancels the tournament due to insufficient participants
-func (s *PreLobbyService) cancelTournament(ctx context.Context, tournamentID uuid.UUID, reason string) {
+func (s *PreLobbyService) cancelTournament(ctx context.Context, tournamentID uuid.UUID, reason string) error {
 	s.logger.Info("cancelling tournament", map[string]interface{}{
 		"tournament_id": tournamentID.String(),
 		"reason":        reason,
@@ -658,6 +686,7 @@ func (s *PreLobbyService) cancelTournament(ctx context.Context, tournamentID uui
 			"tournament_id": tournamentID.String(),
 			"error":         err.Error(),
 		})
+		return fmt.Errorf("failed to update status: %w", err)
 	}
 
 	// Record activity feed event
@@ -683,6 +712,8 @@ func (s *PreLobbyService) cancelTournament(ctx context.Context, tournamentID uui
 		delete(s.gracePeriodTimers, tournamentID)
 	}
 	s.timersMu.Unlock()
+
+	return nil
 }
 
 // RecoverActiveGracePeriods recovers grace periods that were active when service restarted
@@ -745,7 +776,7 @@ func (s *PreLobbyService) ValidateTournamentStatus(status string) error {
 	}
 
 	if msg, isInvalid := invalidStatuses[status]; isInvalid {
-		return fmt.Errorf(msg)
+		return fmt.Errorf("%s", msg)
 	}
 
 	return nil
@@ -857,6 +888,26 @@ func (s *PreLobbyService) RecordTournamentCancelled(ctx context.Context, tournam
 	return nil
 }
 
+// RecordBracketGeneration records a bracket generation event in the activity feed
+func (s *PreLobbyService) RecordBracketGeneration(ctx context.Context, tournamentID uuid.UUID) error {
+	item := domain.NewActivityFeedItem(
+		tournamentID,
+		domain.ActivityEventBracketGeneration,
+		"Generating tournament bracket...",
+		nil,
+	)
+
+	if err := s.repo.AddActivityFeedEvent(ctx, item); err != nil {
+		s.logger.Warn("failed to record bracket generation event", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"error":         err.Error(),
+		})
+		return err
+	}
+
+	return nil
+}
+
 // GetActivityFeed returns the recent activity feed for a tournament
 func (s *PreLobbyService) GetActivityFeed(ctx context.Context, tournamentID uuid.UUID) ([]*domain.ActivityFeedItem, error) {
 	return s.repo.GetRecentActivityFeed(ctx, tournamentID)
@@ -886,7 +937,12 @@ func (s *PreLobbyService) HandleParticipantCountChange(ctx context.Context, tour
 			s.logger.Warn("participant count dropped to 0 during grace period, cancelling tournament", map[string]interface{}{
 				"tournament_id": tournamentID.String(),
 			})
-			s.cancelTournament(ctx, tournamentID, "All participants left during grace period")
+			if err := s.cancelTournament(ctx, tournamentID, "All participants left during grace period"); err != nil {
+				s.logger.Error("failed to cancel tournament", map[string]interface{}{
+					"tournament_id": tournamentID.String(),
+					"error":         err.Error(),
+				})
+			}
 		}
 	}
 }

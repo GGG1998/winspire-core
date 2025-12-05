@@ -166,16 +166,43 @@ func (t *Tournament) OpenRegistration() error {
 	return nil
 }
 
-// Start transitions tournament to started state.
+// Start transitions tournament to starting state (transient).
 // Business rule: tournament must be in registration_open or registration_closed status.
+// This is part of the tournament start saga - the tournament will transition to "started"
+// after downstream services (matchmaking) confirm successful initialization.
 func (t *Tournament) Start() error {
 	if t.Status != "registration_open" && t.Status != "registration_closed" {
-		return fmt.Errorf("%w: cannot transition from %s to started", ErrMustBeOpen, t.Status)
+		return fmt.Errorf("%w: cannot transition from %s to starting", ErrMustBeOpen, t.Status)
 	}
 
 	now := time.Now()
-	t.Status = "started"
+	t.Status = "starting"
 	t.ActualStartTimeAt = &now
+	return nil
+}
+
+// ConfirmStart transitions tournament from starting to started state.
+// Business rule: tournament must be in starting status.
+// This is called when the matchmaking service confirms successful grace period initialization.
+func (t *Tournament) ConfirmStart() error {
+	if t.Status != "starting" {
+		return fmt.Errorf("%w: cannot confirm start from %s status", ErrInvalidStatusTransition, t.Status)
+	}
+
+	t.Status = "started"
+	return nil
+}
+
+// RollbackStart transitions tournament from starting back to registration_open.
+// Business rule: tournament must be in starting status.
+// This is a compensating action when the tournament start saga fails (e.g., bracket generation fails).
+func (t *Tournament) RollbackStart() error {
+	if t.Status != "starting" {
+		return fmt.Errorf("%w: cannot rollback start from %s status", ErrInvalidStatusTransition, t.Status)
+	}
+
+	t.Status = "registration_open"
+	t.ActualStartTimeAt = nil // Clear the actual start time
 	return nil
 }
 
@@ -302,6 +329,44 @@ func (r *TournamentRepository) ListByHostID(ctx context.Context, hostID uuid.UUI
 	}
 
 	return items, nil
+}
+
+// ListByStatus retrieves tournaments by status for scheduler.
+func (r *TournamentRepository) ListByStatus(ctx context.Context, statuses []string) ([]*Tournament, error) {
+	sqlcTournaments, err := r.queries.ListTournamentsByStatus(ctx, statuses)
+	if err != nil {
+		return nil, fmt.Errorf("list tournaments by status: %w", err)
+	}
+
+	tournaments := make([]*Tournament, len(sqlcTournaments))
+	for i, row := range sqlcTournaments {
+		tournaments[i] = &Tournament{
+			ID:                       pgtypeconv.PgtypeToUUID(row.ID),
+			HostID:                   pgtypeconv.PgtypeToUUID(row.HostID),
+			Name:                     row.Name,
+			Description:              pgtypeconv.PgtypeToStringPtr(row.Description),
+			ExternalID:               pgtypeconv.PgtypeToStringPtr(row.ExternalID),
+			Status:                   row.Status,
+			ScheduledStartTimeAt:     pgtypeconv.PgtypeTimestamptzToTimePtr(row.ScheduledStartTimeAt),
+			RegistrationWindowOpenAt: pgtypeconv.PgtypeTimestamptzToTimePtr(row.RegistrationWindowOpenAt),
+			ActualStartTimeAt:        pgtypeconv.PgtypeTimestamptzToTimePtr(row.ActualStartTimeAt),
+			CompletedAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CompletedAt),
+			CancelledAt:              pgtypeconv.PgtypeTimestamptzToTimePtr(row.CancelledAt),
+			MinimumTeamCount:         pgtypeconv.PgtypeToInt32(row.MinimumTeamCount),
+			MaximumTeamCount:         pgtypeconv.PgtypeToInt32Ptr(row.MaximumTeamCount),
+			TeamSize:                 row.TeamSize,
+			AutoForceReady:           row.AutoForceReady.Bool,
+			GameID:                   pgtypeconv.PgtypeToUUIDPtr(row.GameID),
+			SpaceID:                  pgtypeconv.PgtypeToUUIDPtr(row.SpaceID),
+			TemplateID:               pgtypeconv.PgtypeToUUIDPtr(row.TemplateID),
+			ReadyWindow:              row.ReadyWindow,
+			Prize:                    row.Prize,
+			CreatedAt:                row.CreatedAt.Time,
+			UpdatedAt:                row.UpdatedAt.Time,
+		}
+	}
+
+	return tournaments, nil
 }
 
 // CreateTournamentParams contains parameters for creating a tournament.

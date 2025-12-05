@@ -16,3 +16,4 @@ COMMENT ON COLUMN tournament_registrations.status IS
 'Registration status: pending (initial), registered (took a spot), confirmed (manually confirmed), checked_in (checked in before tournament), withdrawn (left tournament), disqualified (removed by host)';
 
 
+

@@ -1,0 +1,6 @@
+h1:yC2nNiaYD60pL/C36NM0rGM9vXiIl8HePTVRdoci7YE=
+000001_create_brackets_table.sql h1:7KOKDUc+8i1jzxtsangYb/EVxEZLnKoH2xdNXdUiI2U=
+000002_create_rounds_table.sql h1:uBW1I5jZAUO/1pP1ZMNzWQJ5fTF3vX8znf+uQBMFW+U=
+000003_create_matches_table.sql h1:LP6kVA4Va6LJN5fSzr/2MqSbs5ESQoyIuBa89hoi+V8=
+000004_add_bracket_completed_at.sql h1:W/Jn13sdVpC2n3KvvHLq542X63/qsYmBsCMdxLvpsmk=
+000005_create_prelobby_tables.sql h1:GYJHy1mv5IGcXsZ6znviDI3Ad3fvksSrDXRy1XFdoMU=

@@ -45,6 +45,8 @@ services:
       context: ../..
       dockerfile: services/competition/cmd/competition/Dockerfile.dev
     container_name: competition
+    env_file:
+      - .env
     environment:
       # App configuration
       - APP_ENV=development
@@ -84,6 +86,8 @@ services:
       context: ../..
       dockerfile: services/game-management/cmd/game-management/Dockerfile.dev
     container_name: game-management
+    env_file:
+      - .env
     environment:
       # App configuration
       - APP_ENV=development
@@ -126,6 +130,8 @@ services:
       context: ../..
       dockerfile: services/matchmaking/cmd/matchmaking/Dockerfile.dev
     container_name: matchmaking
+    env_file:
+      - .env
     environment:
       - APP_ENV=development
       - SERVICE_PORT=8081

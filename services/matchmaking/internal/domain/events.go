@@ -582,3 +582,84 @@ func NewPreLobbyCancelled(tournamentID uuid.UUID, reason string, cancelledAt tim
 		BaseEvent: newBaseEvent("PreLobbyCancelled", tournamentID.String(), "PreLobby", payload, metadata),
 	}
 }
+
+// ============================================================================
+// Tournament Start Saga Events
+// ============================================================================
+
+// GracePeriodStartedPayload contains grace period start details for saga coordination
+type GracePeriodStartedPayload struct {
+	TournamentID uuid.UUID `json:"tournament_id"`
+	StartTime    time.Time `json:"start_time"`
+	EndTime      time.Time `json:"end_time"`
+}
+
+// GracePeriodStarted event fired when grace period successfully starts
+// This confirms to competition service that the saga can proceed
+type GracePeriodStarted struct {
+	BaseEvent
+}
+
+func NewGracePeriodStarted(tournamentID uuid.UUID, startTime, endTime time.Time, metadata map[string]string) GracePeriodStarted {
+	payload := GracePeriodStartedPayload{
+		TournamentID: tournamentID,
+		StartTime:    startTime,
+		EndTime:      endTime,
+	}
+	return GracePeriodStarted{
+		BaseEvent: newBaseEvent("GracePeriodStarted", tournamentID.String(), "Tournament", payload, metadata),
+	}
+}
+
+// BracketGenerationCompletedPayload contains bracket generation success details
+type BracketGenerationCompletedPayload struct {
+	TournamentID uuid.UUID `json:"tournament_id"`
+	BracketID    uuid.UUID `json:"bracket_id"`
+	TotalRounds  int       `json:"total_rounds"`
+	TotalMatches int       `json:"total_matches"`
+	CompletedAt  time.Time `json:"completed_at"`
+}
+
+// BracketGenerationCompleted event fired when bracket is successfully generated
+type BracketGenerationCompleted struct {
+	BaseEvent
+}
+
+func NewBracketGenerationCompleted(tournamentID, bracketID uuid.UUID, totalRounds, totalMatches int, metadata map[string]string) BracketGenerationCompleted {
+	payload := BracketGenerationCompletedPayload{
+		TournamentID: tournamentID,
+		BracketID:    bracketID,
+		TotalRounds:  totalRounds,
+		TotalMatches: totalMatches,
+		CompletedAt:  time.Now(),
+	}
+	return BracketGenerationCompleted{
+		BaseEvent: newBaseEvent("BracketGenerationCompleted", tournamentID.String(), "Bracket", payload, metadata),
+	}
+}
+
+// BracketGenerationFailedPayload contains bracket generation failure details
+type BracketGenerationFailedPayload struct {
+	TournamentID uuid.UUID `json:"tournament_id"`
+	Error        string    `json:"error"`
+	Reason       string    `json:"reason"`
+	FailedAt     time.Time `json:"failed_at"`
+}
+
+// BracketGenerationFailed event fired when bracket generation fails
+// This triggers compensating actions (status rollback in competition service)
+type BracketGenerationFailed struct {
+	BaseEvent
+}
+
+func NewBracketGenerationFailed(tournamentID uuid.UUID, err error, reason string, metadata map[string]string) BracketGenerationFailed {
+	payload := BracketGenerationFailedPayload{
+		TournamentID: tournamentID,
+		Error:        err.Error(),
+		Reason:       reason,
+		FailedAt:     time.Now(),
+	}
+	return BracketGenerationFailed{
+		BaseEvent: newBaseEvent("BracketGenerationFailed", tournamentID.String(), "Bracket", payload, metadata),
+	}
+}

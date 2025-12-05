@@ -104,6 +104,21 @@ func (s *BracketService) GenerateBracket(ctx context.Context, tournamentID uuid.
 		log.Printf("WARN: Failed to publish BracketGenerated event: %v", err)
 	}
 
+	// Publish BracketGenerationCompleted event (for tournament start saga coordination)
+	completedEvent := domain.NewBracketGenerationCompleted(
+		tournamentID,
+		bracket.ID,
+		bracket.TotalRounds,
+		bracket.TotalMatches,
+		map[string]string{
+			"correlation_id": s.getCorrelationID(ctx),
+		},
+	)
+
+	if err := s.publisher.Publish(ctx, completedEvent); err != nil {
+		log.Printf("WARN: Failed to publish BracketGenerationCompleted event: %v", err)
+	}
+
 	// Publish RoundCreated events
 	for _, round := range rounds {
 		roundEvent := domain.NewRoundCreated(
@@ -293,4 +308,3 @@ func (s *BracketService) getCorrelationID(ctx context.Context) string {
 func (s *BracketService) GetMatchesByRound(ctx context.Context, tournamentID uuid.UUID, roundNumber int) ([]domain.Match, error) {
 	return s.matchRepo.GetByTournamentAndRound(ctx, tournamentID, roundNumber)
 }
-

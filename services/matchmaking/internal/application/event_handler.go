@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
+	"github.com/winspire-core/services/matchmaking/internal/domain"
 	"github.com/winspire-core/services/matchmaking/internal/observability"
 	"github.com/winspire-core/services/matchmaking/internal/pubsub"
 )
@@ -15,20 +16,22 @@ import (
 type EventHandler struct {
 	bracketService  *BracketService
 	preLobbyService *PreLobbyService
+	publisher       *pubsub.EventPublisher
 	logger          *observability.Logger
 }
 
 // NewEventHandler creates a new event handler
-func NewEventHandler(bracketService *BracketService, preLobbyService *PreLobbyService, logger *observability.Logger) *EventHandler {
+func NewEventHandler(bracketService *BracketService, preLobbyService *PreLobbyService, publisher *pubsub.EventPublisher, logger *observability.Logger) *EventHandler {
 	return &EventHandler{
 		bracketService:  bracketService,
 		preLobbyService: preLobbyService,
+		publisher:       publisher,
 		logger:          logger,
 	}
 }
 
-// TournamentStartedPayload represents the payload of TournamentStarted event
-type TournamentStartedPayload struct {
+// TournamentStartRequestedPayload represents the payload of TournamentStartRequested event
+type TournamentStartRequestedPayload struct {
 	TournamentID string   `json:"tournament_id"`
 	HostID       string   `json:"host_id"`
 	Participants []string `json:"participants"` // Array of participant UUIDs
@@ -36,10 +39,10 @@ type TournamentStartedPayload struct {
 	StartedAt    string   `json:"started_at"`
 }
 
-// HandleTournamentStarted processes TournamentStarted events from competition service
-// This now starts the grace period instead of immediately generating brackets
-func (h *EventHandler) HandleTournamentStarted(ctx context.Context, eventType string, payload map[string]interface{}, metadata map[string]string) error {
-	h.logger.Info("Received TournamentStarted event", map[string]interface{}{
+// HandleTournamentStartRequested processes TournamentStartRequested events from competition service
+// This initiates the tournament start saga: grace period → bracket generation → confirmation
+func (h *EventHandler) HandleTournamentStartRequested(ctx context.Context, eventType string, payload map[string]interface{}, metadata map[string]string) error {
+	h.logger.Info("Received TournamentStartRequested event", map[string]interface{}{
 		"event_type":     eventType,
 		"correlation_id": metadata["correlation_id"],
 	})
@@ -50,7 +53,7 @@ func (h *EventHandler) HandleTournamentStarted(ctx context.Context, eventType st
 		return fmt.Errorf("marshal payload: %w", err)
 	}
 
-	var eventPayload TournamentStartedPayload
+	var eventPayload TournamentStartRequestedPayload
 	if err := json.Unmarshal(payloadBytes, &eventPayload); err != nil {
 		return fmt.Errorf("unmarshal payload: %w", err)
 	}
@@ -114,12 +117,53 @@ func (h *EventHandler) HandleTournamentStarted(ctx context.Context, eventType st
 					return
 				}
 
+				// Record bracket generation in activity feed
+				if err := h.preLobbyService.RecordBracketGeneration(context.Background(), tournamentID); err != nil {
+					h.logger.Warn("Failed to record bracket generation event", map[string]interface{}{
+						"tournament_id": tournamentID.String(),
+						"error":         err.Error(),
+					})
+				}
+
 				// Generate bracket with participants from snapshot
 				if err := h.bracketService.GenerateBracket(context.Background(), tournamentID, participantIDs); err != nil {
 					h.logger.Error("Failed to generate bracket after grace period", map[string]interface{}{
 						"tournament_id": tournamentID.String(),
 						"error":         err.Error(),
 					})
+
+					// SAGA COMPENSATION: Cancel tournament and notify participants
+					compensationCtx := context.Background()
+					reason := fmt.Sprintf("Bracket generation failed: %v", err)
+
+					// Publish BracketGenerationFailed event (triggers rollback in competition service)
+					failedEvent := domain.NewBracketGenerationFailed(
+						tournamentID,
+						err,
+						reason,
+						nil,
+					)
+					if pubErr := h.publisher.Publish(compensationCtx, failedEvent); pubErr != nil {
+						h.logger.Error("Failed to publish BracketGenerationFailed event", map[string]interface{}{
+							"tournament_id": tournamentID.String(),
+							"error":         pubErr.Error(),
+						})
+					}
+
+					// Cancel the pre-lobby tournament
+					if cancelErr := h.preLobbyService.CancelTournamentWithError(compensationCtx, tournamentID, reason); cancelErr != nil {
+						h.logger.Error("Failed to cancel tournament during compensation", map[string]interface{}{
+							"tournament_id": tournamentID.String(),
+							"error":         cancelErr.Error(),
+						})
+					}
+
+					// Log compensation action
+					h.logger.Info("Tournament cancelled via SAGA compensation", map[string]interface{}{
+						"tournament_id": tournamentID.String(),
+						"reason":        reason,
+					})
+
 					return
 				}
 
@@ -163,6 +207,16 @@ func (h *EventHandler) HandleTournamentStarted(ctx context.Context, eventType st
 			return fmt.Errorf("parse participant %d: %w", i, err)
 		}
 		participants[i] = participantID
+	}
+
+	// Record bracket generation in activity feed (if pre-lobby service available)
+	if h.preLobbyService != nil {
+		if err := h.preLobbyService.RecordBracketGeneration(ctx, tournamentID); err != nil {
+			h.logger.Warn("Failed to record bracket generation event", map[string]interface{}{
+				"tournament_id": tournamentID.String(),
+				"error":         err.Error(),
+			})
+		}
 	}
 
 	// Generate bracket
@@ -266,7 +320,7 @@ func (h *EventHandler) HandleBracketGenerated(ctx context.Context, eventType str
 
 // RegisterHandlers registers all event handlers with the subscriber
 func (h *EventHandler) RegisterHandlers(subscriber *pubsub.EventSubscriber) {
-	subscriber.Subscribe("TournamentStarted", h.HandleTournamentStarted)
+	subscriber.Subscribe("TournamentStartRequested", h.HandleTournamentStartRequested)
 	subscriber.Subscribe("BracketGenerated", h.HandleBracketGenerated)
-	log.Println("[EventHandler] Registered handlers for TournamentStarted, BracketGenerated")
+	log.Println("[EventHandler] Registered handlers for TournamentStartRequested, BracketGenerated")
 }

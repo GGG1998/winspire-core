@@ -77,9 +77,9 @@ type Tournament struct {
 	TemplateID pgtype.UUID        `json:"template_id"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-	// Check-in window as JSONB: { "startsAt": "ISO8601", "endsAt": "ISO8601" }
+	// JSONB configuration for tournament ready/check-in window
 	ReadyWindow []byte `json:"ready_window"`
-	// Prize configuration as JSONB: { "type": "custom|cash|points", "description": "...", "value": 0, "currency": "USD" }
+	// JSONB configuration for tournament prize structure
 	Prize []byte `json:"prize"`
 }
 
@@ -93,7 +93,7 @@ type TournamentRegistration struct {
 	UserID pgtype.UUID `json:"user_id"`
 	// Optional reference to a team (for team tournaments)
 	TeamID pgtype.UUID `json:"team_id"`
-	// Registration status: pending, confirmed, checked_in, withdrawn, disqualified
+	// Registration status: pending (initial), registered (took a spot), confirmed (manually confirmed), checked_in (checked in before tournament), withdrawn (left tournament), disqualified (removed by host)
 	Status string `json:"status"`
 	// Participant display name (cached from user profile)
 	DisplayName string `json:"display_name"`

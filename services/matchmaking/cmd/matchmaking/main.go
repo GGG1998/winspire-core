@@ -140,7 +140,7 @@ func main() {
 	)
 
 	// Initialize event handler with pre-lobby service for grace period support
-	eventHandler := application.NewEventHandler(bracketService, preLobbyService, logger)
+	eventHandler := application.NewEventHandler(bracketService, preLobbyService, publisher, logger)
 
 	// Initialize WebSocket hub with disconnect callback (T112)
 	disconnectCallback := func(matchID, playerID uuid.UUID, disconnectedAt time.Time) {

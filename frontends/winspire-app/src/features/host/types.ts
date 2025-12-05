@@ -387,7 +387,7 @@ export interface TournamentApiData {
   id: string
   /** Tournament name */
   name: string
-  /** Tournament status (draft, open, started, completed, cancelled) */
+  /** Tournament status (draft, scheduled, registration_open, registration_closed, starting, started, completed, cancelled) */
   status: string
   /** Scheduled start time (ISO 8601, optional) */
   scheduledStartTimeAt?: string

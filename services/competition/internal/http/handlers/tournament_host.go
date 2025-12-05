@@ -314,7 +314,8 @@ func RegisterTournamentHostRoutes(group *gin.RouterGroup, deps TournamentHostDep
 						return
 					}
 
-					// Publish TournamentStarted event after status change
+					// Publish TournamentStartRequested event (command/intent) after status change to "starting"
+					// This initiates the tournament start saga: grace period → bracket generation → confirmation
 					if deps.EventPublisher != nil {
 						// Get registered participants count for the tournament
 						participantCount, err := deps.ParticipantRepo.CountByTournamentAndStatus(c.Request.Context(), tournamentID, "registered")
@@ -345,10 +346,10 @@ func RegisterTournamentHostRoutes(group *gin.RouterGroup, deps TournamentHostDep
 							}
 						}
 
-						// Publish TournamentStarted event
+						// Publish TournamentStartRequested event (represents intent, not fact)
 						event := pubsub.DomainEvent{
 							EventID:       uuid.New().String(),
-							EventType:     "TournamentStarted",
+							EventType:     "TournamentStartRequested",
 							AggregateID:   tournamentID.String(),
 							AggregateType: "Tournament",
 							Timestamp:     time.Now(),
@@ -364,14 +365,14 @@ func RegisterTournamentHostRoutes(group *gin.RouterGroup, deps TournamentHostDep
 							},
 						}
 
-						if err := deps.EventPublisher.Publish(context.Background(), pubsub.ChannelTournamentStarted, event); err != nil {
-							deps.Logger.Error("failed to publish TournamentStarted event",
+						if err := deps.EventPublisher.Publish(context.Background(), pubsub.ChannelTournamentStartRequested, event); err != nil {
+							deps.Logger.Error("failed to publish TournamentStartRequested event",
 								"error", err,
 								"tournamentId", tournamentID,
 							)
 							// Don't fail the request if event publishing fails
 						} else {
-							deps.Logger.Info("published TournamentStarted event",
+							deps.Logger.Info("published TournamentStartRequested event",
 								"tournamentId", tournamentID,
 								"participantCount", participantCount,
 							)

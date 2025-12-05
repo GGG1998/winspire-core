@@ -53,8 +53,8 @@ export function TournamentSettings({
   const canPublish = status === 'draft'
   // Can open registration if tournament is scheduled
   const canOpenRegistration = status === 'scheduled'
-  // Can start if tournament is registration_open or registration_closed
-  const canStart = status === 'registration_open' || status === 'registration_closed'
+  // Can start if tournament is registration_open or registration_closed (not if already starting)
+  const canStart = (status === 'registration_open' || status === 'registration_closed') && status !== 'starting'
   // Can cancel if tournament is not completed
   const canCancel = status !== 'completed'
   // Can edit if tournament is not completed or cancelled
@@ -94,6 +94,8 @@ export function TournamentSettings({
     try {
       await tournamentApi.startTournament(tournament.id)
       setConfirmAction(null)
+      // Note: Status will be 'starting' - frontend should show grace period UI
+      // Tournament will transition to 'started' after grace period via WebSocket event
       onStarted?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : labels.startError)
