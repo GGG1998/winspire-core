@@ -6,6 +6,7 @@ sql:
       - "internal/store/bracket_queries.sql"
       - "internal/store/round_queries.sql"
       - "internal/store/match_queries.sql"
+      - "internal/store/prelobby_queries.sql"
     gen:
       go:
         package: "sqlc"
@@ -24,4 +25,5 @@ sql:
             go_type: "time.Time"
           - db_type: "pg_catalog.timestamp"
             go_type: "time.Time"
+
 

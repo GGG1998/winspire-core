@@ -11,6 +11,11 @@ import (
 )
 
 type Querier interface {
+	// ============================================================================
+	// ACTIVITY FEED QUERIES
+	// ============================================================================
+	// Adds an event to the activity feed
+	AddActivityFeedEvent(ctx context.Context, arg AddActivityFeedEventParams) (PrelobbyActivityFeed, error)
 	// Assign winner to next match's participant slot
 	AssignWinnerToNextMatch(ctx context.Context, arg AssignWinnerToNextMatchParams) error
 	// Clear disconnected player info
@@ -26,12 +31,32 @@ type Querier interface {
 	// ============================================================================
 	CreateMatch(ctx context.Context, arg CreateMatchParams) (TournamentMatch, error)
 	// ============================================================================
+	// PARTICIPANT SNAPSHOT QUERIES
+	// ============================================================================
+	// Creates immutable participant snapshot when grace period ends
+	CreateParticipantSnapshot(ctx context.Context, arg CreateParticipantSnapshotParams) (PrelobbyParticipantSnapshot, error)
+	// SQLC queries for pre-lobby operations
+	// Feature: Tournament Pre-Lobby Backend
+	// ============================================================================
+	// PRE-LOBBY QUERIES
+	// ============================================================================
+	// Creates a new pre-lobby for a tournament
+	CreatePreLobby(ctx context.Context, arg CreatePreLobbyParams) (Prelobby, error)
+	// ============================================================================
 	// Round Queries
 	// ============================================================================
 	CreateRound(ctx context.Context, arg CreateRoundParams) (TournamentRound, error)
 	DeleteBracket(ctx context.Context, id pgtype.UUID) error
+	// Deletes activity feed events older than a certain threshold (cleanup)
+	DeleteOldActivityFeedEvents(ctx context.Context, tournamentID pgtype.UUID) error
+	// Deletes a pre-lobby (cascades to snapshots and activity feed)
+	DeletePreLobby(ctx context.Context, tournamentID pgtype.UUID) error
+	// Gets all pre-lobbies currently in grace period (for recovery on startup)
+	GetActiveGracePeriods(ctx context.Context) ([]Prelobby, error)
 	// Get all active rounds (in_progress status)
 	GetActiveRounds(ctx context.Context) ([]GetActiveRoundsRow, error)
+	// Gets total count of activity feed events for a tournament
+	GetActivityFeedCount(ctx context.Context, tournamentID pgtype.UUID) (int64, error)
 	GetBracketByID(ctx context.Context, id pgtype.UUID) (TournamentBracket, error)
 	GetBracketByTournamentID(ctx context.Context, tournamentID pgtype.UUID) (TournamentBracket, error)
 	// Complex join query for bracket visualization
@@ -44,9 +69,23 @@ type Querier interface {
 	GetMatchesForGameAPIPolling(ctx context.Context, limit int32) ([]TournamentMatch, error)
 	// Get all matches for a specific player (participant1 or participant2)
 	GetMatchesForPlayer(ctx context.Context, participant1ID pgtype.UUID) ([]TournamentMatch, error)
+	// Gets participant snapshot for a tournament
+	GetParticipantSnapshot(ctx context.Context, tournamentID pgtype.UUID) (PrelobbyParticipantSnapshot, error)
+	// Gets all pre-lobbies with a specific status
+	GetPreLobbiesByStatus(ctx context.Context, status string) ([]Prelobby, error)
+	// Gets pre-lobby state by pre-lobby ID
+	GetPreLobbyByID(ctx context.Context, id pgtype.UUID) (Prelobby, error)
+	// Gets pre-lobby state by tournament ID
+	GetPreLobbyByTournament(ctx context.Context, tournamentID pgtype.UUID) (Prelobby, error)
+	// Gets the 20 most recent activity feed events for a tournament
+	GetRecentActivityFeed(ctx context.Context, tournamentID pgtype.UUID) ([]PrelobbyActivityFeed, error)
 	GetRoundByBracketAndNumber(ctx context.Context, arg GetRoundByBracketAndNumberParams) (TournamentRound, error)
 	GetRoundByID(ctx context.Context, id pgtype.UUID) (TournamentRound, error)
 	GetRoundsByBracketID(ctx context.Context, bracketID pgtype.UUID) ([]TournamentRound, error)
+	// Checks if a snapshot already exists for a tournament
+	ParticipantSnapshotExists(ctx context.Context, tournamentID pgtype.UUID) (bool, error)
+	// Transitions pre-lobby to grace_period status with 30-second window
+	StartGracePeriod(ctx context.Context, tournamentID pgtype.UUID) (Prelobby, error)
 	UpdateBracketCompletedAt(ctx context.Context, arg UpdateBracketCompletedAtParams) error
 	// Update disconnected player info without changing status
 	UpdateDisconnectedPlayerOnly(ctx context.Context, arg UpdateDisconnectedPlayerOnlyParams) error
@@ -60,6 +99,8 @@ type Querier interface {
 	// Update scores during match (for disconnect point adjustments)
 	UpdateMatchScore(ctx context.Context, arg UpdateMatchScoreParams) error
 	UpdateMatchStatus(ctx context.Context, arg UpdateMatchStatusParams) error
+	// Updates pre-lobby status
+	UpdatePreLobbyStatus(ctx context.Context, arg UpdatePreLobbyStatusParams) (Prelobby, error)
 	UpdateRoundStatus(ctx context.Context, arg UpdateRoundStatusParams) error
 }
 

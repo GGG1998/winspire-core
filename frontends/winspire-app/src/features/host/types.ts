@@ -74,6 +74,14 @@ export interface TournamentOrganizer {
 }
 
 /**
+ * User-specific tournament information
+ */
+export interface TournamentMeInfo {
+  /** Current user's participation status */
+  participationStatus?: 'registered' | 'confirmed' | 'checked_in' | null
+}
+
+/**
  * Tournament entity representing a gaming competition
  */
 export interface Tournament {
@@ -127,6 +135,9 @@ export interface Tournament {
   
   /** Last update timestamp */
   updatedAt: Date
+  
+  /** User-specific tournament information */
+  me?: TournamentMeInfo
   
   /** Number of confirmed participants */
   participantCount?: number
@@ -423,7 +434,11 @@ export interface TournamentApiData {
     value?: number
     currency?: string
   }
-  /** Current user's participation status */
+  /** User-specific tournament information */
+  me?: {
+    participationStatus?: 'registered' | 'confirmed' | 'checked_in' | null
+  }
+  /** Current user's participation status (deprecated - use me.participationStatus) */
   userParticipationStatus?: 'registered' | 'confirmed' | 'checked_in' | null
   /** Number of confirmed participants */
   participantCount?: number

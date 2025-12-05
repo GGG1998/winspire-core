@@ -92,6 +92,7 @@ export function apiToUiTournament(apiData: TournamentApiData): Tournament {
       endsAt: new Date(apiData.readyWindow.endsAt)
     } : undefined,
     prize: apiData.prize,
+    me: apiData.me,
     participants: apiData.participants?.map(p => ({
       ...p,
       registeredAt: new Date(p.registeredAt)

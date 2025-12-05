@@ -44,26 +44,26 @@ func (h *MatchHandler) GetMatch(c *gin.Context) {
 
 	// Build response with match details
 	response := map[string]interface{}{
-		"id":                   match.ID,
-		"round_id":             match.RoundID,
-		"match_number":         match.MatchNumber,
-		"next_match_id":        match.NextMatchID,
-		"participant1_id":      match.Participant1ID,
-		"participant2_id":      match.Participant2ID,
-		"status":               match.Status,
-		"participant1_ready":   match.Participant1Ready,
-		"participant2_ready":   match.Participant2Ready,
-		"winner_id":            match.WinnerID,
-		"score_player1":        match.ScorePlayer1,
-		"score_player2":        match.ScorePlayer2,
-		"result_source":        match.ResultSource,
+		"id":                     match.ID,
+		"round_id":               match.RoundID,
+		"match_number":           match.MatchNumber,
+		"next_match_id":          match.NextMatchID,
+		"participant1_id":        match.Participant1ID,
+		"participant2_id":        match.Participant2ID,
+		"status":                 match.Status,
+		"participant1_ready":     match.Participant1Ready,
+		"participant2_ready":     match.Participant2Ready,
+		"winner_id":              match.WinnerID,
+		"score_player1":          match.ScorePlayer1,
+		"score_player2":          match.ScorePlayer2,
+		"result_source":          match.ResultSource,
 		"disconnected_player_id": match.DisconnectedPlayerID,
-		"disconnected_at":      match.DisconnectedAt,
-		"game_api_match_id":    match.GameAPIMatchID,
-		"created_at":           match.CreatedAt,
-		"started_at":           match.StartedAt,
-		"completed_at":         match.CompletedAt,
-		"updated_at":           match.UpdatedAt,
+		"disconnected_at":        match.DisconnectedAt,
+		"game_api_match_id":      match.GameAPIMatchID,
+		"created_at":             match.CreatedAt,
+		"started_at":             match.StartedAt,
+		"completed_at":           match.CompletedAt,
+		"updated_at":             match.UpdatedAt,
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -125,10 +125,10 @@ func (h *MatchHandler) MarkPlayerReady(c *gin.Context) {
 	// This will be handled by the WebSocket hub when it's implemented
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "ready status updated successfully",
-		"match_id": matchID,
+		"message":   "ready status updated successfully",
+		"match_id":  matchID,
 		"player_id": userID,
-		"ready": true,
+		"ready":     true,
 	})
 }
 
@@ -185,10 +185,9 @@ func (h *MatchHandler) ClaimWalkover(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":         "walkover granted successfully",
-		"match_id":        matchID,
-		"winner_id":       userID,
-		"no_show_player":  noShowPlayerID,
+		"message":        "walkover granted successfully",
+		"match_id":       matchID,
+		"winner_id":      userID,
+		"no_show_player": noShowPlayerID,
 	})
 }
-

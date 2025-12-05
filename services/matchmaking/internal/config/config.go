@@ -36,6 +36,9 @@ type Config struct {
 	GameAPICircuitBreakerThreshold int
 	GameAPICircuitBreakerTimeout   time.Duration
 
+	// Competition Service
+	CompetitionServiceURL string
+
 	// Observability
 	LogLevel            string
 	LogFormat           string
@@ -85,6 +88,9 @@ func Load() (*Config, error) {
 		GameAPIPollTimeout:             getEnvAsDuration("GAME_API_POLL_TIMEOUT", 60*time.Second),
 		GameAPICircuitBreakerThreshold: getEnvAsInt("GAME_API_CIRCUIT_BREAKER_THRESHOLD", 5),
 		GameAPICircuitBreakerTimeout:   getEnvAsDuration("GAME_API_CIRCUIT_BREAKER_TIMEOUT", 30*time.Second),
+
+		// Competition Service
+		CompetitionServiceURL: getEnv("COMPETITION_SERVICE_URL", "http://localhost:8080"),
 
 		// Observability
 		LogLevel:            getEnv("LOG_LEVEL", "info"),
@@ -172,4 +178,5 @@ func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 	}
 	return value
 }
+
 

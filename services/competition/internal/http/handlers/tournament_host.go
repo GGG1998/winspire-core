@@ -161,20 +161,17 @@ func RegisterTournamentHostRoutes(group *gin.RouterGroup, deps TournamentHostDep
 		})
 
 		// GET /v1/:hostId/tournaments/:tournamentId - Get detailed info about a tournament
+		// Note: hostId is in path for routing but tournament can belong to any host
+		// Authorization is handled by CanViewTournament (draft=owner only, others=public)
 		tournaments.GET("/:tournamentId", func(c *gin.Context) {
-			hostID, err := uuid.Parse(c.Param("hostId"))
-			if err != nil {
-				c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid host ID"})
-				return
-			}
-
 			tournamentID, err := uuid.Parse(c.Param("tournamentId"))
 			if err != nil {
 				c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid tournament ID"})
 				return
 			}
 
-			tournament, err := deps.TournamentRepo.GetByHostAndID(c.Request.Context(), hostID, tournamentID)
+			// Use GetByID instead of GetByHostAndID to allow viewing tournaments from any host
+			tournament, err := deps.TournamentRepo.GetByID(c.Request.Context(), tournamentID)
 			if err != nil {
 				if errors.Is(err, repository.ErrTournamentNotFound) {
 					c.JSON(http.StatusNotFound, ErrorResponse{Error: "tournament not found"})
@@ -183,7 +180,6 @@ func RegisterTournamentHostRoutes(group *gin.RouterGroup, deps TournamentHostDep
 
 				deps.Logger.Error("failed to get tournament detail",
 					"error", err,
-					"hostId", hostID,
 					"tournamentId", tournamentID,
 				)
 				c.JSON(http.StatusInternalServerError, ErrorResponse{
@@ -191,8 +187,7 @@ func RegisterTournamentHostRoutes(group *gin.RouterGroup, deps TournamentHostDep
 				})
 				return
 			}
-			fmt.Println("err", err)
-			fmt.Println("tournament", tournament)
+
 			// Check if user can view this tournament (draft tournaments are private)
 			user, _ := sharedhttp.GetUser(c)
 			userID, _ := uuid.Parse(string(user.ID))
@@ -205,14 +200,31 @@ func RegisterTournamentHostRoutes(group *gin.RouterGroup, deps TournamentHostDep
 			}
 
 			// Get participant count
-			confirmedCount, err := deps.ParticipantRepo.CountByTournamentAndStatus(c.Request.Context(), tournamentID, "confirmed")
+			registeredCount, err := deps.ParticipantRepo.CountByTournamentAndStatus(c.Request.Context(), tournamentID, "registered")
 			if err != nil {
-				deps.Logger.Warn("failed to count confirmed participants", "error", err, "tournamentId", tournamentID)
-				confirmedCount = 0
+				deps.Logger.Warn("failed to count registered participants", "error", err, "tournamentId", tournamentID)
+				registeredCount = 0
 			}
 
 			detail := newTournamentDetail(tournament)
-			detail.ParticipantCount = int32(confirmedCount)
+			detail.ParticipantCount = int32(registeredCount)
+
+			// Get user's participation status
+			if user.ID != "" {
+				participant, err := deps.ParticipantRepo.GetByTournamentAndUser(c.Request.Context(), tournamentID, userID)
+				if err != nil {
+					if !errors.Is(err, repository.ErrRegistrationNotFound) {
+						deps.Logger.Warn("failed to get user participation status", "error", err, "tournamentId", tournamentID, "userId", userID)
+					}
+					// User is not a participant - leave Me as nil
+				} else {
+					// User is a participant - set participation status
+					status := string(participant.Status)
+					detail.Me = &TournamentMeInfo{
+						ParticipationStatus: &status,
+					}
+				}
+			}
 
 			c.JSON(http.StatusOK, TournamentDetailResponse{
 				Tournament: detail,
@@ -585,7 +597,7 @@ func newTournamentDetail(t *repository.Tournament) TournamentDetail {
 	tournamentID := t.ID.String()
 
 	// Generate room link for participants
-	roomLink := "/tournament/" + tournamentID
+	roomLink := fmt.Sprintf("/tournaments/%s/lobby", tournamentID)
 
 	detail := TournamentDetail{
 		ID:                       tournamentID,

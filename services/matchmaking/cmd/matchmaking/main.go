@@ -105,6 +105,7 @@ func main() {
 	bracketRepo := repository.NewBracketRepository(queries, pool, pool) // queries, db (DBTX), pool
 	roundRepo := repository.NewRoundRepository(queries)
 	matchRepo := repository.NewMatchRepository(queries)
+	preLobbyRepo := repository.NewPreLobbyRepository(queries, pool, pool)
 
 	// Initialize bracket service
 	bracketService := application.NewBracketService(
@@ -126,11 +127,20 @@ func main() {
 		logger,
 	)
 
-	// Initialize event handler
-	eventHandler := application.NewEventHandler(bracketService, logger)
-
 	// Initialize disconnect service (T112-T122: CS:GO-style disconnect handling)
 	disconnectService := application.NewDisconnectService(matchRepo, matchService, publisher, logger, metrics)
+
+	// Initialize pre-lobby service
+	preLobbyService := application.NewPreLobbyService(
+		preLobbyRepo,
+		nil, // Hub will be set after initialization
+		publisher,
+		metrics,
+		logger,
+	)
+
+	// Initialize event handler with pre-lobby service for grace period support
+	eventHandler := application.NewEventHandler(bracketService, preLobbyService, logger)
 
 	// Initialize WebSocket hub with disconnect callback (T112)
 	disconnectCallback := func(matchID, playerID uuid.UUID, disconnectedAt time.Time) {
@@ -170,10 +180,21 @@ func main() {
 	router.GET("/ready", healthHandler.HandleReadiness)
 	router.GET("/live", healthHandler.HandleLiveness)
 
+	// Initialize competition client (for fetching tournament info)
+	competitionClient := application.NewCompetitionClient(cfg.CompetitionServiceURL, logger)
+
+	// Set hub on pre-lobby service (after hub is created)
+	preLobbyService.SetHub(hub)
+
 	// Initialize HTTP handlers
 	bracketHandler := httphandlers.NewBracketHandler(bracketRepo, roundRepo, matchRepo)
 	matchHandler := httphandlers.NewMatchHandler(matchRepo, matchService)
 	websocketHandler := httphandlers.NewWebSocketHandler(hub, matchRepo, publisher)
+	preLobbyHandler := httphandlers.NewPreLobbyHandler(preLobbyService, competitionClient, logger)
+	preLobbyWSHandler := httphandlers.NewPreLobbyWebSocketHandler(preLobbyService, competitionClient, hub, logger)
+
+	// Set tournament disconnect callback on hub
+	hub.SetTournamentDisconnectCallback(preLobbyWSHandler.HandleTournamentDisconnect)
 
 	// API v1 routes (auth required)
 	v1 := router.Group("/v1")
@@ -196,6 +217,10 @@ func main() {
 
 		// WebSocket lobby endpoint
 		v1.GET("/matches/:id/lobby", websocketHandler.UpgradeLobbyConnection)
+
+		// Pre-lobby endpoints (tournament waiting room)
+		v1.GET("/tournaments/:tournamentId/lobby", preLobbyHandler.GetPreLobbyState)
+		v1.GET("/tournaments/:tournamentId/lobby/ws", preLobbyWSHandler.UpgradePreLobbyConnection)
 	}
 
 	// Create HTTP server
@@ -223,6 +248,27 @@ func main() {
 
 	// Register event handlers
 	eventHandler.RegisterHandlers(subscriber)
+
+	// Recover active grace periods on startup (T030)
+	gracePeriodCallback := func(tournamentID uuid.UUID, participantIDs []uuid.UUID) {
+		logger.Info("Grace period callback triggered", map[string]interface{}{
+			"tournament_id":     tournamentID.String(),
+			"participant_count": len(participantIDs),
+		})
+		if len(participantIDs) >= 2 {
+			if err := bracketService.GenerateBracket(context.Background(), tournamentID, participantIDs); err != nil {
+				logger.Error("Failed to generate bracket from grace period callback", map[string]interface{}{
+					"tournament_id": tournamentID.String(),
+					"error":         err.Error(),
+				})
+			}
+		}
+	}
+	if err := preLobbyService.RecoverActiveGracePeriods(ctx, gracePeriodCallback); err != nil {
+		logger.Warn("Failed to recover active grace periods", map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
 
 	go func() {
 		channels := pubsub.GetSubscriptionChannels()

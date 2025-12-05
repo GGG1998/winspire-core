@@ -90,3 +90,37 @@ func (m *MetricsEmitter) EmitGameAPIPollingLatency(duration time.Duration) {
 	// TODO: Implement actual CloudWatch SDK integration
 }
 
+// ============================================================================
+// Pre-Lobby Metrics
+// ============================================================================
+
+// EmitPreLobbyConnectionCount emits pre-lobby connection count metric
+func (m *MetricsEmitter) EmitPreLobbyConnectionCount(tournamentID string, count int) {
+	log.Printf("[Metrics] prelobby_connection_count{tournament_id=%s}: %d", tournamentID, count)
+	// TODO: Implement actual CloudWatch SDK integration
+}
+
+// EmitGracePeriodDuration emits grace period duration metric
+func (m *MetricsEmitter) EmitGracePeriodDuration(tournamentID string, duration time.Duration) {
+	log.Printf("[Metrics] grace_period_duration_seconds{tournament_id=%s}: %.3f", tournamentID, duration.Seconds())
+	// TODO: Implement actual CloudWatch SDK integration
+}
+
+// EmitPreLobbyBracketGenerationTime emits time from grace period end to bracket generation
+func (m *MetricsEmitter) EmitPreLobbyBracketGenerationTime(tournamentID string, duration time.Duration) {
+	log.Printf("[Metrics] prelobby_bracket_generation_time_seconds{tournament_id=%s}: %.3f", tournamentID, duration.Seconds())
+	// TODO: Implement actual CloudWatch SDK integration
+}
+
+// EmitPreLobbyCancellation emits pre-lobby cancellation metric
+func (m *MetricsEmitter) EmitPreLobbyCancellation(tournamentID string, reason string) {
+	log.Printf("[Metrics] prelobby_cancellation{tournament_id=%s, reason=%s}: 1", tournamentID, reason)
+	// TODO: Implement actual CloudWatch SDK integration
+}
+
+// EmitPreLobbyParticipantCount emits final participant count at grace period end
+func (m *MetricsEmitter) EmitPreLobbyParticipantCount(tournamentID string, count int) {
+	log.Printf("[Metrics] prelobby_participant_count{tournament_id=%s}: %d", tournamentID, count)
+	// TODO: Implement actual CloudWatch SDK integration
+}
+

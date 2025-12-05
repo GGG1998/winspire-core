@@ -10,6 +10,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Prelobby struct {
+	ID               pgtype.UUID      `json:"id"`
+	TournamentID     pgtype.UUID      `json:"tournament_id"`
+	Status           string           `json:"status"`
+	GracePeriodStart pgtype.Timestamp `json:"grace_period_start"`
+	GracePeriodEnd   pgtype.Timestamp `json:"grace_period_end"`
+	MinParticipants  int32            `json:"min_participants"`
+	CreatedAt        time.Time        `json:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at"`
+}
+
+type PrelobbyActivityFeed struct {
+	ID              pgtype.UUID `json:"id"`
+	TournamentID    pgtype.UUID `json:"tournament_id"`
+	EventType       string      `json:"event_type"`
+	Message         string      `json:"message"`
+	ParticipantName pgtype.Text `json:"participant_name"`
+	CreatedAt       time.Time   `json:"created_at"`
+}
+
+type PrelobbyParticipantSnapshot struct {
+	ID               pgtype.UUID `json:"id"`
+	TournamentID     pgtype.UUID `json:"tournament_id"`
+	Participants     []byte      `json:"participants"`
+	ParticipantCount int32       `json:"participant_count"`
+	CreatedAt        time.Time   `json:"created_at"`
+}
+
 type TournamentBracket struct {
 	ID           pgtype.UUID      `json:"id"`
 	TournamentID pgtype.UUID      `json:"tournament_id"`

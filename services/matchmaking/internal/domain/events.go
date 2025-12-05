@@ -457,3 +457,128 @@ func NewScoreRetrieved(matchID, tournamentID, winnerID uuid.UUID, scorePlayer1, 
 		BaseEvent: newBaseEvent("ScoreRetrieved", matchID.String(), "Match", payload, metadata),
 	}
 }
+
+// ============================================================================
+// Pre-Lobby Events
+// ============================================================================
+
+// PreLobbyCreatedPayload contains pre-lobby creation details
+type PreLobbyCreatedPayload struct {
+	PreLobbyID      uuid.UUID `json:"prelobby_id"`
+	TournamentID    uuid.UUID `json:"tournament_id"`
+	MinParticipants int       `json:"min_participants"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+// PreLobbyCreated event fired when a pre-lobby is created
+type PreLobbyCreated struct {
+	BaseEvent
+}
+
+func NewPreLobbyCreated(preLobbyID, tournamentID uuid.UUID, minParticipants int, createdAt time.Time, metadata map[string]string) PreLobbyCreated {
+	payload := PreLobbyCreatedPayload{
+		PreLobbyID:      preLobbyID,
+		TournamentID:    tournamentID,
+		MinParticipants: minParticipants,
+		CreatedAt:       createdAt,
+	}
+	return PreLobbyCreated{
+		BaseEvent: newBaseEvent("PreLobbyCreated", preLobbyID.String(), "PreLobby", payload, metadata),
+	}
+}
+
+// PreLobbyGracePeriodStartedPayload contains grace period start details
+type PreLobbyGracePeriodStartedPayload struct {
+	TournamentID     uuid.UUID `json:"tournament_id"`
+	GracePeriodStart time.Time `json:"grace_period_start"`
+	GracePeriodEnd   time.Time `json:"grace_period_end"`
+	ParticipantCount int       `json:"participant_count"`
+}
+
+// PreLobbyGracePeriodStarted event fired when grace period begins
+type PreLobbyGracePeriodStarted struct {
+	BaseEvent
+}
+
+func NewPreLobbyGracePeriodStarted(tournamentID uuid.UUID, start, end time.Time, participantCount int, metadata map[string]string) PreLobbyGracePeriodStarted {
+	payload := PreLobbyGracePeriodStartedPayload{
+		TournamentID:     tournamentID,
+		GracePeriodStart: start,
+		GracePeriodEnd:   end,
+		ParticipantCount: participantCount,
+	}
+	return PreLobbyGracePeriodStarted{
+		BaseEvent: newBaseEvent("PreLobbyGracePeriodStarted", tournamentID.String(), "PreLobby", payload, metadata),
+	}
+}
+
+// PreLobbyGracePeriodEndedPayload contains grace period end details
+type PreLobbyGracePeriodEndedPayload struct {
+	TournamentID          uuid.UUID `json:"tournament_id"`
+	FinalParticipantCount int       `json:"final_participant_count"`
+	Status                string    `json:"status"` // "generating_bracket" or "cancelled"
+}
+
+// PreLobbyGracePeriodEnded event fired when grace period ends
+type PreLobbyGracePeriodEnded struct {
+	BaseEvent
+}
+
+func NewPreLobbyGracePeriodEnded(tournamentID uuid.UUID, finalCount int, status string, metadata map[string]string) PreLobbyGracePeriodEnded {
+	payload := PreLobbyGracePeriodEndedPayload{
+		TournamentID:          tournamentID,
+		FinalParticipantCount: finalCount,
+		Status:                status,
+	}
+	return PreLobbyGracePeriodEnded{
+		BaseEvent: newBaseEvent("PreLobbyGracePeriodEnded", tournamentID.String(), "PreLobby", payload, metadata),
+	}
+}
+
+// PreLobbyParticipantSnapshotPayload contains participant snapshot details
+type PreLobbyParticipantSnapshotPayload struct {
+	TournamentID     uuid.UUID   `json:"tournament_id"`
+	ParticipantIDs   []uuid.UUID `json:"participant_ids"`
+	ParticipantCount int         `json:"participant_count"`
+	CreatedAt        time.Time   `json:"created_at"`
+}
+
+// PreLobbyParticipantSnapshot event fired when participant snapshot is created
+type PreLobbyParticipantSnapshot struct {
+	BaseEvent
+}
+
+func NewPreLobbyParticipantSnapshot(tournamentID uuid.UUID, participantIDs []uuid.UUID, createdAt time.Time, metadata map[string]string) PreLobbyParticipantSnapshot {
+	payload := PreLobbyParticipantSnapshotPayload{
+		TournamentID:     tournamentID,
+		ParticipantIDs:   participantIDs,
+		ParticipantCount: len(participantIDs),
+		CreatedAt:        createdAt,
+	}
+	return PreLobbyParticipantSnapshot{
+		BaseEvent: newBaseEvent("PreLobbyParticipantSnapshot", tournamentID.String(), "PreLobby", payload, metadata),
+	}
+}
+
+// PreLobbyCancelledPayload contains pre-lobby cancellation details
+type PreLobbyCancelledPayload struct {
+	TournamentID uuid.UUID `json:"tournament_id"`
+	Reason       string    `json:"reason"`
+	CancelledAt  time.Time `json:"cancelled_at"`
+}
+
+// PreLobbyCancelled event fired when pre-lobby is cancelled
+type PreLobbyCancelled struct {
+	BaseEvent
+}
+
+func NewPreLobbyCancelled(tournamentID uuid.UUID, reason string, cancelledAt time.Time, metadata map[string]string) PreLobbyCancelled {
+	payload := PreLobbyCancelledPayload{
+		TournamentID: tournamentID,
+		Reason:       reason,
+		CancelledAt:  cancelledAt,
+	}
+	return PreLobbyCancelled{
+		BaseEvent: newBaseEvent("PreLobbyCancelled", tournamentID.String(), "PreLobby", payload, metadata),
+	}
+}

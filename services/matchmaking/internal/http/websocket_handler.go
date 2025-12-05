@@ -26,9 +26,9 @@ var upgrader = websocket.Upgrader{
 
 // WebSocketHandler handles WebSocket connections for match lobbies
 type WebSocketHandler struct {
-	hub         *wshub.Hub
-	matchRepo   repository.MatchRepository
-	publisher   *pubsub.EventPublisher
+	hub       *wshub.Hub
+	matchRepo repository.MatchRepository
+	publisher *pubsub.EventPublisher
 }
 
 // NewWebSocketHandler creates a new WebSocket handler
@@ -112,4 +112,3 @@ func (h *WebSocketHandler) UpgradeLobbyConnection(c *gin.Context) {
 	go client.ReadPump()
 	go client.WritePump()
 }
-

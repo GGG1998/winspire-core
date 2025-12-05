@@ -55,7 +55,7 @@ func RegisterTournamentUserRoutes(group *gin.RouterGroup, deps TournamentUserDep
 			}
 
 			// Execute use case
-			roomLink, err := deps.JoinTournamentUC.Execute(c.Request.Context(), tournamentID, userID)
+			roomLink, err := deps.JoinTournamentUC.Execute(c.Request.Context(), tournamentID, userID, hostID)
 			if err != nil {
 				deps.Logger.Error("failed to join tournament", "error", err, "tournamentId", tournamentID, "userId", userID)
 				c.JSON(http.StatusForbidden, ErrorResponse{Error: err.Error()})
@@ -100,7 +100,7 @@ func RegisterTournamentUserRoutes(group *gin.RouterGroup, deps TournamentUserDep
 			})
 		})
 
-		// POST /v1/:hostId/tournaments/:tournamentId/confirm-participation - Confirm participation in tournament
+		// POST /v1/:hostId/tournaments/:tournamentId/confirm-participation - Register for tournament (sets status to 'registered')
 		tournaments.POST("/:tournamentId/confirm-participation", func(c *gin.Context) {
 			hostID, err := uuid.Parse(c.Param("hostId"))
 			if err != nil {
@@ -135,12 +135,12 @@ func RegisterTournamentUserRoutes(group *gin.RouterGroup, deps TournamentUserDep
 
 			// Execute use case with displayName
 			if err := deps.ConfirmParticipationUC.Execute(c.Request.Context(), tournamentID, userID, displayName); err != nil {
-				deps.Logger.Error("failed to confirm participation", "error", err, "tournamentId", tournamentID, "userId", userID)
+				deps.Logger.Error("failed to register participation", "error", err, "tournamentId", tournamentID, "userId", userID)
 				c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
 				return
 			}
 
-			deps.Logger.Info("participation confirmed", "hostId", hostID, "tournamentId", tournamentID, "userId", userID)
+			deps.Logger.Info("participation registered", "hostId", hostID, "tournamentId", tournamentID, "userId", userID)
 
 			c.JSON(http.StatusOK, ConfirmTournamentParticipationResponse{
 				Success: true,

@@ -48,3 +48,4 @@ JOIN tournament_brackets b ON b.id = r.bracket_id
 WHERE r.status = 'in_progress'
 ORDER BY b.tournament_id, r.round_number;
 
+

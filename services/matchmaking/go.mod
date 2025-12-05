@@ -6,11 +6,12 @@ require (
 	github.com/gin-gonic/gin v1.11.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/jackc/pgx/v5 v5.7.2
+	github.com/jackc/pgx/v5 v5.7.6
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/winspire/winspire-core/libs/go/auth v0.0.0
 	github.com/winspire/winspire-core/libs/go/httpx v0.0.0
+	github.com/winspire/winspire-core/libs/go/pgtype v0.0.0
 )
 
 require (
@@ -56,4 +57,5 @@ require (
 replace (
 	github.com/winspire/winspire-core/libs/go/auth => ../../libs/go/auth
 	github.com/winspire/winspire-core/libs/go/httpx => ../../libs/go/httpx
+	github.com/winspire/winspire-core/libs/go/pgtype => ../../libs/go/pgtype
 )

@@ -106,25 +106,25 @@ export const ERROR_MESSAGES = {
 } as const;
 
 // ============================================================================
-// API Endpoints (relative to matchmaking service base)
+// API Endpoints (relative to API base URL which already includes /api/v1)
 // ============================================================================
 
 export const API_ENDPOINTS = {
   // Tournament Pre-Lobby
-  GET_PRE_LOBBY_STATE: (tournamentId: string) => `/v1/tournaments/${tournamentId}/lobby`,
-  WS_PRE_LOBBY: (tournamentId: string) => `/v1/tournaments/${tournamentId}/lobby`,
+  GET_PRE_LOBBY_STATE: (tournamentId: string) => `/tournaments/${tournamentId}/lobby`,
+  WS_PRE_LOBBY: (tournamentId: string) => `/tournaments/${tournamentId}/lobby`,
 
   // Match Lobby
-  GET_MATCH: (matchId: string) => `/v1/matches/${matchId}`,
-  MARK_READY: (matchId: string) => `/v1/matches/${matchId}/ready`,
-  CLAIM_WALKOVER: (matchId: string) => `/v1/matches/${matchId}/walkover`,
-  WS_MATCH_LOBBY: (matchId: string) => `/v1/matches/${matchId}/lobby`,
+  GET_MATCH: (matchId: string) => `/matches/${matchId}`,
+  MARK_READY: (matchId: string) => `/matches/${matchId}/ready`,
+  CLAIM_WALKOVER: (matchId: string) => `/matches/${matchId}/walkover`,
+  WS_MATCH_LOBBY: (matchId: string) => `/matches/${matchId}/lobby`,
 
   // Bracket
-  GET_BRACKET: (tournamentId: string) => `/v1/tournaments/${tournamentId}/bracket`,
+  GET_BRACKET: (tournamentId: string) => `/tournaments/${tournamentId}/bracket`,
 
   // Matches List
-  GET_MATCHES: (tournamentId: string) => `/v1/tournaments/${tournamentId}/matches`,
+  GET_MATCHES: (tournamentId: string) => `/tournaments/${tournamentId}/matches`,
 } as const;
 
 // ============================================================================

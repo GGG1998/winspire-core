@@ -64,3 +64,43 @@ CREATE TABLE tournament_matches (
     CONSTRAINT unique_round_match_number UNIQUE (round_id, match_number)
 );
 
+-- ============================================================================
+-- Pre-Lobby Tables (Tournament waiting room before start)
+-- ============================================================================
+
+-- Pre-lobby state for tournaments
+CREATE TABLE prelobbies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tournament_id UUID NOT NULL UNIQUE,
+    status VARCHAR(30) NOT NULL DEFAULT 'waiting' CHECK (
+        status IN ('waiting', 'grace_period', 'generating_bracket', 'started', 'cancelled')
+    ),
+    grace_period_start TIMESTAMP,
+    grace_period_end TIMESTAMP,
+    min_participants INTEGER NOT NULL DEFAULT 2 CHECK (min_participants >= 2),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Participant snapshot when grace period ends (immutable, used for bracket generation)
+CREATE TABLE prelobby_participant_snapshots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tournament_id UUID NOT NULL UNIQUE REFERENCES prelobbies(tournament_id) ON DELETE CASCADE,
+    participants JSONB NOT NULL,
+    participant_count INTEGER NOT NULL CHECK (participant_count >= 0),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Activity feed for pre-lobby events
+CREATE TABLE prelobby_activity_feed (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tournament_id UUID NOT NULL REFERENCES prelobbies(tournament_id) ON DELETE CASCADE,
+    event_type VARCHAR(50) NOT NULL CHECK (
+        event_type IN ('participant_joined', 'participant_left', 'grace_period_started', 
+                       'grace_period_ended', 'tournament_cancelled', 'system_message')
+    ),
+    message TEXT NOT NULL,
+    participant_name VARCHAR(255),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+

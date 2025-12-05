@@ -223,6 +223,11 @@ type TournamentPrize struct {
 	Currency    *string `json:"currency,omitempty"`
 }
 
+// TournamentMeInfo represents user-specific tournament information.
+type TournamentMeInfo struct {
+	ParticipationStatus *string `json:"participationStatus,omitempty"` // "registered", "confirmed", "checked_in", or null
+}
+
 // TournamentDetail represents a detailed tournament payload.
 type TournamentDetail struct {
 	// Core identifiers
@@ -269,6 +274,9 @@ type TournamentDetail struct {
 	Format      *TournamentFormat      `json:"format,omitempty"`
 	ReadyWindow *TournamentReadyWindow `json:"readyWindow,omitempty"`
 	Prize       *TournamentPrize       `json:"prize,omitempty"`
+
+	// User-specific information
+	Me *TournamentMeInfo `json:"me,omitempty"`
 
 	// Participant count (for scalability - full list via separate endpoint)
 	ParticipantCount int32 `json:"participantCount"`

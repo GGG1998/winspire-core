@@ -10,3 +10,4 @@ COMMENT ON COLUMN tournaments.ready_window IS 'JSONB configuration for tournamen
 COMMENT ON COLUMN tournaments.prize IS 'JSONB configuration for tournament prize structure';
 
 
+

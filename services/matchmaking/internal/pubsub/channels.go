@@ -50,6 +50,13 @@ var (
 	ChannelWalkoverGranted        = ChannelName(ContextMatchmaking, "WalkoverGranted")
 	ChannelPlayerConnectionLost   = ChannelName(ContextMatchmaking, "PlayerConnectionLost")
 	ChannelPlayerConnectionRestored = ChannelName(ContextMatchmaking, "PlayerConnectionRestored")
+
+	// Pre-lobby event channels
+	ChannelPreLobbyCreated           = ChannelName(ContextMatchmaking, "PreLobbyCreated")
+	ChannelPreLobbyGracePeriodStarted = ChannelName(ContextMatchmaking, "PreLobbyGracePeriodStarted")
+	ChannelPreLobbyGracePeriodEnded  = ChannelName(ContextMatchmaking, "PreLobbyGracePeriodEnded")
+	ChannelPreLobbyParticipantSnapshot = ChannelName(ContextMatchmaking, "PreLobbyParticipantSnapshot")
+	ChannelPreLobbyCancelled         = ChannelName(ContextMatchmaking, "PreLobbyCancelled")
 )
 
 // Tournament Management event channels (consumed by matchmaking)
@@ -70,6 +77,12 @@ func GetMatchmakingChannels() []string {
 		ChannelWalkoverGranted,
 		ChannelPlayerConnectionLost,
 		ChannelPlayerConnectionRestored,
+		// Pre-lobby channels
+		ChannelPreLobbyCreated,
+		ChannelPreLobbyGracePeriodStarted,
+		ChannelPreLobbyGracePeriodEnded,
+		ChannelPreLobbyParticipantSnapshot,
+		ChannelPreLobbyCancelled,
 	}
 }
 
@@ -79,4 +92,5 @@ func GetSubscriptionChannels() []string {
 		ChannelTournamentStarted,
 	}
 }
+
 
