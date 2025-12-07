@@ -55,9 +55,10 @@ export function formToApiInput(formData: TournamentFormData): CreateTournamentIn
       }
     },
     scheduledStartTimeAt,
-    minimumTeamCount: formData.maxPlayers,
+    minimumTeamCount: formData.minPlayers,
+    maximumTeamCount: formData.maxPlayers,
     game: formData.game ? {
-      slug: formData.game.toLowerCase()
+      id: formData.game
     } : undefined
   }
 }
@@ -199,6 +200,8 @@ export const tournamentApi = {
         isCompleted: false,
         createdAt: new Date(),
         updatedAt: new Date()
+
+        // TODO: add minimum team count, maximum team count
       }
 
       return tournament

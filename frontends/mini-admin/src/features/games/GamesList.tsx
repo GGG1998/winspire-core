@@ -34,7 +34,6 @@ function GamesList() {
       description: game.description,
       logoUrl: game.logoUrl,
       version: game.version,
-      versioningEnabled: game.versioningEnabled,
       isActive: game.isActive,
     })
   }
@@ -128,7 +127,6 @@ function GamesList() {
                 <th>Slug</th>
                 <th>Version</th>
                 <th>Status</th>
-                <th>Versioning</th>
                 <th>Created</th>
                 <th>Actions</th>
               </tr>
@@ -151,11 +149,6 @@ function GamesList() {
                   <td>
                     <span className={`status-badge ${game.isActive ? 'active' : 'inactive'}`}>
                       {game.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`version-badge ${game.versioningEnabled ? 'enabled' : 'disabled'}`}>
-                      {game.versioningEnabled ? 'Enabled' : 'Disabled'}
                     </span>
                   </td>
                   <td>{new Date(game.createdAt).toLocaleDateString()}</td>
@@ -251,19 +244,6 @@ function GamesList() {
                   value={editForm.logoUrl || ''}
                   onChange={(e) => setEditForm({ ...editForm, logoUrl: e.target.value })}
                 />
-              </div>
-
-              <div className="form-group">
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={editForm.versioningEnabled || false}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, versioningEnabled: e.target.checked })
-                    }
-                  />
-                  Enable S3 Versioning
-                </label>
               </div>
 
               <div className="form-group">

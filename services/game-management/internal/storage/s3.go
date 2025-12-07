@@ -16,11 +16,30 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
+// s3API abstracts the AWS S3 client to enable testing without real AWS calls.
+type s3API interface {
+	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
+	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+	DeleteObjects(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error)
+	PutBucketVersioning(ctx context.Context, params *s3.PutBucketVersioningInput, optFns ...func(*s3.Options)) (*s3.PutBucketVersioningOutput, error)
+	GetBucketVersioning(ctx context.Context, params *s3.GetBucketVersioningInput, optFns ...func(*s3.Options)) (*s3.GetBucketVersioningOutput, error)
+	PutBucketWebsite(ctx context.Context, params *s3.PutBucketWebsiteInput, optFns ...func(*s3.Options)) (*s3.PutBucketWebsiteOutput, error)
+	PutBucketCors(ctx context.Context, params *s3.PutBucketCorsInput, optFns ...func(*s3.Options)) (*s3.PutBucketCorsOutput, error)
+}
+
 // S3Client provides access to AWS S3 for game file storage.
 type S3Client struct {
-	client *s3.Client
+	client s3API
 	bucket string
 	region string
+}
+
+// BundleFile represents a static asset stored in S3.
+type BundleFile struct {
+	ContentType string
+	Content     []byte
 }
 
 // NewS3Client creates a new S3 client with the provided credentials.
@@ -49,7 +68,10 @@ func NewS3Client(region, bucket, accessKeyID, secretAccessKey string) (*S3Client
 	}
 
 	return &S3Client{
-		client: s3.NewFromConfig(cfg),
+		client: s3.NewFromConfig(cfg, func(o *s3.Options) {
+			// Allow buckets provided as access point ARNs
+			o.UseARNRegion = true
+		}),
 		bucket: bucket,
 		region: region,
 	}, nil
@@ -66,7 +88,6 @@ func (c *S3Client) UploadFile(ctx context.Context, s3Path string, data []byte, c
 		Key:         aws.String(s3Path),
 		Body:        bytes.NewReader(data),
 		ContentType: aws.String(contentType),
-		ACL:         types.ObjectCannedACLPublicRead,
 	})
 	if err != nil {
 		return fmt.Errorf("upload file to S3: %w", err)
@@ -106,6 +127,54 @@ func (c *S3Client) UploadMultipleFiles(ctx context.Context, baseS3Path string, f
 	}
 
 	return uploadedPaths, nil
+}
+
+// GetBundleFile retrieves a specific bundle asset from S3.
+func (c *S3Client) GetBundleFile(ctx context.Context, basePath, relativePath string) (*BundleFile, error) {
+	if basePath == "" {
+		return nil, fmt.Errorf("base path is required")
+	}
+
+	trimmedBase := strings.Trim(basePath, "/")
+	if trimmedBase == "" {
+		return nil, fmt.Errorf("base path is required")
+	}
+	if strings.HasSuffix(strings.ToLower(trimmedBase), ".zip") {
+		dir := path.Dir(trimmedBase)
+		if dir == "." {
+			return nil, fmt.Errorf("invalid storage path: %s", basePath)
+		}
+		trimmedBase = dir
+	}
+	trimmedRel := strings.Trim(relativePath, "/")
+	s3Path := trimmedBase
+	if trimmedRel != "" {
+		s3Path = path.Join(trimmedBase, trimmedRel)
+	}
+
+	out, err := c.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(s3Path),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get bundle file from S3: %w", err)
+	}
+	defer out.Body.Close()
+
+	data, err := io.ReadAll(out.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read bundle file from S3: %w", err)
+	}
+
+	contentType := aws.ToString(out.ContentType)
+	if contentType == "" {
+		contentType = detectContentType(relativePath)
+	}
+
+	return &BundleFile{
+		ContentType: contentType,
+		Content:     data,
+	}, nil
 }
 
 // DeleteFile removes a file from S3.

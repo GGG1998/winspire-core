@@ -2,10 +2,12 @@ package httpx
 
 import (
 	"context"
+	"crypto/subtle"
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
 	authmw "github.com/winspire/winspire-core/libs/go/auth/middleware"
+	"github.com/winspire/winspire-core/libs/go/auth/types"
 	sharedhttp "github.com/winspire/winspire-core/libs/go/httpx"
 
 	"github.com/winspire/game-management/internal/config"
@@ -23,7 +25,7 @@ type ServerDeps struct {
 	Logger      *slog.Logger
 	HealthCheck HealthFunc
 	GameRepo    *repository.GameRepository
-	Storage     *storage.Client
+	Storage     *storage.S3Client
 }
 
 // NewRouter builds a fully-configured Gin engine with middleware, auth, and handlers.
@@ -34,6 +36,7 @@ func NewRouter(deps ServerDeps) *gin.Engine {
 	// Use shared httpx middleware
 	httpCfg := sharedhttp.DefaultConfig()
 	httpCfg.ServiceName = "game-management"
+	httpCfg.AllowHeaders = append(httpCfg.AllowHeaders, "X-Internal-Service-Key")
 
 	router.Use(
 		sharedhttp.Recovery(deps.Logger),
@@ -49,11 +52,11 @@ func NewRouter(deps ServerDeps) *gin.Engine {
 	// API routes with auth
 	api := router.Group("/v1")
 	if deps.Config.HasAuth() {
-		api.Use(authmw.ValidateJWTMiddleware(authmw.Config{
+		api.Use(authOrInternalMiddleware(authmw.Config{
 			JWTSecret: deps.Config.HostJWTSecret,
 			Issuer:    deps.Config.HostJWTIssuer,
 			Audience:  deps.Config.HostJWTAudience,
-		}))
+		}, deps.Config.InternalServiceAPIKey))
 	}
 
 	// Public game routes
@@ -76,4 +79,28 @@ func NewRouter(deps ServerDeps) *gin.Engine {
 	})
 
 	return router
+}
+
+func authOrInternalMiddleware(cfg authmw.Config, internalKey string) gin.HandlerFunc {
+	validateJWT := authmw.ValidateJWTMiddleware(cfg)
+
+	return func(c *gin.Context) {
+		if internalKey != "" {
+			provided := c.GetHeader("X-Internal-Service-Key")
+			if provided != "" && subtle.ConstantTimeCompare([]byte(provided), []byte(internalKey)) == 1 {
+				user := &types.UserContext{
+					ID:       types.UserID("internal-service"),
+					Nickname: "internal-service",
+					UserType: "service",
+					Roles:    []types.Role{"admin"},
+				}
+				c.Request = c.Request.WithContext(types.WithUserContext(c.Request.Context(), user))
+				c.Set("user", user)
+				c.Next()
+				return
+			}
+		}
+
+		validateJWT(c)
+	}
 }

@@ -25,7 +25,7 @@ func main() {
 		panic(err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -65,18 +65,10 @@ func main() {
 	// Initialize repositories
 	gameRepo := repository.NewGameRepository(pool)
 
-	// Initialize storage client
-	var storageClient *storage.Client
-	if cfg.HasSupabaseStorage() {
-		storageClient = storage.NewClient(
-			cfg.SupabaseURL,
-			cfg.SupabaseServiceKey,
-			cfg.GamesBucket,
-			redisClient,
-			cfg.BundleCacheTTL,
-		)
-	} else {
-		logger.Warn("Supabase storage not configured, bundle serving will be disabled")
+	s3Client, err := storage.NewS3Client(cfg.AWSRegion, cfg.AWSS3Bucket, cfg.AWSAccessKeyID, cfg.AWSSecretAccessKey)
+	if err != nil {
+		logger.Error("failed to create S3 client", "error", err)
+		os.Exit(1)
 	}
 
 	// Health check function
@@ -96,7 +88,7 @@ func main() {
 		Logger:      logger,
 		HealthCheck: healthCheck,
 		GameRepo:    gameRepo,
-		Storage:     storageClient,
+		Storage:     s3Client,
 	})
 
 	// Create HTTP server
@@ -130,4 +122,3 @@ func main() {
 
 	logger.Info("server stopped")
 }
-

@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
+	"path"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -13,7 +16,7 @@ import (
 // AdminDeps contains dependencies for admin handlers.
 type AdminDeps struct {
 	Repo    *repository.GameRepository
-	Storage *storage.Client
+	Storage *storage.S3Client
 }
 
 // RegisterAdminRoutes registers admin-only game routes.
@@ -46,8 +49,8 @@ func RegisterAdminRoutes(group *gin.RouterGroup, deps AdminDeps) {
 			return
 		}
 
-		// Generate storage path based on slug
-		storagePath := req.Slug + "/" + req.Version + "/game.zip"
+		// Generate normalized storage path based on slug/version
+		storagePath := normalizeStoragePath(path.Join(req.Slug, req.Version))
 
 		input := repository.CreateGameInput{
 			GameIntegrationID: req.GameIntegrationID,
@@ -108,8 +111,8 @@ func RegisterAdminRoutes(group *gin.RouterGroup, deps AdminDeps) {
 		c.JSON(http.StatusOK, gameToResponse(*game))
 	})
 
-	// Upload game bundle
-	group.PATCH("/games/:gameId/bundle", func(c *gin.Context) {
+	// Upload assets for an existing game
+	group.POST("/games/:gameId/files", func(c *gin.Context) {
 		gameID, err := uuid.Parse(c.Param("gameId"))
 		if err != nil {
 			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid game ID"})
@@ -123,40 +126,78 @@ func RegisterAdminRoutes(group *gin.RouterGroup, deps AdminDeps) {
 			return
 		}
 
-		// Get uploaded file
-		file, err := c.FormFile("bundle")
+		if deps.Storage == nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "storage client not configured"})
+			return
+		}
+
+		form, err := c.MultipartForm()
 		if err != nil {
-			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "bundle file required"})
+			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid multipart form", Details: err.Error()})
 			return
 		}
 
-		// Read file content
-		src, err := file.Open()
+		files := form.File["files"]
+		if len(files) == 0 {
+			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "at least one file is required"})
+			return
+		}
+
+		basePath := normalizeStoragePath(game.StoragePath)
+		uploaded, err := deps.Storage.UploadMultipleFiles(c.Request.Context(), basePath, files)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to open uploaded file"})
-			return
-		}
-		defer src.Close()
-
-		data := make([]byte, file.Size)
-		if _, err := src.Read(data); err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to read uploaded file"})
+			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to upload files", Details: err.Error()})
 			return
 		}
 
-		// Upload to storage
-		if err := deps.Storage.UploadGame(c.Request.Context(), game.StoragePath, data); err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to upload bundle", Details: err.Error()})
+		c.JSON(http.StatusOK, gin.H{
+			"message":         "files uploaded successfully",
+			"uploadedCount":   len(uploaded),
+			"uploadedPaths":   uploaded,
+			"storageBasePath": basePath,
+		})
+	})
+
+	// Upload assets for a new game before creation
+	group.POST("/games/uploads", func(c *gin.Context) {
+		if deps.Storage == nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "storage client not configured"})
 			return
 		}
 
-		// Invalidate cache
-		if err := deps.Storage.InvalidateCache(c.Request.Context(), gameID.String()); err != nil {
-			// Log but don't fail
-			c.Error(err)
+		slug := strings.TrimSpace(c.PostForm("slug"))
+		version := strings.TrimSpace(c.PostForm("version"))
+
+		if slug == "" || version == "" {
+			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "slug and version are required"})
+			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"message": "bundle uploaded successfully"})
+		form, err := c.MultipartForm()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid multipart form", Details: err.Error()})
+			return
+		}
+
+		files := form.File["files"]
+		if len(files) == 0 {
+			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "at least one file is required"})
+			return
+		}
+
+		basePath := normalizeStoragePath(path.Join(slug, version))
+		uploaded, err := deps.Storage.UploadMultipleFiles(c.Request.Context(), basePath, files)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to upload files", Details: err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":         fmt.Sprintf("uploaded %d file(s)", len(uploaded)),
+			"uploadedCount":   len(uploaded),
+			"uploadedPaths":   uploaded,
+			"storageBasePath": basePath,
+		})
 	})
 
 	// Delete (deactivate) a game
@@ -173,11 +214,27 @@ func RegisterAdminRoutes(group *gin.RouterGroup, deps AdminDeps) {
 		}
 
 		// Invalidate cache
-		if deps.Storage != nil {
-			_ = deps.Storage.InvalidateCache(c.Request.Context(), gameID.String())
-		}
+		// TODO: implement cache invalidation
+		// if deps.Storage != nil {
+		// 	_ = deps.Storage.InvalidateCache(c.Request.Context(), gameID.String())
+		// }
 
 		c.JSON(http.StatusOK, gin.H{"message": "game deleted successfully"})
 	})
 }
 
+func normalizeStoragePath(p string) string {
+	clean := strings.Trim(p, "/")
+	if clean == "" {
+		return clean
+	}
+
+	if strings.HasSuffix(strings.ToLower(clean), ".zip") {
+		dir := path.Dir(clean)
+		if dir == "." {
+			return ""
+		}
+		return dir
+	}
+	return clean
+}

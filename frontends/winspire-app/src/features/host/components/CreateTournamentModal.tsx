@@ -6,7 +6,7 @@
  * Uses: Zod validation, React Hook Form, shared UI components
  */
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Dialog, DialogTitle, DialogBody, DialogActions } from '../../../shared/components/ui/dialog'
@@ -20,7 +20,6 @@ import { formToApiInput } from '../api/tournamentApi'
 import { createTournamentSchema, type CreateTournamentFormData } from '../schemas'
 import { 
   UI_LABELS, 
-  DEFAULT_GAME,
   DEFAULT_TEAM_MODE,
   DEFAULT_MAX_PLAYERS,
   TEAM_MODE_OPTIONS,
@@ -28,6 +27,7 @@ import {
   VALIDATION_MESSAGES
 } from '../constants'
 import type { CreateTournamentModalProps } from '../types'
+import { gameManagementApi, type Game } from '../../../shared/api/gameManagementApi'
 
 /**
  * Get default start time (now + 1 hour)
@@ -56,7 +56,10 @@ export function CreateTournamentModal({
   onSuccess
 }: CreateTournamentModalProps) {
   const { createTournament } = useTournaments()
-  
+  const [games, setGames] = useState<Game[]>([])
+  const [gamesLoading, setGamesLoading] = useState(false)
+  const [gamesError, setGamesError] = useState<string | null>(null)
+
   const {
     register,
     handleSubmit,
@@ -68,22 +71,48 @@ export function CreateTournamentModal({
     defaultValues: {
       name: '',
       startTime: getDefaultStartTime(),
-      game: DEFAULT_GAME,
+      game: '',
       teamMode: DEFAULT_TEAM_MODE,
+      minPlayers: 2,
       maxPlayers: DEFAULT_MAX_PLAYERS
     }
   })
 
-  // Reset form when modal opens
+  // Fetch games when modal opens
   useEffect(() => {
     if (isOpen) {
-      reset({
-        name: '',
-        startTime: getDefaultStartTime(),
-        game: DEFAULT_GAME,
-        teamMode: DEFAULT_TEAM_MODE,
-        maxPlayers: DEFAULT_MAX_PLAYERS
-      })
+      setGamesLoading(true)
+      setGamesError(null)
+      
+      gameManagementApi.getGames()
+        .then((fetchedGames) => {
+          setGames(fetchedGames)
+          // Set first game as default if available
+          const defaultGameId = fetchedGames.length > 0 ? fetchedGames[0].id : ''
+          reset({
+            name: '',
+            startTime: getDefaultStartTime(),
+            game: defaultGameId,
+            teamMode: DEFAULT_TEAM_MODE,
+            minPlayers: 2,
+            maxPlayers: DEFAULT_MAX_PLAYERS
+          })
+        })
+        .catch((error) => {
+          console.error('Failed to fetch games:', error)
+          setGamesError('Nie udało się pobrać listy gier')
+          reset({
+            name: '',
+            startTime: getDefaultStartTime(),
+            game: '',
+            teamMode: DEFAULT_TEAM_MODE,
+            minPlayers: 2,
+            maxPlayers: DEFAULT_MAX_PLAYERS
+          })
+        })
+        .finally(() => {
+          setGamesLoading(false)
+        })
     }
   }, [isOpen, reset])
 
@@ -97,6 +126,7 @@ export function CreateTournamentModal({
         startTime: data.startTime,
         game: data.game,
         teamMode: data.teamMode,
+        minPlayers: 2,
         maxPlayers: data.maxPlayers
       })
       const tournament = await createTournament(input)
@@ -158,15 +188,34 @@ export function CreateTournamentModal({
               )}
             </Field>
 
-            {/* Game field (disabled) */}
+            {/* Game field */}
             <Field>
               <Label htmlFor="tournament-game">{UI_LABELS.form.gameLabel}</Label>
-              <Input
-                id="tournament-game"
-                type="text"
-                disabled
-                {...register('game')}
-              />
+              {gamesError ? (
+                <Text className="text-red-600 dark:text-red-400">{gamesError}</Text>
+              ) : (
+                <Select
+                  id="tournament-game"
+                  disabled={gamesLoading || games.length === 0}
+                  {...register('game')}
+                  data-invalid={errors.game ? '' : undefined}
+                >
+                  {gamesLoading ? (
+                    <option value="">Ładowanie gier...</option>
+                  ) : games.length === 0 ? (
+                    <option value="">Brak dostępnych gier</option>
+                  ) : (
+                    games.map((game) => (
+                      <option key={game.id} value={game.id}>
+                        {game.name}
+                      </option>
+                    ))
+                  )}
+                </Select>
+              )}
+              {errors.game && (
+                <ErrorMessage>{errors.game.message}</ErrorMessage>
+              )}
             </Field>
 
             {/* Team mode field (disabled) */}

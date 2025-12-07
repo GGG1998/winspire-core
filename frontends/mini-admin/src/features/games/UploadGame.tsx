@@ -12,7 +12,6 @@ function UploadGame() {
     description: '',
     logoUrl: '',
     version: '1.0.0',
-    versioningEnabled: false,
   })
   const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -66,48 +65,60 @@ function UploadGame() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setMessage(null)
 
+    if (files.length === 0) {
+      setMessage({ type: 'error', text: 'Please select at least one file to upload.' })
+      return
+    }
+
+    setLoading(true)
+
     try {
-      let gameId = selectedGameId
-
-      // If creating a new game, create it first
-      if (mode === 'new') {
-        const createRequest: CreateGameRequest = {
-          slug: formData.slug,
-          name: formData.name,
-          description: formData.description || undefined,
-          logoUrl: formData.logoUrl || undefined,
-          version: formData.version,
-          versioningEnabled: formData.versioningEnabled,
+      if (mode === 'existing') {
+        if (!selectedGameId) {
+          setMessage({ type: 'error', text: 'Please select a game to update.' })
+          return
         }
-        const newGame = await gamesApi.createGame(createRequest)
-        gameId = newGame.id
-        setMessage({ type: 'success', text: `Game "${newGame.name}" created successfully!` })
-      }
 
-      // Upload files if any
-      if (files.length > 0 && gameId) {
-        const result = await gamesApi.uploadFiles(gameId, files)
+        const uploadResult = await gamesApi.uploadFiles(selectedGameId, files)
         setMessage({
           type: 'success',
-          text: `Successfully uploaded ${result.uploadedCount} file(s)!`,
+          text: `Uploaded ${uploadResult.uploadedCount} file(s) for the selected game.`,
         })
         setFiles([])
+        return
       }
 
-      // Reset form if new game
-      if (mode === 'new') {
-        setFormData({
-          slug: '',
-          name: '',
-          description: '',
-          logoUrl: '',
-          version: '1.0.0',
-          versioningEnabled: false,
-        })
+      // New game workflow: upload files first, then create the game
+      const uploadResult = await gamesApi.uploadNewGameFiles(
+        formData.slug,
+        formData.version,
+        files
+      )
+
+      const createRequest: CreateGameRequest = {
+        slug: formData.slug,
+        name: formData.name,
+        description: formData.description || undefined,
+        logoUrl: formData.logoUrl || undefined,
+        version: formData.version,
       }
+
+      const newGame = await gamesApi.createGame(createRequest)
+
+      setMessage({
+        type: 'success',
+        text: `Uploaded ${uploadResult.uploadedCount} file(s) and created "${newGame.name}".`,
+      })
+      setFiles([])
+      setFormData({
+        slug: '',
+        name: '',
+        description: '',
+        logoUrl: '',
+        version: '1.0.0',
+      })
     } catch (error: any) {
       setMessage({
         type: 'error',
@@ -209,21 +220,6 @@ function UploadGame() {
               />
             </div>
 
-            <div className="form-group">
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={formData.versioningEnabled}
-                  onChange={(e) =>
-                    setFormData({ ...formData, versioningEnabled: e.target.checked })
-                  }
-                />
-                Enable S3 Versioning
-                <span className="warning-text">
-                  (Note: S3 charges additional fees for versioning)
-                </span>
-              </label>
-            </div>
           </>
         )}
 
@@ -328,4 +324,3 @@ function UploadGame() {
 }
 
 export default UploadGame
-

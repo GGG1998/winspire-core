@@ -16,16 +16,21 @@ type Config struct {
 	ReadTimeout   time.Duration
 	WriteTimeout  time.Duration
 	ShutdownGrace time.Duration
+	LogLevel      string
 
-	// Supabase Storage configuration
-	SupabaseURL        string
-	SupabaseServiceKey string
-	GamesBucket        string
+	// AWS S3 configuration
+	AWSRegion          string
+	AWSS3Bucket        string
+	AWSAccessKeyID     string
+	AWSSecretAccessKey string
 
 	// JWT configuration for authentication
 	HostJWTSecret   string
 	HostJWTIssuer   string
 	HostJWTAudience string
+
+	// Internal service access
+	InternalServiceAPIKey string
 
 	// Cache configuration
 	BundleCacheTTL time.Duration
@@ -34,20 +39,23 @@ type Config struct {
 // Load reads configuration from environment variables with sensible defaults.
 func Load() (Config, error) {
 	cfg := Config{
-		AppEnv:             valueOrDefault("APP_ENV", "development"),
-		ServicePort:        intFromEnv("SERVICE_PORT", 8087),
-		PostgresDSN:        valueOrDefault("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5432/game_management?sslmode=disable"),
-		RedisAddr:          valueOrDefault("REDIS_ADDR", "localhost:6379"),
-		ReadTimeout:        durationFromEnv("HTTP_READ_TIMEOUT", 15*time.Second),
-		WriteTimeout:       durationFromEnv("HTTP_WRITE_TIMEOUT", 15*time.Second),
-		ShutdownGrace:      durationFromEnv("SHUTDOWN_GRACE", 10*time.Second),
-		SupabaseURL:        valueOrDefault("SUPABASE_URL", "http://localhost:54321"),
-		SupabaseServiceKey: valueOrDefault("SUPABASE_SERVICE_KEY", ""),
-		GamesBucket:        valueOrDefault("GAMES_BUCKET", "games"),
-		HostJWTSecret:      valueOrDefault("HOST_JWT_SECRET", ""),
-		HostJWTIssuer:      valueOrDefault("HOST_JWT_ISSUER", ""),
-		HostJWTAudience:    valueOrDefault("HOST_JWT_AUDIENCE", ""),
-		BundleCacheTTL:     durationFromEnv("BUNDLE_CACHE_TTL", 1*time.Hour),
+		AppEnv:                valueOrDefault("APP_ENV", "development"),
+		ServicePort:           intFromEnv("SERVICE_PORT", 8087),
+		PostgresDSN:           valueOrDefault("POSTGRES_DSN", "postgres://postgres:postgres@localhost:54322/postgres?sslmode=disable"),
+		RedisAddr:             valueOrDefault("REDIS_ADDR", "localhost:6379"),
+		ReadTimeout:           durationFromEnv("HTTP_READ_TIMEOUT", 15*time.Second),
+		WriteTimeout:          durationFromEnv("HTTP_WRITE_TIMEOUT", 15*time.Second),
+		ShutdownGrace:         durationFromEnv("SHUTDOWN_GRACE", 10*time.Second),
+		HostJWTSecret:         valueOrDefault("HOST_JWT_SECRET", ""),
+		HostJWTIssuer:         valueOrDefault("HOST_JWT_ISSUER", ""),
+		HostJWTAudience:       valueOrDefault("HOST_JWT_AUDIENCE", ""),
+		BundleCacheTTL:        durationFromEnv("BUNDLE_CACHE_TTL", 1*time.Hour),
+		AWSRegion:             valueOrDefault("AWS_REGION", "eu-central-1"),
+		AWSS3Bucket:           valueOrDefault("AWS_S3_BUCKET", "games"),
+		AWSAccessKeyID:        valueOrDefault("AWS_ACCESS_KEY_ID", ""),
+		AWSSecretAccessKey:    valueOrDefault("AWS_SECRET_ACCESS_KEY", ""),
+		InternalServiceAPIKey: valueOrDefault("GAME_MANAGEMENT_INTERNAL_API_KEY", ""),
+		LogLevel:              valueOrDefault("LOG_LEVEL", "info"),
 	}
 
 	if cfg.PostgresDSN == "" {
@@ -56,18 +64,21 @@ func Load() (Config, error) {
 	if cfg.RedisAddr == "" {
 		return Config{}, fmt.Errorf("REDIS_ADDR must be provided")
 	}
-
+	if cfg.AWSRegion == "" {
+		return Config{}, fmt.Errorf("AWS_REGION must be provided")
+	}
+	if cfg.AWSS3Bucket == "" {
+		return Config{}, fmt.Errorf("AWS_S3_BUCKET must be provided")
+	}
+	if cfg.InternalServiceAPIKey == "" {
+		return Config{}, fmt.Errorf("GAME_MANAGEMENT_INTERNAL_API_KEY must be provided")
+	}
 	return cfg, nil
 }
 
 // HasAuth indicates whether JWT middleware should be enabled.
 func (c Config) HasAuth() bool {
 	return c.HostJWTSecret != "" && c.HostJWTIssuer != "" && c.HostJWTAudience != ""
-}
-
-// HasSupabaseStorage indicates whether Supabase storage is configured.
-func (c Config) HasSupabaseStorage() bool {
-	return c.SupabaseURL != "" && c.SupabaseServiceKey != ""
 }
 
 func valueOrDefault(key, def string) string {
@@ -94,4 +105,3 @@ func durationFromEnv(key string, def time.Duration) time.Duration {
 	}
 	return def
 }
-

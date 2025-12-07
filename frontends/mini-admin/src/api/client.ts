@@ -1,11 +1,17 @@
 import axios from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8088/v1'
+const API_URL = (import.meta as ImportMeta).env.VITE_API_URL || 'http://localhost/v1'
+const INTERNAL_SERVICE_KEY = (import.meta as ImportMeta).env.VITE_INTERNAL_SERVICE_KEY || 'IlikeCookies'
 
 export const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
+    ...(INTERNAL_SERVICE_KEY
+      ? {
+          'X-Internal-Service-Key': INTERNAL_SERVICE_KEY,
+        }
+      : {}),
   },
 })
 
@@ -32,4 +38,3 @@ apiClient.interceptors.response.use(
     return Promise.reject(error)
   }
 )
-
