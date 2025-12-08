@@ -421,14 +421,17 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
     
     if (!opponentMissing) {
       // Both players present, clear walkover state
-      setMatchState((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          canClaimWalkover: false,
-          walkoverClaimableAt: null,
-        };
-      });
+      // Only update if walkover flags are currently set (prevent infinite loop)
+      if (matchState.canClaimWalkover || matchState.walkoverClaimableAt) {
+        setMatchState((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            canClaimWalkover: false,
+            walkoverClaimableAt: null,
+          };
+        });
+      }
       return;
     }
 
@@ -440,14 +443,17 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
 
     if (elapsed >= TWO_MINUTES_MS) {
       // Walkover already claimable
-      setMatchState((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          canClaimWalkover: true,
-          walkoverClaimableAt: new Date(matchCreatedAt + TWO_MINUTES_MS).toISOString(),
-        };
-      });
+      // Only update if walkover is not already set (prevent infinite loop)
+      if (!matchState.canClaimWalkover) {
+        setMatchState((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            canClaimWalkover: true,
+            walkoverClaimableAt: new Date(matchCreatedAt + TWO_MINUTES_MS).toISOString(),
+          };
+        });
+      }
     } else {
       // Set timer for when walkover becomes claimable
       const remainingMs = TWO_MINUTES_MS - elapsed;

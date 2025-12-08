@@ -40,7 +40,7 @@ export function MatchLobbyPage() {
     connectionStatus,
     claimWalkover,
   } = useMatchLobby(matchId || null);
-
+  console.log('[MatchLobbyPage] matchState:', matchState);
   // Determine current player's ready status
   const currentPlayerReady = user && matchState
     ? (matchState.player1?.id === user.id ? matchState.match.participant1Ready : matchState.match.participant2Ready)
@@ -243,16 +243,16 @@ export function MatchLobbyPage() {
           player1Ready={matchState.match.participant1Ready}
           player2Ready={matchState.match.participant2Ready}
         />
-
-        {/* Ready Button Section */}
-        {matchState.status === 'ready' && matchState.player1 && matchState.player2 && (
-          <div className="mt-8 flex flex-col items-center">
             <ReadyButton
               isReady={localReadyState}
               isLoading={isReadyLoading}
               disabled={!matchState.player2} // Disable if opponent not present
               onClick={toggleReady}
             />
+        {/* Ready Button Section */}
+        {matchState.status === 'ready' && matchState.player1 && matchState.player2 && (
+          <div className="mt-8 flex flex-col items-center">
+
 
             {/* Both Players Ready Message */}
             {matchState.match.participant1Ready && matchState.match.participant2Ready && (

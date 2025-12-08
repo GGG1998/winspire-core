@@ -56,6 +56,8 @@
     "eslint-plugin-react-refresh": "^0.4.24",
     "eslint-plugin-storybook": "^0.11.1",
     "globals": "^16.5.0",
+    "msw": "^2.12.4",
+    "msw-storybook-addon": "^2.0.6",
     "postcss": "^8.5.6",
     "storybook": "^8.4.7",
     "tailwindcss": "^4.1.17",
@@ -63,5 +65,10 @@
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",
     "ws": "^8.18.3"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }
