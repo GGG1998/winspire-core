@@ -22,6 +22,13 @@ type MatchService struct {
 	publisher   *pubsub.EventPublisher
 	metrics     *observability.MetricsEmitter
 	logger      *observability.Logger
+	hub         Hub // WebSocket hub interface for broadcasting
+}
+
+// Hub interface for WebSocket broadcasts (to avoid circular dependency)
+// This matches the signature in websocket.Hub
+type Hub interface {
+	BroadcastToMatch(matchID uuid.UUID, message interface{}) // accepts any type, will be marshaled
 }
 
 // NewMatchService creates a new match service
@@ -41,6 +48,11 @@ func NewMatchService(
 		metrics:     metrics,
 		logger:      logger,
 	}
+}
+
+// SetHub sets the WebSocket hub for broadcasting (called after initialization)
+func (s *MatchService) SetHub(hub Hub) {
+	s.hub = hub
 }
 
 // CompleteMatch marks a match as completed and advances the winner to the next round
@@ -377,19 +389,61 @@ func (s *MatchService) OnPlayerReady(ctx context.Context, matchID, playerID uuid
 		return fmt.Errorf("check ready status: %w", err)
 	}
 
-	// If both players are ready, automatically start the match
+	// If both players are ready, start countdown sequence
 	if bothReady {
-		s.logger.Info("Both players ready, auto-starting match", map[string]interface{}{
+		s.logger.Info("Both players ready, starting countdown", map[string]interface{}{
 			"match_id": matchID.String(),
 		})
 
-		err = s.StartMatch(ctx, matchID)
-		if err != nil {
-			return fmt.Errorf("start match: %w", err)
-		}
+		// Start countdown in a goroutine to avoid blocking the HTTP request
+		go s.startCountdownAndMatch(matchID)
 	}
 
 	return nil
+}
+
+// startCountdownAndMatch broadcasts 3-2-1 countdown then starts the match
+func (s *MatchService) startCountdownAndMatch(matchID uuid.UUID) {
+	ctx := context.Background()
+
+	// Countdown from 3 to 1
+	for i := 3; i > 0; i-- {
+		// Broadcast match_starting with countdown
+		if s.hub != nil {
+			payload := map[string]interface{}{
+				"countdownSeconds": i,
+			}
+			// Create message with proper structure
+			msg := map[string]interface{}{
+				"type":      "match_starting",
+				"timestamp": time.Now(),
+				"payload":   payload,
+			}
+			s.hub.BroadcastToMatch(matchID, msg)
+		}
+
+		s.logger.Info("Countdown", map[string]interface{}{
+			"match_id": matchID.String(),
+			"seconds":  i,
+		})
+
+		// Wait 1 second
+		time.Sleep(1 * time.Second)
+	}
+
+	// Start the match after countdown
+	err := s.StartMatch(ctx, matchID)
+	if err != nil {
+		s.logger.Error("Failed to start match after countdown", map[string]interface{}{
+			"match_id": matchID.String(),
+			"error":    err.Error(),
+		})
+		return
+	}
+
+	s.logger.Info("Match started after countdown", map[string]interface{}{
+		"match_id": matchID.String(),
+	})
 }
 
 // ForceStartMatch forces a match to start (T076)

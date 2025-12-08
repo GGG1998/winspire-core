@@ -2,22 +2,25 @@
 package http
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/winspire-core/services/matchmaking/internal/application"
 	"github.com/winspire-core/services/matchmaking/internal/repository"
+	"github.com/winspire-core/services/matchmaking/internal/websocket"
 	"github.com/winspire/winspire-core/libs/go/httpx"
 )
 
 // MatchHandler handles match-related HTTP requests
 type MatchHandler struct {
-	matchRepo      repository.MatchRepository
-	roundRepo      repository.RoundRepository
-	bracketRepo    repository.BracketRepository
+	matchRepo       repository.MatchRepository
+	roundRepo       repository.RoundRepository
+	bracketRepo     repository.BracketRepository
 	preLobbyService *application.PreLobbyService
-	matchService   *application.MatchService
+	matchService    *application.MatchService
+	hub             *websocket.Hub
 }
 
 // NewMatchHandler creates a new match handler
@@ -27,13 +30,15 @@ func NewMatchHandler(
 	bracketRepo repository.BracketRepository,
 	preLobbyService *application.PreLobbyService,
 	matchService *application.MatchService,
+	hub *websocket.Hub,
 ) *MatchHandler {
 	return &MatchHandler{
-		matchRepo:      matchRepo,
-		roundRepo:      roundRepo,
-		bracketRepo:    bracketRepo,
+		matchRepo:       matchRepo,
+		roundRepo:       roundRepo,
+		bracketRepo:     bracketRepo,
 		preLobbyService: preLobbyService,
-		matchService:   matchService,
+		matchService:    matchService,
+		hub:             hub,
 	}
 }
 
@@ -171,18 +176,28 @@ func (h *MatchHandler) MarkPlayerReady(c *gin.Context) {
 		return
 	}
 
+	// Broadcast ready status via WebSocket (T059)
+	if h.hub != nil {
+		msg, err := websocket.NewMessage(websocket.MessageType("ready_updated"), map[string]interface{}{
+			"playerId": userID,
+			"ready":    true,
+		})
+		if err == nil {
+			h.hub.BroadcastToMatch(matchID, msg)
+		} else {
+			log.Printf("WARN: Failed to create ready_updated message: %v", err)
+		}
+	}
+
 	// Trigger ready state check and potential match start (T072, T073)
 	if h.matchService != nil {
 		err = h.matchService.OnPlayerReady(c.Request.Context(), matchID, userID)
 		if err != nil {
 			// Log error but don't fail the request - ready status is already saved
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process ready state", "details": err.Error()})
-			return
+			log.Printf("WARN: Failed to process ready state: %v", err)
+			// Don't return error - ready status was successfully saved and broadcast
 		}
 	}
-
-	// TODO: Broadcast ready status via WebSocket (T059)
-	// This will be handled by the WebSocket hub when it's implemented
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":   "ready status updated successfully",
@@ -249,5 +264,104 @@ func (h *MatchHandler) ClaimWalkover(c *gin.Context) {
 		"match_id":       matchID,
 		"winner_id":      userID,
 		"no_show_player": noShowPlayerID,
+	})
+}
+
+// GetMatchesForTournament retrieves all matches for a tournament with participant details
+// GET /v1/tournaments/:id/matches
+func (h *MatchHandler) GetMatchesForTournament(c *gin.Context) {
+	// Parse tournament ID
+	tournamentID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid tournament ID", "details": err.Error()})
+		return
+	}
+
+	// Get bracket with rounds and matches
+	bracket, rounds, matches, err := h.bracketRepo.GetWithRoundsAndMatches(c.Request.Context(), tournamentID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "bracket not found for tournament", "details": err.Error()})
+		return
+	}
+
+	// Create a map of round ID to round info for quick lookup
+	roundMap := make(map[uuid.UUID]struct {
+		RoundNumber int
+		RoundName   string
+	})
+	for _, round := range rounds {
+		roundMap[round.ID] = struct {
+			RoundNumber int
+			RoundName   string
+		}{
+			RoundNumber: round.RoundNumber,
+			RoundName:   round.RoundName,
+		}
+	}
+
+	// Build matches response with participant details
+	matchesResponse := make([]interface{}, 0, len(matches))
+	for _, match := range matches {
+		// Get round info
+		roundInfo := roundMap[match.RoundID]
+
+		// Get participant details from pre-lobby service
+		participant1Details := h.preLobbyService.GetParticipantDetails(bracket.TournamentID, match.Participant1ID)
+		
+		var participant2Details *application.PreLobbyParticipantInfo
+		if match.Participant2ID != nil {
+			details := h.preLobbyService.GetParticipantDetails(bracket.TournamentID, *match.Participant2ID)
+			participant2Details = &details
+		}
+
+		// Build match data
+		matchData := map[string]interface{}{
+			"id":                 match.ID,
+			"match_number":       match.MatchNumber,
+			"participant1_id":    match.Participant1ID,
+			"participant2_id":    match.Participant2ID,
+			"next_match_id":      match.NextMatchID,
+			"status":             match.Status,
+			"participant1_ready": match.Participant1Ready,
+			"participant2_ready": match.Participant2Ready,
+			"winner_id":          match.WinnerID,
+			"score_player1":      match.ScorePlayer1,
+			"score_player2":      match.ScorePlayer2,
+			"started_at":         match.StartedAt,
+			"completed_at":       match.CompletedAt,
+			"round_id":           match.RoundID,
+		}
+
+		// Build participant1 data
+		participant1Data := map[string]interface{}{
+			"id":           participant1Details.UserID,
+			"display_name": participant1Details.DisplayName,
+			"avatar_url":   participant1Details.AvatarURL,
+		}
+
+		// Build participant2 data (can be null)
+		var participant2Data interface{} = nil
+		if participant2Details != nil {
+			participant2Data = map[string]interface{}{
+				"id":           participant2Details.UserID,
+				"display_name": participant2Details.DisplayName,
+				"avatar_url":   participant2Details.AvatarURL,
+			}
+		}
+
+		// Build complete match response
+		matchResponse := map[string]interface{}{
+			"match":        matchData,
+			"participant1": participant1Data,
+			"participant2": participant2Data,
+			"roundNumber":  roundInfo.RoundNumber,
+			"roundName":    roundInfo.RoundName,
+		}
+
+		matchesResponse = append(matchesResponse, matchResponse)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"matches": matchesResponse,
 	})
 }

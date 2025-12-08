@@ -117,6 +117,15 @@ func main() {
 		logger,
 	)
 
+	// Initialize WebSocket hub with disconnect callback (T112)
+	// Hub must be created before matchService so we can pass it
+	// Initial callback is a placeholder - will be updated after disconnectService is created
+	disconnectCallback := func(matchID, playerID uuid.UUID, disconnectedAt time.Time) {
+		log.Printf("Player disconnected: match=%s player=%s", matchID, playerID)
+	}
+	hub := websocket.NewHub(disconnectCallback)
+	go hub.Run()
+
 	// Initialize match service
 	matchService := application.NewMatchService(
 		matchRepo,
@@ -126,9 +135,20 @@ func main() {
 		metrics,
 		logger,
 	)
+	// Set hub on match service after creation
+	matchService.SetHub(hub)
 
 	// Initialize disconnect service (T112-T122: CS:GO-style disconnect handling)
 	disconnectService := application.NewDisconnectService(matchRepo, matchService, publisher, logger, metrics)
+
+	// Update disconnect callback now that we have disconnectService
+	hub.SetDisconnectCallback(func(matchID, playerID uuid.UUID, disconnectedAt time.Time) {
+		disconnectCtx := context.Background()
+		err := disconnectService.HandleDisconnect(disconnectCtx, matchID, playerID)
+		if err != nil {
+			log.Printf("ERROR: Failed to handle disconnect: %v", err)
+		}
+	})
 
 	// Initialize pre-lobby service
 	preLobbyService := application.NewPreLobbyService(
@@ -141,17 +161,6 @@ func main() {
 
 	// Initialize event handler with pre-lobby service for grace period support
 	eventHandler := application.NewEventHandler(bracketService, preLobbyService, publisher, logger)
-
-	// Initialize WebSocket hub with disconnect callback (T112)
-	disconnectCallback := func(matchID, playerID uuid.UUID, disconnectedAt time.Time) {
-		ctx := context.Background()
-		err := disconnectService.HandleDisconnect(ctx, matchID, playerID)
-		if err != nil {
-			log.Printf("ERROR: Failed to handle disconnect: %v", err)
-		}
-	}
-	hub := websocket.NewHub(disconnectCallback)
-	go hub.Run()
 
 	// Initialize HTTP router
 	router := gin.New()
@@ -188,7 +197,7 @@ func main() {
 
 	// Initialize HTTP handlers
 	bracketHandler := httphandlers.NewBracketHandler(bracketRepo, roundRepo, matchRepo)
-	matchHandler := httphandlers.NewMatchHandler(matchRepo, roundRepo, bracketRepo, preLobbyService, matchService)
+	matchHandler := httphandlers.NewMatchHandler(matchRepo, roundRepo, bracketRepo, preLobbyService, matchService, hub)
 	websocketHandler := httphandlers.NewWebSocketHandler(hub, matchRepo, publisher)
 	preLobbyHandler := httphandlers.NewPreLobbyHandler(preLobbyService, competitionClient, logger)
 	preLobbyWSHandler := httphandlers.NewPreLobbyWebSocketHandler(preLobbyService, competitionClient, hub, logger)
@@ -214,6 +223,7 @@ func main() {
 		matchmaking.GET("/matches/:id", matchHandler.GetMatch)
 		matchmaking.POST("/matches/:id/ready", matchHandler.MarkPlayerReady)
 		matchmaking.POST("/matches/:id/claim-walkover", matchHandler.ClaimWalkover)
+		matchmaking.GET("/tournaments/:id/matches", matchHandler.GetMatchesForTournament)
 
 		// WebSocket lobby endpoint
 		matchmaking.GET("/matches/:id/lobby", websocketHandler.UpgradeLobbyConnection)

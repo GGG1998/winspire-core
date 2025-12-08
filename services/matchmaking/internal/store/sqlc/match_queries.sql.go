@@ -572,11 +572,11 @@ SET
     status = $2,
     updated_at = NOW(),
     started_at = CASE 
-        WHEN $2 = 'started' AND started_at IS NULL THEN NOW() 
+        WHEN $2::VARCHAR = 'started' AND started_at IS NULL THEN NOW() 
         ELSE started_at 
     END,
     completed_at = CASE 
-        WHEN $2 = 'completed' THEN NOW() 
+        WHEN $2::VARCHAR = 'completed' THEN NOW() 
         ELSE completed_at 
     END
 WHERE id = $1

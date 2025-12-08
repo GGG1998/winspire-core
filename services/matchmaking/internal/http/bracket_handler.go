@@ -39,8 +39,15 @@ func (h *BracketHandler) GetBracket(c *gin.Context) {
 		return
 	}
 
-	// Fetch bracket with rounds and matches
-	bracket, rounds, matches, err := h.bracketRepo.GetWithRoundsAndMatches(c.Request.Context(), bracketID)
+	// First get the bracket to obtain its tournament ID
+	bracketInfo, err := h.bracketRepo.GetByID(c.Request.Context(), bracketID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "bracket not found", "details": err.Error()})
+		return
+	}
+
+	// Fetch bracket with rounds and matches using tournament ID
+	bracket, rounds, matches, err := h.bracketRepo.GetWithRoundsAndMatches(c.Request.Context(), bracketInfo.TournamentID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "bracket not found", "details": err.Error()})
 		return
@@ -50,19 +57,19 @@ func (h *BracketHandler) GetBracket(c *gin.Context) {
 	roundMap := make(map[uuid.UUID][]interface{})
 	for _, match := range matches {
 		matchData := map[string]interface{}{
-			"id":                match.ID,
-			"match_number":      match.MatchNumber,
-			"participant1_id":   match.Participant1ID,
-			"participant2_id":   match.Participant2ID,
-			"next_match_id":     match.NextMatchID,
-			"status":            match.Status,
+			"id":                 match.ID,
+			"match_number":       match.MatchNumber,
+			"participant1_id":    match.Participant1ID,
+			"participant2_id":    match.Participant2ID,
+			"next_match_id":      match.NextMatchID,
+			"status":             match.Status,
 			"participant1_ready": match.Participant1Ready,
 			"participant2_ready": match.Participant2Ready,
-			"winner_id":         match.WinnerID,
-			"score_player1":     match.ScorePlayer1,
-			"score_player2":     match.ScorePlayer2,
-			"started_at":        match.StartedAt,
-			"completed_at":      match.CompletedAt,
+			"winner_id":          match.WinnerID,
+			"score_player1":      match.ScorePlayer1,
+			"score_player2":      match.ScorePlayer2,
+			"started_at":         match.StartedAt,
+			"completed_at":       match.CompletedAt,
 		}
 		roundMap[match.RoundID] = append(roundMap[match.RoundID], matchData)
 	}
@@ -81,7 +88,7 @@ func (h *BracketHandler) GetBracket(c *gin.Context) {
 	}
 
 	// Build final response
-	response := map[string]interface{}{
+	bracketData := map[string]interface{}{
 		"id":            bracket.ID,
 		"tournament_id": bracket.TournamentID,
 		"total_rounds":  bracket.TotalRounds,
@@ -91,7 +98,7 @@ func (h *BracketHandler) GetBracket(c *gin.Context) {
 		"rounds":        roundsData,
 	}
 
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, gin.H{"bracket": bracketData})
 }
 
 // GetBracketByTournament retrieves a bracket by tournament ID
@@ -104,17 +111,10 @@ func (h *BracketHandler) GetBracketByTournament(c *gin.Context) {
 		return
 	}
 
-	// Fetch bracket by tournament ID
-	bracket, err := h.bracketRepo.GetByTournamentID(c.Request.Context(), tournamentID)
+	// Get full bracket details with rounds and matches by tournament ID
+	fullBracket, rounds, matches, err := h.bracketRepo.GetWithRoundsAndMatches(c.Request.Context(), tournamentID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "bracket not found for tournament", "details": err.Error()})
-		return
-	}
-
-	// Get full bracket details by calling GetBracket logic
-	fullBracket, rounds, matches, err := h.bracketRepo.GetWithRoundsAndMatches(c.Request.Context(), bracket.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load bracket details", "details": err.Error()})
 		return
 	}
 
@@ -122,19 +122,19 @@ func (h *BracketHandler) GetBracketByTournament(c *gin.Context) {
 	roundMap := make(map[uuid.UUID][]interface{})
 	for _, match := range matches {
 		matchData := map[string]interface{}{
-			"id":                match.ID,
-			"match_number":      match.MatchNumber,
-			"participant1_id":   match.Participant1ID,
-			"participant2_id":   match.Participant2ID,
-			"next_match_id":     match.NextMatchID,
-			"status":            match.Status,
+			"id":                 match.ID,
+			"match_number":       match.MatchNumber,
+			"participant1_id":    match.Participant1ID,
+			"participant2_id":    match.Participant2ID,
+			"next_match_id":      match.NextMatchID,
+			"status":             match.Status,
 			"participant1_ready": match.Participant1Ready,
 			"participant2_ready": match.Participant2Ready,
-			"winner_id":         match.WinnerID,
-			"score_player1":     match.ScorePlayer1,
-			"score_player2":     match.ScorePlayer2,
-			"started_at":        match.StartedAt,
-			"completed_at":      match.CompletedAt,
+			"winner_id":          match.WinnerID,
+			"score_player1":      match.ScorePlayer1,
+			"score_player2":      match.ScorePlayer2,
+			"started_at":         match.StartedAt,
+			"completed_at":       match.CompletedAt,
 		}
 		roundMap[match.RoundID] = append(roundMap[match.RoundID], matchData)
 	}
@@ -153,7 +153,7 @@ func (h *BracketHandler) GetBracketByTournament(c *gin.Context) {
 	}
 
 	// Build final response
-	response := map[string]interface{}{
+	bracketData := map[string]interface{}{
 		"id":            fullBracket.ID,
 		"tournament_id": fullBracket.TournamentID,
 		"total_rounds":  fullBracket.TotalRounds,
@@ -163,6 +163,5 @@ func (h *BracketHandler) GetBracketByTournament(c *gin.Context) {
 		"rounds":        roundsData,
 	}
 
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, gin.H{"bracket": bracketData})
 }
-

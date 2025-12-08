@@ -78,6 +78,13 @@ func NewHub(onDisconnect DisconnectCallback) *Hub {
 	}
 }
 
+// SetDisconnectCallback sets the callback for match disconnections
+func (h *Hub) SetDisconnectCallback(cb DisconnectCallback) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.onDisconnect = cb
+}
+
 // SetTournamentDisconnectCallback sets the callback for tournament disconnections
 func (h *Hub) SetTournamentDisconnectCallback(cb TournamentDisconnectCallback) {
 	h.mu.Lock()
@@ -166,6 +173,21 @@ func (h *Hub) unregisterClient(client *Client) {
 		log.Printf("[Hub] Player %s disconnected from match %s (remaining clients: %d)",
 			client.PlayerID, client.MatchID, len(matchClients))
 
+		// Broadcast player_left to remaining clients in the lobby
+		if len(matchClients) > 0 {
+			msg, err := NewMessage(MessageType("player_left"), map[string]interface{}{
+				"playerId": client.PlayerID,
+			})
+			if err == nil {
+				msgBytes, _ := json.Marshal(msg)
+				h.mu.Unlock()
+				h.broadcastToMatch(client.MatchID, msgBytes)
+				h.mu.Lock()
+			} else {
+				log.Printf("[Hub] ERROR: Failed to create player_left message: %v", err)
+			}
+		}
+
 		// Clean up empty match
 		if len(matchClients) == 0 {
 			delete(h.matches, client.MatchID)
@@ -180,7 +202,8 @@ func (h *Hub) unregisterClient(client *Client) {
 }
 
 // BroadcastToMatch sends a message to all clients in a match
-func (h *Hub) BroadcastToMatch(matchID uuid.UUID, message *Message) {
+// Accepts either *Message or any other type that can be marshaled to JSON
+func (h *Hub) BroadcastToMatch(matchID uuid.UUID, message interface{}) {
 	messageBytes, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("[Hub] ERROR: Failed to marshal message for match %s: %v", matchID, err)

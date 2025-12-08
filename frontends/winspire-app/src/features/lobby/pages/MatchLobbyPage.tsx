@@ -243,7 +243,7 @@ export function MatchLobbyPage() {
           player1Ready={matchState.match.participant1Ready}
           player2Ready={matchState.match.participant2Ready}
         />
-            <ReadyButton
+    <ReadyButton
               isReady={localReadyState}
               isLoading={isReadyLoading}
               disabled={!matchState.player2} // Disable if opponent not present
@@ -252,7 +252,12 @@ export function MatchLobbyPage() {
         {/* Ready Button Section */}
         {matchState.status === 'ready' && matchState.player1 && matchState.player2 && (
           <div className="mt-8 flex flex-col items-center">
-
+            <ReadyButton
+              isReady={localReadyState}
+              isLoading={isReadyLoading}
+              disabled={!matchState.player2} // Disable if opponent not present
+              onClick={toggleReady}
+            />
 
             {/* Both Players Ready Message */}
             {matchState.match.participant1Ready && matchState.match.participant2Ready && (
