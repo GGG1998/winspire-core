@@ -54,6 +54,7 @@ interface UseMatchLobbyReturn {
   isLoading: boolean;
   error: string | null;
   connectionStatus: ConnectionState;
+  serverRestarting: boolean;
   claimWalkover: () => Promise<void>;
 }
 
@@ -74,6 +75,7 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
   const [matchState, setMatchState] = useState<MatchLobbyState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [serverRestarting, setServerRestarting] = useState(false);
   
   // Track if initial data is loaded
   const initialLoadComplete = useRef(false);
@@ -97,6 +99,10 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
     onMessage: handleWebSocketMessage,
     onOpen: () => {
       console.log('[useMatchLobby] WebSocket connected');
+      
+      // Clear server restarting flag on successful connection
+      setServerRestarting(false);
+      setError(null);
       
       // Auto-refresh data on reconnection (not on initial connection)
       if (previousStatusRef.current && previousStatusRef.current !== 'connected' && matchId) {
@@ -214,6 +220,11 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
           break;
         case 'player_reconnected':
           handlePlayerReconnected(message.payload as PlayerReconnectedPayload);
+          break;
+        case 'server_restarting':
+          console.log('[useMatchLobby] Server is restarting, preparing for reconnect...');
+          setServerRestarting(true);
+          setError(null); // Clear any existing errors
           break;
         default:
           console.warn('[useMatchLobby] Unknown message type:', messageType);
@@ -501,6 +512,7 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
     isLoading,
     error,
     connectionStatus,
+    serverRestarting,
     claimWalkover,
   };
 }

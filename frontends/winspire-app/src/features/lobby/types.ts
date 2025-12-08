@@ -208,6 +208,7 @@ export type ServerMessageType =
   | 'player_reconnected' // Opponent reconnected
   | 'match_completed' // Match has result
   | 'match_cancelled' // Match cancelled
+  | 'server_restarting' // Server is restarting, prepare for reconnect
   | 'error'; // Error message
 
 // Base WebSocket message structure

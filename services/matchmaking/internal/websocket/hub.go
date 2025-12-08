@@ -1,20 +1,22 @@
 package websocket
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/winspire-core/services/matchmaking/internal/repository"
 )
 
 // RoomType identifies the type of room (match or tournament pre-lobby)
 type RoomType string
 
 const (
-	RoomTypeMatch       RoomType = "match"
-	RoomTypeTournament  RoomType = "tournament"
+	RoomTypeMatch      RoomType = "match"
+	RoomTypeTournament RoomType = "tournament"
 )
 
 // DisconnectCallback is called when a player disconnects (T112)
@@ -52,6 +54,12 @@ type Hub struct {
 	// Callback for tournament pre-lobby disconnect handling
 	onTournamentDisconnect TournamentDisconnectCallback
 
+	// Redis-based session persistence
+	sessionStore *SessionStore
+
+	// Match repository for fetching full match state
+	matchRepo repository.MatchRepository
+
 	// Mutex for thread-safe access
 	mu sync.RWMutex
 }
@@ -65,7 +73,7 @@ type BroadcastMessage struct {
 }
 
 // NewHub creates a new WebSocket hub
-func NewHub(onDisconnect DisconnectCallback) *Hub {
+func NewHub(sessionStore *SessionStore, matchRepo repository.MatchRepository, onDisconnect DisconnectCallback) *Hub {
 	return &Hub{
 		matches:             make(map[uuid.UUID]map[uuid.UUID]*Client),
 		lobbyJoinTimes:      make(map[uuid.UUID]map[uuid.UUID]time.Time),
@@ -75,6 +83,8 @@ func NewHub(onDisconnect DisconnectCallback) *Hub {
 		unregister:          make(chan *Client, 256),
 		broadcast:           make(chan *BroadcastMessage, 256),
 		onDisconnect:        onDisconnect,
+		sessionStore:        sessionStore,
+		matchRepo:           matchRepo,
 	}
 }
 
@@ -141,6 +151,15 @@ func (h *Hub) registerClient(client *Client) {
 	h.matches[client.MatchID][client.PlayerID] = client
 	h.lobbyJoinTimes[client.MatchID][client.PlayerID] = time.Now()
 
+	// Persist session to Redis
+	if h.sessionStore != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := h.sessionStore.AddSession(ctx, client.MatchID, client.PlayerID); err != nil {
+			log.Printf("[Hub] ERROR: Failed to add session to Redis: %v", err)
+		}
+	}
+
 	log.Printf("[Hub] Player %s connected to match %s (total clients: %d)",
 		client.PlayerID, client.MatchID, len(h.matches[client.MatchID]))
 
@@ -161,6 +180,15 @@ func (h *Hub) unregisterClient(client *Client) {
 	if _, exists := matchClients[client.PlayerID]; exists {
 		delete(matchClients, client.PlayerID)
 		close(client.send)
+
+		// Remove session from Redis
+		if h.sessionStore != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := h.sessionStore.RemoveSession(ctx, client.MatchID, client.PlayerID); err != nil {
+				log.Printf("[Hub] ERROR: Failed to remove session from Redis: %v", err)
+			}
+		}
 
 		// Clean up lobby join time tracking
 		if joinTimes, exists := h.lobbyJoinTimes[client.MatchID]; exists {
@@ -306,6 +334,16 @@ func (h *Hub) monitorHeartbeats() {
 		for matchID, matchClients := range h.matches {
 			for playerID, client := range matchClients {
 				timeSinceHeartbeat := client.TimeSinceLastHeartbeat()
+
+				// Update heartbeat in Redis
+				if h.sessionStore != nil && timeSinceHeartbeat < pongWait {
+					ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+					if err := h.sessionStore.UpdateHeartbeat(ctx, matchID, playerID); err != nil {
+						log.Printf("[Hub] ERROR: Failed to update heartbeat in Redis: %v", err)
+					}
+					cancel()
+				}
+
 				if timeSinceHeartbeat > pongWait {
 					log.Printf("[Hub] Player %s heartbeat timeout (%v), disconnecting", playerID, timeSinceHeartbeat)
 					h.mu.Unlock()
@@ -346,12 +384,40 @@ func (h *Hub) handleClientMessage(client *Client, messageBytes []byte) {
 
 // sendLobbyStateToClient sends current lobby state to a client
 func (h *Hub) sendLobbyStateToClient(client *Client) {
-	// This would fetch current match state from database
-	// For now, just acknowledge connection
+	// Fetch full match state from database
+	if h.matchRepo == nil {
+		log.Printf("[Hub] WARN: matchRepo is nil, cannot fetch match state")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	match, err := h.matchRepo.GetByID(ctx, client.MatchID)
+	if err != nil {
+		log.Printf("[Hub] ERROR: Failed to fetch match %s: %v", client.MatchID, err)
+		return
+	}
+
+	// Build lobby state payload with match data
+	// Note: Frontend already has participant details from initial REST API call
+	// We only need to send updated match state here
 	payload := map[string]interface{}{
-		"match_id":  client.MatchID,
-		"player_id": client.PlayerID,
-		"connected": true,
+		"match": map[string]interface{}{
+			"id":                     match.ID,
+			"status":                 match.Status,
+			"participant1_id":        match.Participant1ID,
+			"participant2_id":        match.Participant2ID,
+			"participant1_ready":     match.Participant1Ready,
+			"participant2_ready":     match.Participant2Ready,
+			"winner_id":              match.WinnerID,
+			"score_player1":          match.ScorePlayer1,
+			"score_player2":          match.ScorePlayer2,
+			"disconnected_player_id": match.DisconnectedPlayerID,
+			"disconnected_at":        match.DisconnectedAt,
+			"started_at":             match.StartedAt,
+			"completed_at":           match.CompletedAt,
+		},
 	}
 
 	msg, err := NewMessage(MessageTypeLobbyState, payload)
@@ -561,4 +627,37 @@ func (h *Hub) GetTournamentJoinTime(tournamentID, userID uuid.UUID) (time.Time, 
 
 	joinTime, exists := joinTimes[userID]
 	return joinTime, exists
+}
+
+// BroadcastServerRestarting sends a server_restarting message to all connected clients
+// This is called during graceful shutdown to notify clients to prepare for reconnection
+func (h *Hub) BroadcastServerRestarting() {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	msg, err := NewMessage(MessageType("server_restarting"), map[string]interface{}{
+		"message": "Server is restarting, please wait for reconnection",
+	})
+	if err != nil {
+		log.Printf("[Hub] ERROR: Failed to create server_restarting message: %v", err)
+		return
+	}
+
+	messageBytes, _ := json.Marshal(msg)
+
+	// Send to all match lobby clients
+	for matchID := range h.matches {
+		h.mu.RUnlock()
+		h.broadcastToMatch(matchID, messageBytes)
+		h.mu.RLock()
+	}
+
+	// Send to all tournament pre-lobby clients
+	for tournamentID := range h.tournaments {
+		h.mu.RUnlock()
+		h.broadcastToTournament(tournamentID, messageBytes)
+		h.mu.RLock()
+	}
+
+	log.Printf("[Hub] Sent server_restarting message to all clients")
 }

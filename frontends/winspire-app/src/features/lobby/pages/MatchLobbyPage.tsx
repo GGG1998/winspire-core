@@ -38,6 +38,7 @@ export function MatchLobbyPage() {
     isLoading,
     error,
     connectionStatus,
+    serverRestarting,
     claimWalkover,
   } = useMatchLobby(matchId || null);
   console.log('[MatchLobbyPage] matchState:', matchState);
@@ -172,8 +173,44 @@ export function MatchLobbyPage() {
       streamerId={matchState.tournament?.creatorId}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* WebSocket Connection Failure Banner */}
-        {(connectionStatus === 'disconnected' || connectionStatus === 'error') && (
+        {/* WebSocket Connection Status Banner */}
+        {serverRestarting && (
+          <div className="mb-6 rounded-lg border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4">
+            <div className="flex items-start gap-3">
+              <svg className="size-6 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                  Serwer restartuje...
+                </h3>
+                <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                  Serwer jest restartowany. Automatycznie połączymy Cię ponownie za chwilę.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {connectionStatus === 'reconnecting' && !serverRestarting && (
+          <div className="mb-6 rounded-lg border-2 border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 p-4">
+            <div className="flex items-start gap-3">
+              <svg className="size-6 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">
+                  Łączenie ponownie...
+                </h3>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                  Próbujemy nawiązać połączenie z serwerem. Proszę czekać...
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {(connectionStatus === 'disconnected' || connectionStatus === 'error') && !serverRestarting && (
           <div className="mb-6 rounded-lg border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
             <div className="flex items-start gap-3">
               <svg className="size-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

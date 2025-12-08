@@ -118,12 +118,23 @@ func main() {
 	)
 
 	// Initialize WebSocket hub with disconnect callback (T112)
+	// Generate instance ID for this service instance
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = uuid.New().String()
+	}
+	instanceID := fmt.Sprintf("%s-%s", hostname, uuid.New().String()[:8])
+	log.Printf("[Main] Service instance ID: %s", instanceID)
+
+	// Create session store for WebSocket session persistence in Redis
+	sessionStore := websocket.NewSessionStore(redisClient, instanceID)
+
 	// Hub must be created before matchService so we can pass it
 	// Initial callback is a placeholder - will be updated after disconnectService is created
 	disconnectCallback := func(matchID, playerID uuid.UUID, disconnectedAt time.Time) {
 		log.Printf("Player disconnected: match=%s player=%s", matchID, playerID)
 	}
-	hub := websocket.NewHub(disconnectCallback)
+	hub := websocket.NewHub(sessionStore, matchRepo, disconnectCallback)
 	go hub.Run()
 
 	// Initialize match service
@@ -210,7 +221,7 @@ func main() {
 	// Initialize HTTP handlers
 	bracketHandler := httphandlers.NewBracketHandler(bracketRepo, roundRepo, matchRepo)
 	matchHandler := httphandlers.NewMatchHandler(matchRepo, roundRepo, bracketRepo, preLobbyService, matchService, hub)
-	websocketHandler := httphandlers.NewWebSocketHandler(hub, matchRepo, publisher)
+	websocketHandler := httphandlers.NewWebSocketHandler(hub, matchRepo, publisher, sessionStore, disconnectService)
 	preLobbyHandler := httphandlers.NewPreLobbyHandler(preLobbyService, competitionClient, logger)
 	preLobbyWSHandler := httphandlers.NewPreLobbyWebSocketHandler(preLobbyService, competitionClient, hub, logger)
 
@@ -309,6 +320,14 @@ func main() {
 
 	logger.Info("Shutting down server...", nil)
 
+	// Send "server_restarting" message to all connected WebSocket clients
+	// This gives clients a heads-up to expect reconnection
+	log.Printf("[Shutdown] Notifying all WebSocket clients of server restart...")
+	hub.BroadcastServerRestarting()
+
+	// Give clients 2 seconds to receive the message and start reconnect logic
+	time.Sleep(2 * time.Second)
+
 	// Graceful shutdown with timeout
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -318,9 +337,6 @@ func main() {
 	}
 
 	logger.Info("Server stopped", nil)
-
-	// Track unused variables to avoid compile errors
-	_ = hub
 }
 
 // DatabaseHealthChecker implements HealthChecker for database
