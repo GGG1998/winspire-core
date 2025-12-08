@@ -318,9 +318,134 @@ func (h *EventHandler) HandleBracketGenerated(ctx context.Context, eventType str
 	return nil
 }
 
+// HandleMatchCreated processes MatchCreated events
+// Sends match_assigned notifications to players for rounds 2+
+func (h *EventHandler) HandleMatchCreated(ctx context.Context, eventType string, payload map[string]interface{}, metadata map[string]string) error {
+	h.logger.Info("Received MatchCreated event", map[string]interface{}{
+		"event_type": eventType,
+	})
+
+	// Parse tournament ID
+	tournamentIDStr, ok := payload["tournament_id"].(string)
+	if !ok {
+		return fmt.Errorf("missing or invalid tournament_id in payload")
+	}
+
+	tournamentID, err := uuid.Parse(tournamentIDStr)
+	if err != nil {
+		return fmt.Errorf("parse tournament_id: %w", err)
+	}
+
+	// Parse match ID
+	matchIDStr, ok := payload["match_id"].(string)
+	if !ok {
+		return fmt.Errorf("missing or invalid match_id in payload")
+	}
+
+	matchID, err := uuid.Parse(matchIDStr)
+	if err != nil {
+		return fmt.Errorf("parse match_id: %w", err)
+	}
+
+	// Parse round number
+	roundNumber, ok := payload["round_number"].(float64) // JSON numbers are float64
+	if !ok {
+		return fmt.Errorf("missing or invalid round_number in payload")
+	}
+
+	// Parse match number
+	matchNumber, ok := payload["match_number"].(float64)
+	if !ok {
+		return fmt.Errorf("missing or invalid match_number in payload")
+	}
+
+	// Parse participant 1 ID
+	participant1IDStr, ok := payload["participant1_id"].(string)
+	if !ok {
+		return fmt.Errorf("missing or invalid participant1_id in payload")
+	}
+
+	participant1ID, err := uuid.Parse(participant1IDStr)
+	if err != nil {
+		return fmt.Errorf("parse participant1_id: %w", err)
+	}
+
+	// Parse participant 2 ID (nullable for BYE)
+	var participant2ID *uuid.UUID
+	if participant2IDStr, ok := payload["participant2_id"].(string); ok && participant2IDStr != "" {
+		parsedID, err := uuid.Parse(participant2IDStr)
+		if err != nil {
+			return fmt.Errorf("parse participant2_id: %w", err)
+		}
+		participant2ID = &parsedID
+	}
+
+	// Check if this is a BYE match
+	isBye, _ := payload["is_bye"].(bool)
+
+	h.logger.Info("Processing MatchCreated event", map[string]interface{}{
+		"tournament_id": tournamentID.String(),
+		"match_id":      matchID.String(),
+		"round_number":  int(roundNumber),
+		"match_number":  int(matchNumber),
+		"is_bye":        isBye,
+	})
+
+	// Send match_assigned to participant 1
+	var opponent1 *PreLobbyParticipantInfo
+	if participant2ID != nil && *participant2ID != uuid.Nil {
+		opponent1 = &PreLobbyParticipantInfo{
+			UserID:      *participant2ID,
+			DisplayName: "Opponent",
+		}
+	}
+
+	h.preLobbyService.BroadcastMatchAssigned(
+		tournamentID,
+		participant1ID,
+		matchID,
+		int(roundNumber),
+		int(matchNumber),
+		opponent1,
+	)
+
+	// Send to participant 2 (if not BYE)
+	if participant2ID != nil && *participant2ID != uuid.Nil {
+		opponent2 := &PreLobbyParticipantInfo{
+			UserID:      participant1ID,
+			DisplayName: "Opponent",
+		}
+
+		h.preLobbyService.BroadcastMatchAssigned(
+			tournamentID,
+			*participant2ID,
+			matchID,
+			int(roundNumber),
+			int(matchNumber),
+			opponent2,
+		)
+
+		h.logger.Info("Sent match assignments to both participants", map[string]interface{}{
+			"tournament_id":   tournamentID.String(),
+			"match_id":        matchID.String(),
+			"participant1_id": participant1ID.String(),
+			"participant2_id": participant2ID.String(),
+		})
+	} else {
+		h.logger.Info("Sent match assignment (BYE match)", map[string]interface{}{
+			"tournament_id":   tournamentID.String(),
+			"match_id":        matchID.String(),
+			"participant1_id": participant1ID.String(),
+		})
+	}
+
+	return nil
+}
+
 // RegisterHandlers registers all event handlers with the subscriber
 func (h *EventHandler) RegisterHandlers(subscriber *pubsub.EventSubscriber) {
 	subscriber.Subscribe("TournamentStartRequested", h.HandleTournamentStartRequested)
 	subscriber.Subscribe("BracketGenerated", h.HandleBracketGenerated)
-	log.Println("[EventHandler] Registered handlers for TournamentStartRequested, BracketGenerated")
+	subscriber.Subscribe("MatchCreated", h.HandleMatchCreated)
+	log.Println("[EventHandler] Registered handlers for TournamentStartRequested, BracketGenerated, MatchCreated")
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth';
 import { LoadingSpinner } from '../../../shared/components/common/LoadingSpinner';
@@ -8,7 +8,6 @@ import { ActivityFeed } from '../components/ActivityFeed';
 import { GracePeriodIndicator } from '../components/GracePeriodIndicator';
 import { ByeWaitingState } from '../components/ByeWaitingState';
 import { useTournamentPreLobby } from '../hooks/useTournamentPreLobby';
-import { ERROR_MESSAGES } from '../constants';
 import { LobbyLayout } from '../layouts';
 
 /**
@@ -44,18 +43,10 @@ export function TournamentPreLobbyPage() {
     roundName: string;
   } | null>(null);
 
-  // Check authorization
-  useEffect(() => {
-    if (!user || !preLobbyState) return;
-
-    const isRegistered = preLobbyState.participants.some((p) => p.id === user.id);
-    if (!isRegistered && preLobbyState.status !== 'waiting') {
-      // User is not registered and tournament has started - redirect to detail page
-      navigate(`/tournaments/${tournamentId}`, {
-        state: { toast: { type: 'error', message: ERROR_MESSAGES.NOT_REGISTERED } },
-      });
-    }
-  }, [user, preLobbyState, navigate, tournamentId]);
+  // Note: Auth check removed - backend validates registration on WebSocket connection
+  // If user is not registered, backend will reject WS connection and send error message
+  // This prevents race condition where REST API returns empty participants list
+  // before user's WebSocket connection is established
 
   // Loading state
   if (isLoading) {

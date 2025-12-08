@@ -188,7 +188,7 @@ func main() {
 
 	// Initialize HTTP handlers
 	bracketHandler := httphandlers.NewBracketHandler(bracketRepo, roundRepo, matchRepo)
-	matchHandler := httphandlers.NewMatchHandler(matchRepo, matchService)
+	matchHandler := httphandlers.NewMatchHandler(matchRepo, roundRepo, bracketRepo, preLobbyService, matchService)
 	websocketHandler := httphandlers.NewWebSocketHandler(hub, matchRepo, publisher)
 	preLobbyHandler := httphandlers.NewPreLobbyHandler(preLobbyService, competitionClient, logger)
 	preLobbyWSHandler := httphandlers.NewPreLobbyWebSocketHandler(preLobbyService, competitionClient, hub, logger)

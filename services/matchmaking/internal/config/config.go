@@ -97,7 +97,7 @@ func Load() (*Config, error) {
 		CompetitionServiceURL: getEnv("COMPETITION_SERVICE_URL", "http://localhost:8080"),
 
 		// Observability
-		LogLevel:            getEnv("LOG_LEVEL", "info"),
+		LogLevel:            getEnv("LOG_LEVEL", "debug"),
 		LogFormat:           getEnv("LOG_FORMAT", "json"),
 		CloudWatchRegion:    getEnv("CLOUDWATCH_REGION", "us-east-1"),
 		CloudWatchLogGroup:  getEnv("CLOUDWATCH_LOG_GROUP", "/aws/ecs/matchmaking"),

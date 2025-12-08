@@ -221,7 +221,13 @@ export interface CreateTournamentInput {
   
   /** Minimum team count (default: 8) */
   minimumTeamCount?: number
-  
+
+  /** Maximum team count (default: 250) */
+  maximumTeamCount?: number
+
+  /** Team size (default: 1) */
+  teamSize?: number
+
   /** Game identifier */
   game?: GameIdentifierInput
   
@@ -305,6 +311,8 @@ export interface TournamentFormData {
   /** Team mode (e.g., '1v1', '2v2', etc.) */
   teamMode: string
   
+  /** Minimum number of players */
+  minPlayers: number
   /** Maximum number of players */
   maxPlayers: number
 }

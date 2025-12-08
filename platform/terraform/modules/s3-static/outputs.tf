@@ -28,3 +28,6 @@ output "website_domain" {
   value       = var.enable_static_website ? aws_s3_bucket_website_configuration.main[0].website_domain : null
 }
 
+
+
+

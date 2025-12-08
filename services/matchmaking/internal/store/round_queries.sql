@@ -4,13 +4,14 @@
 
 -- name: CreateRound :one
 INSERT INTO tournament_rounds (
+    id,
     bracket_id,
     round_number,
     round_name,
     matches_count,
     status
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4, $5, $6
 ) RETURNING *;
 
 -- name: GetRoundByID :one
@@ -47,6 +48,8 @@ FROM tournament_rounds r
 JOIN tournament_brackets b ON b.id = r.bracket_id
 WHERE r.status = 'in_progress'
 ORDER BY b.tournament_id, r.round_number;
+
+
 
 
 

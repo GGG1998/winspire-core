@@ -12,7 +12,7 @@ const (
 	ChannelPrefix = "events"
 
 	// Bounded contexts
-	ContextMatchmaking        = "matchmaking"
+	ContextMatchmaking          = "matchmaking"
 	ContextTournamentManagement = "tournament_management"
 )
 
@@ -40,39 +40,39 @@ func toSnakeCase(s string) string {
 
 // Matchmaking event channels
 var (
-	ChannelBracketGenerated       = ChannelName(ContextMatchmaking, "BracketGenerated")
-	ChannelRoundCreated           = ChannelName(ContextMatchmaking, "RoundCreated")
-	ChannelMatchCreated           = ChannelName(ContextMatchmaking, "MatchCreated")
-	ChannelMatchStarted           = ChannelName(ContextMatchmaking, "MatchStarted")
-	ChannelMatchCompleted         = ChannelName(ContextMatchmaking, "MatchCompleted")
-	ChannelParticipantAdvanced    = ChannelName(ContextMatchmaking, "ParticipantAdvanced")
-	ChannelParticipantEliminated  = ChannelName(ContextMatchmaking, "ParticipantEliminated")
-	ChannelWalkoverGranted        = ChannelName(ContextMatchmaking, "WalkoverGranted")
-	ChannelPlayerConnectionLost   = ChannelName(ContextMatchmaking, "PlayerConnectionLost")
+	ChannelBracketGenerated         = ChannelName(ContextMatchmaking, "BracketGenerated")
+	ChannelRoundCreated             = ChannelName(ContextMatchmaking, "RoundCreated")
+	ChannelMatchCreated             = ChannelName(ContextMatchmaking, "MatchCreated")
+	ChannelMatchStarted             = ChannelName(ContextMatchmaking, "MatchStarted")
+	ChannelMatchCompleted           = ChannelName(ContextMatchmaking, "MatchCompleted")
+	ChannelParticipantAdvanced      = ChannelName(ContextMatchmaking, "ParticipantAdvanced")
+	ChannelParticipantEliminated    = ChannelName(ContextMatchmaking, "ParticipantEliminated")
+	ChannelWalkoverGranted          = ChannelName(ContextMatchmaking, "WalkoverGranted")
+	ChannelPlayerConnectionLost     = ChannelName(ContextMatchmaking, "PlayerConnectionLost")
 	ChannelPlayerConnectionRestored = ChannelName(ContextMatchmaking, "PlayerConnectionRestored")
 
 	// Pre-lobby event channels
-	ChannelPreLobbyCreated           = ChannelName(ContextMatchmaking, "PreLobbyCreated")
-	ChannelPreLobbyGracePeriodStarted = ChannelName(ContextMatchmaking, "PreLobbyGracePeriodStarted")
-	ChannelPreLobbyGracePeriodEnded  = ChannelName(ContextMatchmaking, "PreLobbyGracePeriodEnded")
+	ChannelPreLobbyCreated             = ChannelName(ContextMatchmaking, "PreLobbyCreated")
+	ChannelPreLobbyGracePeriodStarted  = ChannelName(ContextMatchmaking, "PreLobbyGracePeriodStarted")
+	ChannelPreLobbyGracePeriodEnded    = ChannelName(ContextMatchmaking, "PreLobbyGracePeriodEnded")
 	ChannelPreLobbyParticipantSnapshot = ChannelName(ContextMatchmaking, "PreLobbyParticipantSnapshot")
-	ChannelPreLobbyCancelled         = ChannelName(ContextMatchmaking, "PreLobbyCancelled")
+	ChannelPreLobbyCancelled           = ChannelName(ContextMatchmaking, "PreLobbyCancelled")
 )
 
 // Tournament Management event channels (consumed by matchmaking)
 var (
 	// ChannelTournamentStartRequested is the command/intent to start a tournament (saga initiation)
 	ChannelTournamentStartRequested = ChannelName(ContextTournamentManagement, "TournamentStartRequested")
-	
+
 	// ChannelTournamentStarted is the fact that a tournament has successfully started (saga completion)
 	ChannelTournamentStarted = ChannelName(ContextTournamentManagement, "TournamentStarted")
 )
 
 // Saga coordination event channels (published by matchmaking)
 var (
-	ChannelGracePeriodStarted           = ChannelName(ContextMatchmaking, "GracePeriodStarted")
-	ChannelBracketGenerationCompleted   = ChannelName(ContextMatchmaking, "BracketGenerationCompleted")
-	ChannelBracketGenerationFailed      = ChannelName(ContextMatchmaking, "BracketGenerationFailed")
+	ChannelGracePeriodStarted         = ChannelName(ContextMatchmaking, "GracePeriodStarted")
+	ChannelBracketGenerationCompleted = ChannelName(ContextMatchmaking, "BracketGenerationCompleted")
+	ChannelBracketGenerationFailed    = ChannelName(ContextMatchmaking, "BracketGenerationFailed")
 )
 
 // GetMatchmakingChannels returns all channels that matchmaking publishes to
@@ -105,7 +105,7 @@ func GetMatchmakingChannels() []string {
 func GetSubscriptionChannels() []string {
 	return []string{
 		ChannelTournamentStartRequested, // Changed from TournamentStarted to TournamentStartRequested
+		ChannelBracketGenerated,         // Subscribe to own events for WebSocket routing
+		ChannelMatchCreated,             // Subscribe to own events for match assignment notifications
 	}
 }
-
-

@@ -184,6 +184,7 @@ export const serverMessageTypeSchema = z.enum([
   'grace_period_started',
   'roster_updated',
   'match_assigned',
+  'match_created', // backward compatibility
   'lobby_state',
   'player_joined',
   'player_left',
@@ -239,12 +240,33 @@ export const rosterUpdatedPayloadSchema = z.object({
   participantCount: z.number().int().nonnegative(),
 });
 
-export const matchAssignedPayloadSchema = z.object({
-  matchId: z.string().uuid(),
-  opponentName: z.string(),
-  roundName: z.string(),
+const matchAssignedSnakeCaseSchema = z.object({
+  match_id: z.string().uuid(),
+  round_number: z.number().int(),
+  match_number: z.number().int(),
+  opponent: z
+    .object({
+      user_id: z.string().uuid(),
+      display_name: z.string(),
+      avatar_url: z.string().nullable().optional(),
+      joined_at: z.string().datetime().optional(),
+    })
+    .nullable()
+    .optional(),
+});
+
+const matchAssignedCamelCaseSchema = z.object({
+  matchId: z.string(),
+  roundNumber: z.number().int(),
+  matchNumber: z.number().int(),
+  opponentName: z.string().optional(),
   isBye: z.boolean().optional(),
 });
+
+export const matchAssignedPayloadSchema = z.union([
+  matchAssignedSnakeCaseSchema,
+  matchAssignedCamelCaseSchema,
+]);
 
 export const lobbyStatePayloadSchema = z.object({
   match: matchSchema,

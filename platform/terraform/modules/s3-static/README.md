@@ -67,3 +67,6 @@ module "games_bucket" {
 - **CORS**: By default allows all origins; restrict in production environments
 - **Lifecycle**: Old versions expire after 90 days to manage storage costs
 
+
+
+

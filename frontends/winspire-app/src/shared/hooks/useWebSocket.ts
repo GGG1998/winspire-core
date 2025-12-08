@@ -16,7 +16,7 @@ interface UseWebSocketOptions {
   reconnectInterval?: number; // Initial reconnect interval in ms (default: 1000)
   reconnectBackoff?: number[]; // Backoff sequence in ms (default: [1000, 2000, 4000, 8000, 16000, 30000])
   maxReconnectAttempts?: number; // Max reconnect attempts (default: Infinity)
-  heartbeatInterval?: number; // Heartbeat interval in ms (default: 30000)
+  heartbeatInterval?: number; // Heartbeat interval in ms (default: 15000)
   messageQueueMaxSize?: number; // Max queued messages (default: 100)
 }
 
@@ -25,13 +25,20 @@ interface UseWebSocketReturn {
   isConnected: boolean;
   reconnectAttempts: number;
   error: string | null;
+  lastCloseEvent: CloseEventInfo | null;
   send: (data: string | object) => boolean;
   close: () => void;
   connect: () => void;
 }
 
+interface CloseEventInfo {
+  code: number;
+  reason: string;
+  wasClean: boolean;
+}
+
 const DEFAULT_RECONNECT_BACKOFF = [1000, 2000, 4000, 8000, 16000, 30000];
-const DEFAULT_HEARTBEAT_INTERVAL = 30000;
+const DEFAULT_HEARTBEAT_INTERVAL = 15000;
 const DEFAULT_MESSAGE_QUEUE_MAX_SIZE = 100;
 
 // ============================================================================
@@ -81,6 +88,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const [status, setStatus] = useState<ConnectionState>('disconnected');
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [lastCloseEvent, setLastCloseEvent] = useState<CloseEventInfo | null>(null);
 
   // Refs (don't trigger re-renders)
   const wsRef = useRef<WebSocket | null>(null);
@@ -105,18 +113,32 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   );
 
   /**
-   * Clear all timers
+   * Clear reconnect timeout
    */
-  const clearTimers = useCallback(() => {
+  const clearReconnectTimeout = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
+  }, []);
+
+  /**
+   * Clear heartbeat interval
+   */
+  const clearHeartbeatInterval = useCallback(() => {
     if (heartbeatIntervalRef.current) {
       clearInterval(heartbeatIntervalRef.current);
       heartbeatIntervalRef.current = null;
     }
   }, []);
+
+  /**
+   * Clear all timers
+   */
+  const clearTimers = useCallback(() => {
+    clearReconnectTimeout();
+    clearHeartbeatInterval();
+  }, [clearReconnectTimeout, clearHeartbeatInterval]);
 
   /**
    * Send heartbeat/ping message
@@ -135,9 +157,9 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
    * Start heartbeat interval
    */
   const startHeartbeat = useCallback(() => {
-    clearTimers();
+    clearHeartbeatInterval();
     heartbeatIntervalRef.current = setInterval(sendHeartbeat, heartbeatInterval);
-  }, [heartbeatInterval, sendHeartbeat, clearTimers]);
+  }, [heartbeatInterval, sendHeartbeat, clearHeartbeatInterval]);
 
   /**
    * Flush queued messages
@@ -167,12 +189,15 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     setStatus('connected');
     setReconnectAttempts(0);
     setError(null);
+    setLastCloseEvent(null);
+    clearReconnectTimeout();
     
     startHeartbeat();
+    sendHeartbeat();
     flushMessageQueue();
     
     onOpen?.();
-  }, [onOpen, startHeartbeat, flushMessageQueue]);
+  }, [onOpen, startHeartbeat, flushMessageQueue, sendHeartbeat, clearReconnectTimeout]);
 
   /**
    * Handle WebSocket message event
@@ -200,8 +225,19 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   /**
    * Handle WebSocket close event
    */
-  const handleClose = useCallback(() => {
-    console.log('[WebSocket] Connection closed');
+  const handleClose = useCallback((event: CloseEvent) => {
+    console.log(
+      `[WebSocket] Connection closed (code=${event.code}, reason="${event.reason}", clean=${event.wasClean})`
+    );
+    setLastCloseEvent({
+      code: event.code,
+      reason: event.reason,
+      wasClean: event.wasClean,
+    });
+    if (!event.wasClean || event.code !== 1000) {
+      setError(event.reason || `WebSocket closed with code ${event.code}`);
+    }
+
     clearTimers();
     setStatus('disconnected');
     onClose?.();
@@ -252,6 +288,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       console.log('[WebSocket] Connecting to:', url);
       setStatus('connecting');
       isManualCloseRef.current = false;
+      setLastCloseEvent(null);
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
@@ -322,6 +359,27 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   // ========================================================================
 
   /**
+   * Restart heartbeat when tab becomes visible again to avoid idle disconnects
+   */
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && wsRef.current?.readyState === WebSocket.OPEN) {
+        sendHeartbeat();
+        startHeartbeat();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [sendHeartbeat, startHeartbeat]);
+
+  /**
    * Connect on mount if URL provided
    */
   useEffect(() => {
@@ -344,6 +402,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     isConnected: status === 'connected',
     reconnectAttempts,
     error,
+    lastCloseEvent,
     send,
     close,
     connect,

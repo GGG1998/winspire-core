@@ -77,7 +77,7 @@ func TestTournamentStartEventPublishing(t *testing.T) {
 				}
 			} else {
 				assert.NoError(t, err, "Should not return error for valid transition")
-				assert.Equal(t, "started", tournament.Status, "Status should be updated to started")
+				assert.Equal(t, "starting", tournament.Status, "Status should be updated to starting (transient state before confirmation)")
 				assert.NotNil(t, tournament.ActualStartTimeAt, "ActualStartTimeAt should be set")
 			}
 		})

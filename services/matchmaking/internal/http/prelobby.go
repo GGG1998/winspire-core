@@ -475,7 +475,11 @@ func (h *PreLobbyWebSocketHandler) UpgradePreLobbyConnection(c *gin.Context) {
 	go h.preLobbyService.RecordParticipantJoined(context.Background(), tournamentID, displayName)
 
 	// Send initial pre-lobby state
-	go h.sendInitialState(c.Request.Context(), tournamentID, userID, tournamentInfo, client)
+	// Use context.Background() instead of c.Request.Context() because:
+	// - This goroutine lives independently of the HTTP handler
+	// - c.Request.Context() is cancelled immediately after handler returns (after WebSocket upgrade)
+	// - Would cause "context canceled" error in GetState call
+	go h.sendInitialState(context.Background(), tournamentID, userID, tournamentInfo, client)
 
 	// Broadcast participant joined to all connected clients
 	go h.preLobbyService.BroadcastParticipantJoined(tournamentID, participantInfo)
@@ -487,12 +491,23 @@ func (h *PreLobbyWebSocketHandler) UpgradePreLobbyConnection(c *gin.Context) {
 
 // sendInitialState sends the initial pre-lobby state to a newly connected client
 func (h *PreLobbyWebSocketHandler) sendInitialState(ctx context.Context, tournamentID, userID uuid.UUID, tournamentInfo *application.TournamentInfo, client *websocket.Client) {
+	// Diagnostic: check if context is already cancelled
+	if ctx.Err() != nil {
+		h.logger.Error("sendInitialState called with cancelled context", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"user_id":       userID.String(),
+			"ctx_error":     ctx.Err().Error(),
+		})
+		return
+	}
+
 	state, err := h.preLobbyService.GetState(ctx, tournamentID, tournamentInfo)
 	if err != nil {
 		h.logger.Error("failed to get pre-lobby state for initial send", map[string]interface{}{
 			"tournament_id": tournamentID.String(),
 			"user_id":       userID.String(),
 			"error":         err.Error(),
+			"ctx_error":     ctx.Err(),
 		})
 		return
 	}

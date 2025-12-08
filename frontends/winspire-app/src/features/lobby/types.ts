@@ -8,7 +8,7 @@ export interface TournamentPreLobbyState {
   tournamentName: string;
   creatorId: string; // Tournament creator/host ID (streamer ID)
   startTime: string; // ISO timestamp
-  status: 'waiting' | 'grace_period' | 'generating_bracket' | 'started';
+  status: 'waiting' | 'grace_period' | 'generating_bracket' | 'started' | 'cancelled';
   participants: PreLobbyParticipant[];
   participantCount: number;
   minimumParticipants: number;
@@ -194,8 +194,10 @@ export type ServerMessageType =
   | 'participant_joined' // Participant joined pre-lobby
   | 'participant_left' // Participant left pre-lobby
   | 'grace_period_started' // Grace period active, roster fluid
+  | 'grace_period_ended' // Grace period finished
   | 'roster_updated' // Participant count changed during grace period
   | 'match_assigned' // Player assigned to match (with match ID)
+  | 'tournament_cancelled' // Tournament cancelled during pre-lobby
   | 'lobby_state' // Initial match lobby state on connect
   | 'player_joined' // Opponent joined lobby
   | 'player_left' // Opponent left lobby
@@ -244,18 +246,41 @@ export interface ParticipantLeftPayload {
 }
 
 export interface GracePeriodStartedPayload {
-  endsAt: string;
-  durationSeconds: number;
+  start_time: string; // ISO timestamp
+  end_time: string; // ISO timestamp
+  participant_count: number;
+}
+
+export interface GracePeriodEndedPayload {
+  final_participant_count: number;
+  status: 'generating_bracket' | 'cancelled';
 }
 
 export interface RosterUpdatedPayload {
   participantCount: number;
 }
 
+export interface TournamentCancelledPayload {
+  reason: string;
+}
+
 export interface MatchAssignedPayload {
-  matchId: string;
-  opponentName: string;
-  roundName: string;
+  // Backend payload fields (snake_case)
+  match_id?: string;
+  round_number?: number;
+  match_number?: number;
+  opponent?: {
+    user_id?: string;
+    display_name?: string;
+    avatar_url?: string | null;
+    joined_at?: string;
+  } | null;
+
+  // Compatibility for potential camelCase payloads
+  matchId?: string;
+  roundNumber?: number;
+  matchNumber?: number;
+  opponentName?: string;
   isBye?: boolean;
 }
 

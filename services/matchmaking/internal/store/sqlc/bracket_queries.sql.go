@@ -15,17 +15,19 @@ import (
 const CreateBracket = `-- name: CreateBracket :one
 
 INSERT INTO tournament_brackets (
+    id,
     tournament_id,
     total_rounds,
     total_matches,
     byes_count,
     generated_at
 ) VALUES (
-    $1, $2, $3, $4, NOW()
+    $1, $2, $3, $4, $5, NOW()
 ) RETURNING id, tournament_id, total_rounds, total_matches, byes_count, generated_at, completed_at
 `
 
 type CreateBracketParams struct {
+	ID           pgtype.UUID `json:"id"`
 	TournamentID pgtype.UUID `json:"tournament_id"`
 	TotalRounds  int32       `json:"total_rounds"`
 	TotalMatches int32       `json:"total_matches"`
@@ -37,6 +39,7 @@ type CreateBracketParams struct {
 // ============================================================================
 func (q *Queries) CreateBracket(ctx context.Context, arg CreateBracketParams) (TournamentBracket, error) {
 	row := q.db.QueryRow(ctx, CreateBracket,
+		arg.ID,
 		arg.TournamentID,
 		arg.TotalRounds,
 		arg.TotalMatches,

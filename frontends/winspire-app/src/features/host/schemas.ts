@@ -42,11 +42,11 @@ export const createTournamentSchema = z.object({
       { message: 'Czas rozpoczęcia musi być co najmniej 1 minutę w przyszłości' }
     ),
   
-  game: z.string(),
+  game: z.string().min(1, 'Gra jest wymagana'),
   
   teamMode: z.string(),
-  
-  maxPlayers: z.number().min(1),
+  minPlayers: z.number().min(2),
+  maxPlayers: z.number().max(250),
 });
 
 // ============================================================================

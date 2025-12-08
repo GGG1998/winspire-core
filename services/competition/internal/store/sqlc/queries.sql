@@ -302,7 +302,7 @@ SELECT
 FROM tournaments
 WHERE external_id = $1 AND host_id = $2;
 
-3-- name: ListTournamentsByStatus :many
+-- name: ListTournamentsByStatus :many
 -- Lists tournaments by status for scheduler
 SELECT 
     id, host_id, name, description, external_id,

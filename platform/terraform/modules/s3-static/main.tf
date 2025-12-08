@@ -145,3 +145,6 @@ resource "aws_s3_bucket_metric" "main" {
   name   = "EntireBucket"
 }
 
+
+
+

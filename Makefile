@@ -35,3 +35,8 @@ add-to-workspace:
 	fi
 	@go work use ./services/$(SERVICE)
 	@echo "✅ Added ./services/$(SERVICE) to go.work"
+
+
+dev-mini-admin:
+	cd services/game-management && make run &
+	cd frontends/mini-admin && yarn dev

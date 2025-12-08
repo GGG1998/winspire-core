@@ -49,8 +49,9 @@ func (r *bracketRepository) Create(ctx context.Context, bracket *domain.Bracket,
 
 	qtx := r.queries.WithTx(tx)
 
-	// Create bracket
+	// Create bracket (use domain-generated ID to ensure FK consistency)
 	_, err = qtx.CreateBracket(ctx, sqlc.CreateBracketParams{
+		ID:           pgtypeconv.UUIDToPgtype(bracket.ID),
 		TournamentID: pgtypeconv.UUIDToPgtype(bracket.TournamentID),
 		TotalRounds:  int32(bracket.TotalRounds),
 		TotalMatches: int32(bracket.TotalMatches),
@@ -60,9 +61,10 @@ func (r *bracketRepository) Create(ctx context.Context, bracket *domain.Bracket,
 		return fmt.Errorf("create bracket: %w", err)
 	}
 
-	// Create rounds
+	// Create rounds (use domain-generated IDs to ensure FK consistency)
 	for _, round := range rounds {
 		_, err = qtx.CreateRound(ctx, sqlc.CreateRoundParams{
+			ID:           pgtypeconv.UUIDToPgtype(round.ID),
 			BracketID:    pgtypeconv.UUIDToPgtype(bracket.ID),
 			RoundNumber:  int32(round.RoundNumber),
 			RoundName:    round.RoundName,
@@ -74,9 +76,10 @@ func (r *bracketRepository) Create(ctx context.Context, bracket *domain.Bracket,
 		}
 	}
 
-	// Create matches
+	// Create matches (use domain-generated IDs to ensure FK consistency)
 	for _, match := range matches {
 		_, err = qtx.CreateMatch(ctx, sqlc.CreateMatchParams{
+			ID:             pgtypeconv.UUIDToPgtype(match.ID),
 			RoundID:        pgtypeconv.UUIDToPgtype(match.RoundID),
 			MatchNumber:    int32(match.MatchNumber),
 			NextMatchID:    pgtypeconv.UUIDPtrToPgtype(match.NextMatchID),

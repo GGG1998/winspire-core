@@ -127,11 +127,6 @@ export const VALIDATION_MESSAGES = {
 // ============================================================================
 
 /**
- * Default game value (currently fixed)
- */
-export const DEFAULT_GAME = 'Packman'
-
-/**
  * Default team mode value
  */
 export const DEFAULT_TEAM_MODE = '1v1'

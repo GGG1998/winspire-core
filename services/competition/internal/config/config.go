@@ -27,6 +27,9 @@ type Config struct {
 	// Scheduler configuration
 	SchedulerEnabled  bool
 	SchedulerInterval string
+
+	// Logging configuration
+	LogLevel string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -47,6 +50,8 @@ func Load() (Config, error) {
 		
 		SchedulerEnabled:  boolFromEnv("SCHEDULER_ENABLED", true),
 		SchedulerInterval: valueOrDefault("SCHEDULER_INTERVAL", "*/2 * * * *"),
+
+		LogLevel: valueOrDefault("LOG_LEVEL", "debug"),
 	}
 
 	if cfg.PostgresDSN == "" {

@@ -4,13 +4,14 @@
 
 -- name: CreateBracket :one
 INSERT INTO tournament_brackets (
+    id,
     tournament_id,
     total_rounds,
     total_matches,
     byes_count,
     generated_at
 ) VALUES (
-    $1, $2, $3, $4, NOW()
+    $1, $2, $3, $4, $5, NOW()
 ) RETURNING *;
 
 -- name: GetBracketByID :one

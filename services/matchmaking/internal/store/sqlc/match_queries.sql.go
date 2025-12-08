@@ -68,6 +68,7 @@ func (q *Queries) ClearMatchDisconnect(ctx context.Context, id pgtype.UUID) erro
 const CreateMatch = `-- name: CreateMatch :one
 
 INSERT INTO tournament_matches (
+    id,
     round_id,
     match_number,
     next_match_id,
@@ -75,11 +76,12 @@ INSERT INTO tournament_matches (
     participant2_id,
     status
 ) VALUES (
-    $1, $2, $3, $4, $5, $6
+    $1, $2, $3, $4, $5, $6, $7
 ) RETURNING id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, created_at, started_at, completed_at, updated_at
 `
 
 type CreateMatchParams struct {
+	ID             pgtype.UUID `json:"id"`
 	RoundID        pgtype.UUID `json:"round_id"`
 	MatchNumber    int32       `json:"match_number"`
 	NextMatchID    pgtype.UUID `json:"next_match_id"`
@@ -93,6 +95,7 @@ type CreateMatchParams struct {
 // ============================================================================
 func (q *Queries) CreateMatch(ctx context.Context, arg CreateMatchParams) (TournamentMatch, error) {
 	row := q.db.QueryRow(ctx, CreateMatch,
+		arg.ID,
 		arg.RoundID,
 		arg.MatchNumber,
 		arg.NextMatchID,

@@ -97,7 +97,7 @@ CREATE TABLE prelobby_activity_feed (
     tournament_id UUID NOT NULL REFERENCES prelobbies(tournament_id) ON DELETE CASCADE,
     event_type VARCHAR(50) NOT NULL CHECK (
         event_type IN ('participant_joined', 'participant_left', 'grace_period_started', 
-                       'grace_period_ended', 'tournament_cancelled', 'system_message')
+                       'grace_period_ended', 'bracket_generation', 'tournament_cancelled', 'system_message')
     ),
     message TEXT NOT NULL,
     participant_name VARCHAR(255),

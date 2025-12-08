@@ -13,9 +13,11 @@ import type {
   ParticipantJoinedPayload,
   ParticipantLeftPayload,
   GracePeriodStartedPayload,
+  GracePeriodEndedPayload,
   RosterUpdatedPayload,
   MatchAssignedPayload,
   ConnectionState,
+  TournamentCancelledPayload,
 } from '../types';
 import { MATCH_ASSIGNED_NOTIFICATION_DURATION } from '../constants';
 
@@ -188,6 +190,10 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
   const handleGracePeriodStarted = useCallback((payload: GracePeriodStartedPayload) => {
     console.log('[PreLobby] Grace period started:', payload);
     
+    const endTime = new Date(payload.end_time);
+    const now = Date.now();
+    const durationSeconds = Math.max(0, Math.round((endTime.getTime() - now) / 1000));
+
     setPreLobbyState((prev) => {
       if (!prev) return prev;
 
@@ -202,13 +208,14 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
       return {
         ...prev,
         status: 'grace_period',
-        gracePeriodEndsAt: payload.endsAt,
+        gracePeriodEndsAt: payload.end_time,
+        participantCount: payload.participant_count,
         activityFeed: [...prev.activityFeed, feedItem],
       };
     });
 
     setIsGracePeriodActive(true);
-    setGracePeriodRemaining(payload.durationSeconds);
+    setGracePeriodRemaining(durationSeconds);
 
     // Start countdown
     if (gracePeriodTimerRef.current) {
@@ -227,6 +234,44 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
         return next;
       });
     }, 1000);
+  }, []);
+
+  /**
+   * Handle grace_period_ended message
+   */
+  const handleGracePeriodEnded = useCallback((payload: GracePeriodEndedPayload) => {
+    console.log('[PreLobby] Grace period ended:', payload);
+
+    // Stop countdown
+    if (gracePeriodTimerRef.current) {
+      clearInterval(gracePeriodTimerRef.current);
+    }
+    setIsGracePeriodActive(false);
+    setGracePeriodRemaining(0);
+
+    setPreLobbyState((prev) => {
+      if (!prev) return prev;
+
+      const status = payload.status === 'cancelled' ? 'cancelled' : 'generating_bracket';
+      const message =
+        status === 'cancelled'
+          ? 'Turniej został anulowany po zakończeniu okresu łaski'
+          : 'Zakończono okres łaski - trwa generowanie drabinki';
+
+      const feedItem: ActivityFeedItem = {
+        id: crypto.randomUUID(),
+        type: 'tournament_starting',
+        message,
+        timestamp: new Date().toISOString(),
+      };
+
+      return {
+        ...prev,
+        status,
+        participantCount: payload.final_participant_count,
+        activityFeed: [...prev.activityFeed, feedItem],
+      };
+    });
   }, []);
 
   /**
@@ -256,12 +301,45 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
   /**
    * T036: Handle match_assigned message with 2s delay + redirect logic
    */
+  // Normalize potential snake_case or camelCase payloads (and legacy isBye)
+  const normalizeMatchAssigned = (payload: MatchAssignedPayload) => {
+    const matchId = payload.match_id ?? payload.matchId ?? '';
+    const roundNumber = payload.round_number ?? payload.roundNumber ?? 0;
+    const matchNumber = payload.match_number ?? payload.matchNumber ?? 0;
+
+    const opponentName =
+      payload.opponent?.display_name ??
+      payload.opponentName ??
+      'Przeciwnik';
+
+    const opponentUserId =
+      payload.opponent?.user_id ??
+      (payload.isBye ? '00000000-0000-0000-0000-000000000000' : undefined);
+
+    const isBye =
+      payload.isBye === true ||
+      !payload.opponent ||
+      opponentUserId === '00000000-0000-0000-0000-000000000000';
+
+    return {
+      matchId,
+      roundNumber,
+      matchNumber,
+      opponentName,
+      isBye,
+    };
+  };
+
   const handleMatchAssigned = useCallback(
-    (payload: MatchAssignedPayload) => {
+    (rawPayload: MatchAssignedPayload) => {
+      const payload = normalizeMatchAssigned(rawPayload);
       console.log('[PreLobby] Match assigned:', payload);
 
+      const { matchId, roundNumber, matchNumber, opponentName, isBye } = payload;
+      const roundName = `Runda ${roundNumber}`;
+
       // Check if this is a bye
-      if (payload.isBye) {
+      if (isBye) {
         console.log('[PreLobby] Player has BYE, showing waiting state');
         
         setPreLobbyState((prev) => {
@@ -270,7 +348,7 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
           const feedItem: ActivityFeedItem = {
             id: crypto.randomUUID(),
             type: 'tournament_starting',
-            message: `Masz BYE - automatyczny awans do ${payload.roundName}`,
+            message: `Masz BYE - automatyczny awans do ${roundName}`,
             timestamp: new Date().toISOString(),
           };
 
@@ -284,7 +362,7 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
         // Set bye state
         setHasBye(true);
         setByeInfo({
-          roundName: payload.roundName,
+          roundName,
           nextMatchSlot: 'Zwycięzca meczu poprzedniej rundy',
         });
 
@@ -299,7 +377,7 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
         const feedItem: ActivityFeedItem = {
           id: crypto.randomUUID(),
           type: 'tournament_starting',
-          message: `Przydzielono mecz: ${payload.roundName} vs ${payload.opponentName}`,
+          message: `Przydzielono mecz: ${roundName} vs ${opponentName} (mecz ${matchNumber})`,
           timestamp: new Date().toISOString(),
         };
 
@@ -312,11 +390,52 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
 
       // Show notification for 2 seconds, then redirect
       setTimeout(() => {
-        navigate(`/lobby/${tournamentId}/match/${payload.matchId}`);
+        console.log('[REDIRECT DEBUG]', {
+          from: 'handleMatchAssigned', 
+          to: `/lobby/${tournamentId}/match/${matchId}`,
+          matchId,
+          roundNumber,
+          matchNumber,
+          isBye: false
+        });
+        navigate(`/lobby/${tournamentId}/match/${matchId}`);
       }, MATCH_ASSIGNED_NOTIFICATION_DURATION);
     },
     [navigate, tournamentId]
   );
+
+  /**
+   * Handle tournament_cancelled message
+   */
+  const handleTournamentCancelled = useCallback((payload: TournamentCancelledPayload) => {
+    console.log('[PreLobby] Tournament cancelled:', payload);
+
+    // Stop countdown if any
+    if (gracePeriodTimerRef.current) {
+      clearInterval(gracePeriodTimerRef.current);
+    }
+    setIsGracePeriodActive(false);
+    setGracePeriodRemaining(0);
+
+    setPreLobbyState((prev) => {
+      if (!prev) return prev;
+
+      const feedItem: ActivityFeedItem = {
+        id: crypto.randomUUID(),
+        type: 'tournament_starting',
+        message: `Turniej anulowany: ${payload.reason}`,
+        timestamp: new Date().toISOString(),
+      };
+
+      return {
+        ...prev,
+        status: 'cancelled',
+        activityFeed: [...prev.activityFeed, feedItem],
+      };
+    });
+
+    setError(payload.reason);
+  }, []);
 
   /**
    * Handle incoming WebSocket messages
@@ -340,11 +459,17 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
           case 'grace_period_started':
             handleGracePeriodStarted(message.payload as GracePeriodStartedPayload);
             break;
+          case 'grace_period_ended':
+            handleGracePeriodEnded(message.payload as GracePeriodEndedPayload);
+            break;
           case 'roster_updated':
             handleRosterUpdated(message.payload as RosterUpdatedPayload);
             break;
           case 'match_assigned':
             handleMatchAssigned(message.payload as MatchAssignedPayload);
+            break;
+          case 'tournament_cancelled':
+            handleTournamentCancelled(message.payload as TournamentCancelledPayload);
             break;
           case 'error':
             console.error('[PreLobby] Server error:', message.payload);
@@ -362,8 +487,10 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
       handleParticipantJoined,
       handleParticipantLeft,
       handleGracePeriodStarted,
+      handleGracePeriodEnded,
       handleRosterUpdated,
       handleMatchAssigned,
+      handleTournamentCancelled,
     ]
   );
 
@@ -379,7 +506,11 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
     return session?.access_token || null;
   }, []);
 
-  const { status: connectionStatus } = useWebSocket({
+  const {
+    status: connectionStatus,
+    error: wsError,
+    lastCloseEvent,
+  } = useWebSocket({
     url: wsUrl,
     getToken,
     onMessage: handleWebSocketMessage,
@@ -387,6 +518,7 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
     onClose: () => console.log('[PreLobby] WebSocket disconnected'),
     onError: (err) => console.error('[PreLobby] WebSocket error:', err),
     reconnect: true,
+    heartbeatInterval: 15000,
   });
 
   // ========================================================================
@@ -422,6 +554,25 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
 
     loadInitialState();
   }, [tournamentId]);
+
+  // ========================================================================
+  // Connection Error Handling
+  // ========================================================================
+
+  useEffect(() => {
+    if (wsError) {
+      setError(wsError);
+    }
+  }, [wsError]);
+
+  useEffect(() => {
+    if (!lastCloseEvent) return;
+    const { code, reason, wasClean } = lastCloseEvent;
+    if (code === 1000 && wasClean) return;
+
+    const details = reason?.trim() || 'brak powodu (1005 – no status)';
+    setError(`WebSocket zamknięty (kod ${code}${wasClean ? ', clean' : ''}): ${details}`);
+  }, [lastCloseEvent]);
 
   // ========================================================================
   // Cleanup

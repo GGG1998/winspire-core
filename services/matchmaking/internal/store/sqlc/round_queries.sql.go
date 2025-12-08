@@ -14,17 +14,19 @@ import (
 const CreateRound = `-- name: CreateRound :one
 
 INSERT INTO tournament_rounds (
+    id,
     bracket_id,
     round_number,
     round_name,
     matches_count,
     status
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4, $5, $6
 ) RETURNING id, bracket_id, round_number, round_name, matches_count, status, started_at, completed_at
 `
 
 type CreateRoundParams struct {
+	ID           pgtype.UUID `json:"id"`
 	BracketID    pgtype.UUID `json:"bracket_id"`
 	RoundNumber  int32       `json:"round_number"`
 	RoundName    string      `json:"round_name"`
@@ -37,6 +39,7 @@ type CreateRoundParams struct {
 // ============================================================================
 func (q *Queries) CreateRound(ctx context.Context, arg CreateRoundParams) (TournamentRound, error) {
 	row := q.db.QueryRow(ctx, CreateRound,
+		arg.ID,
 		arg.BracketID,
 		arg.RoundNumber,
 		arg.RoundName,

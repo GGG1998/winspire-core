@@ -89,24 +89,9 @@ services:
     env_file:
       - .env
     environment:
-      # App configuration
-      - APP_ENV=development
+      - GAME_MANAGEMENT_INTERNAL_API_KEY=IlikeCookies
       - SERVICE_PORT=8085
-      
-      # Database (Supabase local)
-      - POSTGRES_DSN=${POSTGRES_DSN:-postgresql://postgres:postgres@host.docker.internal:54322/postgres?sslmode=disable}
-      
-      # Redis
-      - REDIS_URL=redis://redis:6379
-      
-      # JWT Auth
-      - HOST_JWT_SECRET=${HOST_JWT_SECRET:-your-jwt-secret-here}
-      - HOST_JWT_ISSUER=${HOST_JWT_ISSUER:-https://your-project.supabase.co/auth/v1}
-      - HOST_JWT_AUDIENCE=${HOST_JWT_AUDIENCE:-authenticated}
-      
-      # Supabase Storage
-      - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - REDIS_ADDR=redis:6379
     depends_on:
       redis:
         condition: service_healthy
@@ -119,6 +104,13 @@ services:
       # Health check
       - "traefik.http.services.game-management.loadbalancer.healthcheck.path=/healthz"
       - "traefik.http.services.game-management.loadbalancer.healthcheck.interval=30s"
+      # CORS middleware for development
+      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowmethods=GET,POST,PUT,PATCH,DELETE,OPTIONS"
+      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowheaders=Origin,Content-Type,Authorization,X-Request-ID"
+      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolalloworiginlistregex=.*"
+      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolmaxage=86400"
+      - "traefik.http.middlewares.matchmaking-cors.headers.addvaryheader=true"
+      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowcredentials=true"
     networks:
       - winspire-network
     extra_hosts:

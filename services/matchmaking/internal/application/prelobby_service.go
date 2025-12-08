@@ -183,6 +183,28 @@ func (s *PreLobbyService) GetState(ctx context.Context, tournamentID uuid.UUID, 
 	return state, nil
 }
 
+// GetParticipantDetails returns participant details for a specific user
+// If participant is not found in pre-lobby, returns a default participant info
+func (s *PreLobbyService) GetParticipantDetails(tournamentID, userID uuid.UUID) PreLobbyParticipantInfo {
+	s.participantsMu.RLock()
+	defer s.participantsMu.RUnlock()
+
+	tournamentParticipants, exists := s.participants[tournamentID]
+	if exists {
+		if participant, found := tournamentParticipants[userID]; found {
+			return *participant
+		}
+	}
+
+	// Return default participant info if not found in pre-lobby
+	return PreLobbyParticipantInfo{
+		UserID:      userID,
+		DisplayName: "Player " + userID.String()[:8], // Fallback display name
+		AvatarURL:   nil,
+		JoinedAt:    time.Now(),
+	}
+}
+
 // getParticipants returns the list of connected participants for a tournament
 func (s *PreLobbyService) getParticipants(tournamentID uuid.UUID) []PreLobbyParticipantInfo {
 	s.participantsMu.RLock()
@@ -746,7 +768,7 @@ func (s *PreLobbyService) RecoverActiveGracePeriods(ctx context.Context, onCompl
 			s.timersMu.Unlock()
 
 			s.logger.Info("recovered grace period timer", map[string]interface{}{
-				"tournament_id":    preLobby.TournamentID.String(),
+				"tournament_id":     preLobby.TournamentID.String(),
 				"remaining_seconds": remaining.Seconds(),
 			})
 		}
@@ -990,4 +1012,3 @@ func (s *PreLobbyService) BroadcastMatchAssigned(tournamentID, userID, matchID u
 		"match_number":  matchNumber,
 	})
 }
-

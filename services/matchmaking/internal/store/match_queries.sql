@@ -4,6 +4,7 @@
 
 -- name: CreateMatch :one
 INSERT INTO tournament_matches (
+    id,
     round_id,
     match_number,
     next_match_id,
@@ -11,7 +12,7 @@ INSERT INTO tournament_matches (
     participant2_id,
     status
 ) VALUES (
-    $1, $2, $3, $4, $5, $6
+    $1, $2, $3, $4, $5, $6, $7
 ) RETURNING *;
 
 -- name: GetMatchByID :one

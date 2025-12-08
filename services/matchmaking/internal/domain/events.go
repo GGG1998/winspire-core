@@ -47,7 +47,7 @@ func newBaseEvent(eventType, aggregateID, aggregateType string, payload interfac
 		Type:          eventType,
 		AggID:         aggregateID,
 		AggType:       aggregateType,
-		Context:       "Matchmaking",
+		Context:       "matchmaking",
 		OccurredAt:    time.Now(),
 		EventPayload:  payload,
 		EventMetadata: metadata,

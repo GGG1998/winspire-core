@@ -13,15 +13,27 @@ import (
 
 // MatchHandler handles match-related HTTP requests
 type MatchHandler struct {
-	matchRepo    repository.MatchRepository
-	matchService *application.MatchService
+	matchRepo      repository.MatchRepository
+	roundRepo      repository.RoundRepository
+	bracketRepo    repository.BracketRepository
+	preLobbyService *application.PreLobbyService
+	matchService   *application.MatchService
 }
 
 // NewMatchHandler creates a new match handler
-func NewMatchHandler(matchRepo repository.MatchRepository, matchService *application.MatchService) *MatchHandler {
+func NewMatchHandler(
+	matchRepo repository.MatchRepository,
+	roundRepo repository.RoundRepository,
+	bracketRepo repository.BracketRepository,
+	preLobbyService *application.PreLobbyService,
+	matchService *application.MatchService,
+) *MatchHandler {
 	return &MatchHandler{
-		matchRepo:    matchRepo,
-		matchService: matchService,
+		matchRepo:      matchRepo,
+		roundRepo:      roundRepo,
+		bracketRepo:    bracketRepo,
+		preLobbyService: preLobbyService,
+		matchService:   matchService,
 	}
 }
 
@@ -42,28 +54,76 @@ func (h *MatchHandler) GetMatch(c *gin.Context) {
 		return
 	}
 
-	// Build response with match details
+	// Fetch round to get tournament ID and round number
+	round, err := h.roundRepo.GetByID(c.Request.Context(), match.RoundID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch round", "details": err.Error()})
+		return
+	}
+
+	// Fetch bracket to get tournament info
+	bracket, err := h.bracketRepo.GetByID(c.Request.Context(), round.BracketID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch bracket", "details": err.Error()})
+		return
+	}
+
+	// Get participant details from pre-lobby service
+	participant1Details := h.preLobbyService.GetParticipantDetails(bracket.TournamentID, match.Participant1ID)
+	var participant2Details *application.PreLobbyParticipantInfo
+	if match.Participant2ID != nil {
+		details := h.preLobbyService.GetParticipantDetails(bracket.TournamentID, *match.Participant2ID)
+		participant2Details = &details
+	}
+
+	// Build match data
+	matchData := map[string]interface{}{
+		"id":                 match.ID,
+		"match_number":       match.MatchNumber,
+		"participant1_id":    match.Participant1ID,
+		"participant2_id":    match.Participant2ID,
+		"next_match_id":      match.NextMatchID,
+		"status":             match.Status,
+		"participant1_ready": match.Participant1Ready,
+		"participant2_ready": match.Participant2Ready,
+		"winner_id":          match.WinnerID,
+		"score_player1":      match.ScorePlayer1,
+		"score_player2":      match.ScorePlayer2,
+		"started_at":         match.StartedAt,
+		"completed_at":       match.CompletedAt,
+	}
+
+	// Build participant1 data
+	participant1Data := map[string]interface{}{
+		"id":           participant1Details.UserID,
+		"display_name": participant1Details.DisplayName,
+		"avatar_url":   participant1Details.AvatarURL,
+	}
+
+	// Build participant2 data (can be null)
+	var participant2Data interface{} = nil
+	if participant2Details != nil {
+		participant2Data = map[string]interface{}{
+			"id":           participant2Details.UserID,
+			"display_name": participant2Details.DisplayName,
+			"avatar_url":   participant2Details.AvatarURL,
+		}
+	}
+
+	// Build tournament data
+	tournamentData := map[string]interface{}{
+		"id":   bracket.TournamentID,
+		"name": "Tournament", // TODO: Fetch tournament name from competition service
+		"creator_id": "",     // TODO: Fetch creator ID from competition service
+	}
+
+	// Build response with nested structure
 	response := map[string]interface{}{
-		"id":                     match.ID,
-		"round_id":               match.RoundID,
-		"match_number":           match.MatchNumber,
-		"next_match_id":          match.NextMatchID,
-		"participant1_id":        match.Participant1ID,
-		"participant2_id":        match.Participant2ID,
-		"status":                 match.Status,
-		"participant1_ready":     match.Participant1Ready,
-		"participant2_ready":     match.Participant2Ready,
-		"winner_id":              match.WinnerID,
-		"score_player1":          match.ScorePlayer1,
-		"score_player2":          match.ScorePlayer2,
-		"result_source":          match.ResultSource,
-		"disconnected_player_id": match.DisconnectedPlayerID,
-		"disconnected_at":        match.DisconnectedAt,
-		"game_api_match_id":      match.GameAPIMatchID,
-		"created_at":             match.CreatedAt,
-		"started_at":             match.StartedAt,
-		"completed_at":           match.CompletedAt,
-		"updated_at":             match.UpdatedAt,
+		"match":        matchData,
+		"participant1": participant1Data,
+		"participant2": participant2Data,
+		"round_number": round.RoundNumber,
+		"tournament":   tournamentData,
 	}
 
 	c.JSON(http.StatusOK, response)
