@@ -291,8 +291,12 @@ func TestHandleTournamentStarted_Integration(t *testing.T) {
 			hub := websocket.NewHub(nil)
 			preLobbyService := NewPreLobbyService(preLobbyRepo, hub, publisher, metrics, logger)
 
+			// Setup clients
+			competitionClient := NewCompetitionClient("http://localhost:8080", logger)
+			gameManagementClient := NewGameManagementClient("http://localhost:8087", logger)
+
 			// Setup event handler
-			handler := NewEventHandler(bracketService, preLobbyService, logger)
+			handler := NewEventHandler(bracketService, preLobbyService, publisher, logger, competitionClient, gameManagementClient, "http://localhost:8087", hub)
 
 			// Run test-specific setup
 			if tt.setupData != nil {
@@ -314,7 +318,7 @@ func TestHandleTournamentStarted_Integration(t *testing.T) {
 			}
 
 			// Execute
-			err = handler.HandleTournamentStarted(ctx, "TournamentStarted", tt.payload, tt.metadata)
+			err = handler.HandleTournamentStartRequested(ctx, "TournamentStartRequested", tt.payload, tt.metadata)
 
 			// Assert
 			if tt.expectError {

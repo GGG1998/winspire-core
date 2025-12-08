@@ -5,28 +5,47 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/winspire-core/services/matchmaking/internal/domain"
 	"github.com/winspire-core/services/matchmaking/internal/observability"
 	"github.com/winspire-core/services/matchmaking/internal/pubsub"
+	"github.com/winspire-core/services/matchmaking/internal/websocket"
 )
 
 // EventHandler handles incoming domain events
 type EventHandler struct {
-	bracketService  *BracketService
-	preLobbyService *PreLobbyService
-	publisher       *pubsub.EventPublisher
-	logger          *observability.Logger
+	bracketService       *BracketService
+	preLobbyService      *PreLobbyService
+	publisher            *pubsub.EventPublisher
+	logger               *observability.Logger
+	competitionClient    *CompetitionClient
+	gameManagementClient *GameManagementClient
+	gameManagementURL    string
+	hub                  *websocket.Hub
 }
 
 // NewEventHandler creates a new event handler
-func NewEventHandler(bracketService *BracketService, preLobbyService *PreLobbyService, publisher *pubsub.EventPublisher, logger *observability.Logger) *EventHandler {
+func NewEventHandler(
+	bracketService *BracketService,
+	preLobbyService *PreLobbyService,
+	publisher *pubsub.EventPublisher,
+	logger *observability.Logger,
+	competitionClient *CompetitionClient,
+	gameManagementClient *GameManagementClient,
+	gameManagementURL string,
+	hub *websocket.Hub,
+) *EventHandler {
 	return &EventHandler{
-		bracketService:  bracketService,
-		preLobbyService: preLobbyService,
-		publisher:       publisher,
-		logger:          logger,
+		bracketService:       bracketService,
+		preLobbyService:      preLobbyService,
+		publisher:            publisher,
+		logger:               logger,
+		competitionClient:    competitionClient,
+		gameManagementClient: gameManagementClient,
+		gameManagementURL:    gameManagementURL,
+		hub:                  hub,
 	}
 }
 
@@ -442,10 +461,104 @@ func (h *EventHandler) HandleMatchCreated(ctx context.Context, eventType string,
 	return nil
 }
 
+// HandleMatchStarted processes MatchStarted events and broadcasts match_started WebSocket message with gameUrl
+func (h *EventHandler) HandleMatchStarted(ctx context.Context, eventType string, payload map[string]interface{}, metadata map[string]string) error {
+	h.logger.Info("Received MatchStarted event", map[string]interface{}{
+		"event_type": eventType,
+	})
+
+	// Parse match ID
+	matchIDStr, ok := payload["match_id"].(string)
+	if !ok {
+		return fmt.Errorf("missing or invalid match_id in payload")
+	}
+
+	matchID, err := uuid.Parse(matchIDStr)
+	if err != nil {
+		return fmt.Errorf("parse match_id: %w", err)
+	}
+
+	// Parse tournament ID
+	tournamentIDStr, ok := payload["tournament_id"].(string)
+	if !ok {
+		return fmt.Errorf("missing or invalid tournament_id in payload")
+	}
+
+	tournamentID, err := uuid.Parse(tournamentIDStr)
+	if err != nil {
+		return fmt.Errorf("parse tournament_id: %w", err)
+	}
+
+	h.logger.Info("Processing MatchStarted event", map[string]interface{}{
+		"match_id":      matchID.String(),
+		"tournament_id": tournamentID.String(),
+	})
+
+	// Fetch tournament info to get game_id
+	tournamentInfo, err := h.competitionClient.GetTournamentInfo(ctx, tournamentID)
+	if err != nil {
+		h.logger.Error("Failed to fetch tournament info", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"error":         err.Error(),
+		})
+		return fmt.Errorf("fetch tournament info: %w", err)
+	}
+
+	if tournamentInfo == nil {
+		return fmt.Errorf("tournament not found: %s", tournamentID)
+	}
+
+	// Fetch game info to get slug
+	gameInfo, err := h.gameManagementClient.GetGameByID(ctx, tournamentInfo.GameID)
+	if err != nil {
+		h.logger.Error("Failed to fetch game info", map[string]interface{}{
+			"game_id": tournamentInfo.GameID.String(),
+			"error":   err.Error(),
+		})
+		return fmt.Errorf("fetch game info: %w", err)
+	}
+
+	// Construct game URL
+	gameURL := fmt.Sprintf("%s/v1/g/%s/bundle/", h.gameManagementURL, gameInfo.Slug)
+	gameSessionID := matchID.String()
+
+	h.logger.Info("Generated game URL", map[string]interface{}{
+		"match_id":        matchID.String(),
+		"game_url":        gameURL,
+		"game_session_id": gameSessionID,
+		"game_slug":       gameInfo.Slug,
+	})
+
+	// Broadcast match_started via WebSocket
+	if h.hub != nil {
+		msg := map[string]interface{}{
+			"type":      "match_started",
+			"timestamp": time.Now(),
+			"payload": map[string]interface{}{
+				"gameUrl":       gameURL,
+				"gameSessionId": gameSessionID,
+			},
+		}
+
+		h.hub.BroadcastToMatch(matchID, msg)
+
+		h.logger.Info("Broadcasted match_started message", map[string]interface{}{
+			"match_id": matchID.String(),
+		})
+	} else {
+		h.logger.Warn("WebSocket hub not available, cannot broadcast match_started", map[string]interface{}{
+			"match_id": matchID.String(),
+		})
+	}
+
+	return nil
+}
+
 // RegisterHandlers registers all event handlers with the subscriber
 func (h *EventHandler) RegisterHandlers(subscriber *pubsub.EventSubscriber) {
 	subscriber.Subscribe("TournamentStartRequested", h.HandleTournamentStartRequested)
 	subscriber.Subscribe("BracketGenerated", h.HandleBracketGenerated)
 	subscriber.Subscribe("MatchCreated", h.HandleMatchCreated)
-	log.Println("[EventHandler] Registered handlers for TournamentStartRequested, BracketGenerated, MatchCreated")
+	subscriber.Subscribe("MatchStarted", h.HandleMatchStarted)
+	log.Println("[EventHandler] Registered handlers for TournamentStartRequested, BracketGenerated, MatchCreated, MatchStarted")
 }

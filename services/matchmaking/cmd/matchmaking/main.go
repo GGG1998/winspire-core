@@ -159,9 +159,6 @@ func main() {
 		logger,
 	)
 
-	// Initialize event handler with pre-lobby service for grace period support
-	eventHandler := application.NewEventHandler(bracketService, preLobbyService, publisher, logger)
-
 	// Initialize HTTP router
 	router := gin.New()
 
@@ -192,8 +189,23 @@ func main() {
 	// Initialize competition client (for fetching tournament info)
 	competitionClient := application.NewCompetitionClient(cfg.CompetitionServiceURL, logger)
 
+	// Initialize game management client (for fetching game info)
+	gameManagementClient := application.NewGameManagementClient(cfg.GameManagementURL, logger)
+
 	// Set hub on pre-lobby service (after hub is created)
 	preLobbyService.SetHub(hub)
+
+	// Initialize event handler with pre-lobby service for grace period support
+	eventHandler := application.NewEventHandler(
+		bracketService,
+		preLobbyService,
+		publisher,
+		logger,
+		competitionClient,
+		gameManagementClient,
+		cfg.GameManagementURL,
+		hub,
+	)
 
 	// Initialize HTTP handlers
 	bracketHandler := httphandlers.NewBracketHandler(bracketRepo, roundRepo, matchRepo)

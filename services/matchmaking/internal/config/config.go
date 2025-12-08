@@ -41,6 +41,9 @@ type Config struct {
 	// Competition Service
 	CompetitionServiceURL string
 
+	// Game Management Service
+	GameManagementURL string
+
 	// Observability
 	LogLevel            string
 	LogFormat           string
@@ -95,6 +98,9 @@ func Load() (*Config, error) {
 
 		// Competition Service
 		CompetitionServiceURL: getEnv("COMPETITION_SERVICE_URL", "http://localhost:8080"),
+
+		// Game Management Service
+		GameManagementURL: getEnv("GAME_MANAGEMENT_URL", "http://localhost:8087"),
 
 		// Observability
 		LogLevel:            getEnv("LOG_LEVEL", "debug"),

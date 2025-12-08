@@ -71,6 +71,7 @@ func (c *CompetitionClient) GetTournamentInfo(ctx context.Context, tournamentID 
 	var tournamentResp struct {
 		ID              string    `json:"id"`
 		Name            string    `json:"name"`
+		GameID          string    `json:"gameId"`
 		StartTime       time.Time `json:"scheduledStartTimeAt"`
 		MinParticipants int       `json:"minParticipants"`
 		Status          string    `json:"status"`
@@ -85,6 +86,11 @@ func (c *CompetitionClient) GetTournamentInfo(ctx context.Context, tournamentID 
 		return nil, fmt.Errorf("parse tournament ID: %w", err)
 	}
 
+	parsedGameID, err := uuid.Parse(tournamentResp.GameID)
+	if err != nil {
+		return nil, fmt.Errorf("parse game ID: %w", err)
+	}
+
 	// Default min participants if not set
 	minParticipants := tournamentResp.MinParticipants
 	if minParticipants < 2 {
@@ -94,6 +100,7 @@ func (c *CompetitionClient) GetTournamentInfo(ctx context.Context, tournamentID 
 	return &TournamentInfo{
 		ID:              parsedID,
 		Name:            tournamentResp.Name,
+		GameID:          parsedGameID,
 		StartTime:       tournamentResp.StartTime,
 		MinParticipants: minParticipants,
 		Status:          tournamentResp.Status,

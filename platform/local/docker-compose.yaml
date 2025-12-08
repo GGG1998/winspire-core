@@ -98,7 +98,7 @@ services:
     labels:
       - "traefik.enable=true"
       # Path-based routing (like ALB)
-      - "traefik.http.routers.game-management.rule=PathPrefix(`/v1/games`) || PathPrefix(`/v1/bundles`) || PathPrefix(`/v1/admin`)"
+      - "traefik.http.routers.game-management.rule=PathPrefix(`/v1/games`) || PathPrefix(`/v1/g`) || PathPrefix(`/v1/admin`)"
       - "traefik.http.routers.game-management.entrypoints=web"
       - "traefik.http.services.game-management.loadbalancer.server.port=8085"
       # Health check

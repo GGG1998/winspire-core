@@ -49,6 +49,13 @@ func NewRouter(deps ServerDeps) *gin.Engine {
 	// Health check endpoint (no auth required)
 	router.GET("/healthz", sharedhttp.HealthCheck(deps.HealthCheck))
 
+	// Public bundle serving routes (no auth required - games need to be publicly accessible)
+	publicAPI := router.Group("/v1")
+	handlers.RegisterBundleRoutes(publicAPI, handlers.BundleDeps{
+		Repo:    deps.GameRepo,
+		Storage: deps.Storage,
+	})
+
 	// API routes with auth
 	api := router.Group("/v1")
 	if deps.Config.HasAuth() {
@@ -59,15 +66,9 @@ func NewRouter(deps ServerDeps) *gin.Engine {
 		}, deps.Config.InternalServiceAPIKey))
 	}
 
-	// Public game routes
+	// Public game routes (with optional auth for internal service communication)
 	handlers.RegisterGameRoutes(api, handlers.GameDeps{
 		Repo: deps.GameRepo,
-	})
-
-	// Bundle serving routes
-	handlers.RegisterBundleRoutes(api, handlers.BundleDeps{
-		Repo:    deps.GameRepo,
-		Storage: deps.Storage,
 	})
 
 	// Admin routes (require admin role)

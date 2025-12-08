@@ -47,6 +47,7 @@ type GracePeriodInfo struct {
 type TournamentInfo struct {
 	ID              uuid.UUID
 	Name            string
+	GameID          uuid.UUID
 	StartTime       time.Time
 	MinParticipants int
 	Status          string
