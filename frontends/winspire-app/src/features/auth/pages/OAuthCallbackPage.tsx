@@ -19,10 +19,7 @@ export function OAuthCallbackPage() {
       return;
     }
 
-    console.log('[OAuthCallbackPage] Starting OAuth callback processing');
-    console.log('[OAuthCallbackPage] Current URL:', window.location.href);
-
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     let unsubscribe: (() => void) | null = null;
 
     const handleCallback = async () => {
@@ -36,19 +33,13 @@ export function OAuthCallbackPage() {
           }, 3000);
         }, 15000); // 15 second timeout
 
-        console.log('[OAuthCallbackPage] Waiting for Supabase to process session from URL...');
-
         // Listen for auth state changes from Supabase
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-          console.log('[OAuthCallbackPage] Auth event received:', event, session ? 'Session exists' : 'No session');
-
           // Only process SIGNED_IN event (when OAuth callback is processed)
           if (event === 'SIGNED_IN' && session && !handledRef.current) {
             handledRef.current = true;
             clearTimeout(timeoutId);
             
-            console.log('[OAuthCallbackPage] Session established, processing user profile...');
-
             try {
               const result = await handleOAuthCallback();
 
@@ -61,20 +52,16 @@ export function OAuthCallbackPage() {
                 return;
               }
 
-              console.log('[OAuthCallbackPage] Profile processed successfully:', result.user.profileType);
-
               // Refresh the auth context with the new user
               await refreshUser();
 
               // Check if user has completed their profile (nickname is required)
               if (!result.user.profile.nickname || result.user.profile.nickname.trim() === '') {
-                console.log('[OAuthCallbackPage] Profile incomplete, redirecting to completion page');
                 navigate('/auth/complete-profile');
                 return;
               }
 
               // Profile complete, redirect to home page
-              console.log('[OAuthCallbackPage] Authentication complete, redirecting to home');
               navigate('/');
             } catch (err) {
               console.error('[OAuthCallbackPage] Error during profile processing:', err);
@@ -91,7 +78,6 @@ export function OAuthCallbackPage() {
         // Check if session already exists (in case event already fired)
         const { data: { session } } = await supabase.auth.getSession();
         if (session && !handledRef.current) {
-          console.log('[OAuthCallbackPage] Session already exists, processing immediately');
           handledRef.current = true;
           clearTimeout(timeoutId);
           
@@ -105,8 +91,6 @@ export function OAuthCallbackPage() {
             }, 3000);
             return;
           }
-
-          console.log('[OAuthCallbackPage] Profile processed successfully');
 
           await refreshUser();
 

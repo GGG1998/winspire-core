@@ -48,8 +48,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let didReceiveInitialSession = false;
     
-    console.log('[AuthContext] Setting up auth state listener');
-    
     // Safety timeout: if INITIAL_SESSION doesn't fire within 15 seconds,
     // something is seriously wrong - stop loading
     const safetyTimeout = setTimeout(() => {
@@ -65,51 +63,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[AuthContext] Auth state changed:', {
-        event,
-        hasSession: !!session,
-        hasUser: !!session?.user,
-        userId: session?.user?.id,
-      });
 
       if (event === 'INITIAL_SESSION') {
         didReceiveInitialSession = true;
         clearTimeout(safetyTimeout);
         
-        console.log('[AuthContext] INITIAL_SESSION event received');
         
         // This is the first event fired when the component mounts
         // It contains the session from localStorage if available
         if (session?.user) {
-          console.log('[AuthContext] Session found, refreshing user profile');
           await refreshUser(true);
         } else {
-          console.log('[AuthContext] No session found, user is not authenticated');
           setUser(null);
           setIsLoading(false);
         }
       } else if (event === 'SIGNED_IN') {
-        console.log('[AuthContext] SIGNED_IN event - new authentication');
         // Don't refresh here, let OAuthCallbackPage handle it
         // This prevents duplicate profile fetches
       } else if (event === 'TOKEN_REFRESHED') {
         // Token was automatically refreshed by Supabase
         // Re-fetch user profile to ensure we have latest data
-        console.log('[AuthContext] Token refreshed, updating user data');
         await refreshUser(false);
       } else if (event === 'SIGNED_OUT') {
-        console.log('[AuthContext] User signed out');
         setUser(null);
         setIsLoading(false);
       } else if (event === 'USER_UPDATED') {
         // User metadata was updated
-        console.log('[AuthContext] User updated, refreshing profile');
         await refreshUser(false);
       }
     });
 
     return () => {
-      console.log('[AuthContext] Cleaning up auth state listener');
       clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
@@ -180,7 +164,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await supabaseLogout();
       if (error) {
-        console.error('Error logging out:', error);
         // Rehydrate user state if Supabase sign-out fails
         await refreshUser();
         return;

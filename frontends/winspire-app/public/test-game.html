@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            text-align: center;
+            max-width: 600px;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        .info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            text-align: left;
+        }
+        .info pre {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 0.5rem;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        button {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 0.5rem;
+            font-weight: bold;
+        }
+        button:hover {
+            transform: scale(1.05);
+        }
+        .status {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Test Game</h1>
+        <p>This is a test game to verify iframe communication</p>
+        
+        <div class="info">
+            <h3>URL Parameters:</h3>
+            <pre id="params"></pre>
+        </div>
+
+        <div class="info">
+            <h3>Parent Window:</h3>
+            <pre id="parent-info"></pre>
+        </div>
+
+        <div>
+            <button onclick="sendGameReady()">Send game_ready</button>
+            <button onclick="sendGameComplete()">Send game_complete</button>
+            <button onclick="sendGameError()">Send game_error</button>
+        </div>
+
+        <div class="status" id="status">
+            <strong>Status:</strong> Initialized
+        </div>
+    </div>
+
+    <script>
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const matchId = urlParams.get('matchId');
+        const sessionToken = urlParams.get('sessionToken');
+
+        // Display parameters
+        document.getElementById('params').textContent = JSON.stringify({
+            matchId: matchId || 'Not provided',
+            sessionToken: sessionToken || 'Not provided',
+            fullURL: window.location.href
+        }, null, 2);
+
+        // Display parent info
+        document.getElementById('parent-info').textContent = JSON.stringify({
+            hasParent: window.parent !== window,
+            parentOrigin: document.referrer || 'Unknown',
+            inIframe: window.self !== window.top
+        }, null, 2);
+
+        function updateStatus(message) {
+            const status = document.getElementById('status');
+            status.innerHTML = `<strong>Status:</strong> ${message}`;
+            console.log('[TestGame]', message);
+        }
+
+        function sendGameReady() {
+            const message = {
+                type: 'game_ready',
+                matchId: matchId,
+                timestamp: new Date().toISOString()
+            };
+            console.log('[TestGame] Sending game_ready:', message);
+            window.parent.postMessage(message, '*');
+            updateStatus('✅ Sent game_ready');
+        }
+
+        function sendGameComplete() {
+            const message = {
+                type: 'game_complete',
+                matchId: matchId,
+                winnerId: 'test-winner-123',
+                score: 100,
+                timestamp: new Date().toISOString()
+            };
+            console.log('[TestGame] Sending game_complete:', message);
+            window.parent.postMessage(message, '*');
+            updateStatus('✅ Sent game_complete');
+        }
+
+        function sendGameError() {
+            const message = {
+                type: 'game_error',
+                matchId: matchId,
+                error: 'Test error message',
+                timestamp: new Date().toISOString()
+            };
+            console.log('[TestGame] Sending game_error:', message);
+            window.parent.postMessage(message, '*');
+            updateStatus('❌ Sent game_error');
+        }
+
+        // Auto-send game_ready after 2 seconds
+        console.log('[TestGame] Initializing...');
+        console.log('[TestGame] Match ID:', matchId);
+        console.log('[TestGame] Session Token:', sessionToken ? 'Present' : 'Not provided');
+        console.log('[TestGame] In iframe:', window.self !== window.top);
+        
+        setTimeout(() => {
+            sendGameReady();
+        }, 2000);
+
+        updateStatus('Waiting 2s before auto-sending game_ready...');
+    </script>
+</body>
+</html>
+

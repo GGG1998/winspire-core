@@ -35,8 +35,6 @@ export function useDisconnect(): UseDisconnectReturn {
 
   // Set player as disconnected
   const setDisconnected = useCallback((playerId: string, disconnectedAt: string) => {
-    console.log('[useDisconnect] Player disconnected:', playerId, disconnectedAt);
-    
     // Calculate initial remaining time
     const disconnectTime = new Date(disconnectedAt).getTime();
     const now = Date.now();
@@ -52,9 +50,7 @@ export function useDisconnect(): UseDisconnectReturn {
   }, []);
 
   // Set player as reconnected
-  const setReconnected = useCallback(() => {
-    console.log('[useDisconnect] Player reconnected');
-    
+  const setReconnected = useCallback(() => {    
     setState({
       isDisconnected: false,
       disconnectedPlayerId: null,
@@ -93,7 +89,6 @@ export function useDisconnect(): UseDisconnectReturn {
 
       // Auto-clear when time expires
       if (remaining === 0) {
-        console.log('[useDisconnect] Reconnect window expired');
         clearInterval(interval);
       }
     }, 1000);

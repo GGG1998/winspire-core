@@ -72,8 +72,6 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
    * T031: Handle prelobby_state message (initial state on connect)
    */
   const handlePreLobbyState = useCallback((payload: PreLobbyStatePayload) => {
-    console.log('[PreLobby] Received initial state:', payload);
-    
     setPreLobbyState({
       tournamentId: payload.tournament.id,
       tournamentName: payload.tournament.name,
@@ -95,8 +93,6 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
    * T032: Handle participant_joined message
    */
   const handleParticipantJoined = useCallback((payload: ParticipantJoinedPayload) => {
-    console.log('[PreLobby] Participant joined:', payload);
-    
     setPreLobbyState((prev) => {
       if (!prev) return prev;
 
@@ -147,8 +143,6 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
    * T033: Handle participant_left message
    */
   const handleParticipantLeft = useCallback((payload: ParticipantLeftPayload) => {
-    console.log('[PreLobby] Participant left:', payload);
-    
     setPreLobbyState((prev) => {
       if (!prev) return prev;
 
@@ -188,8 +182,6 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
    * T034: Handle grace_period_started message
    */
   const handleGracePeriodStarted = useCallback((payload: GracePeriodStartedPayload) => {
-    console.log('[PreLobby] Grace period started:', payload);
-    
     const endTime = new Date(payload.end_time);
     const now = Date.now();
     const durationSeconds = Math.max(0, Math.round((endTime.getTime() - now) / 1000));
@@ -240,8 +232,6 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
    * Handle grace_period_ended message
    */
   const handleGracePeriodEnded = useCallback((payload: GracePeriodEndedPayload) => {
-    console.log('[PreLobby] Grace period ended:', payload);
-
     // Stop countdown
     if (gracePeriodTimerRef.current) {
       clearInterval(gracePeriodTimerRef.current);
@@ -278,8 +268,6 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
    * T035: Handle roster_updated message (participant count changes during grace period)
    */
   const handleRosterUpdated = useCallback((payload: RosterUpdatedPayload) => {
-    console.log('[PreLobby] Roster updated:', payload);
-    
     setPreLobbyState((prev) => {
       if (!prev) return prev;
       return {
@@ -333,15 +321,12 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
   const handleMatchAssigned = useCallback(
     (rawPayload: MatchAssignedPayload) => {
       const payload = normalizeMatchAssigned(rawPayload);
-      console.log('[PreLobby] Match assigned:', payload);
 
       const { matchId, roundNumber, matchNumber, opponentName, isBye } = payload;
       const roundName = `Runda ${roundNumber}`;
 
       // Check if this is a bye
       if (isBye) {
-        console.log('[PreLobby] Player has BYE, showing waiting state');
-        
         setPreLobbyState((prev) => {
           if (!prev) return prev;
 
@@ -390,14 +375,6 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
 
       // Show notification for 2 seconds, then redirect
       setTimeout(() => {
-        console.log('[REDIRECT DEBUG]', {
-          from: 'handleMatchAssigned', 
-          to: `/lobby/${tournamentId}/match/${matchId}`,
-          matchId,
-          roundNumber,
-          matchNumber,
-          isBye: false
-        });
         navigate(`/lobby/${tournamentId}/match/${matchId}`);
       }, MATCH_ASSIGNED_NOTIFICATION_DURATION);
     },
@@ -408,8 +385,6 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
    * Handle tournament_cancelled message
    */
   const handleTournamentCancelled = useCallback((payload: TournamentCancelledPayload) => {
-    console.log('[PreLobby] Tournament cancelled:', payload);
-
     // Stop countdown if any
     if (gracePeriodTimerRef.current) {
       clearInterval(gracePeriodTimerRef.current);
@@ -444,7 +419,6 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
     (event: MessageEvent) => {
       try {
         const message: WebSocketMessage = JSON.parse(event.data);
-        console.log('[PreLobby] WebSocket message:', message.type);
 
         switch (message.type) {
           case 'prelobby_state':
@@ -472,7 +446,6 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
             handleTournamentCancelled(message.payload as TournamentCancelledPayload);
             break;
           case 'error':
-            console.error('[PreLobby] Server error:', message.payload);
             setError(String(message.payload));
             break;
           default:

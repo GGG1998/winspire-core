@@ -43,7 +43,6 @@ export function ProfileCompletionForm({ userId, profileType, initialData }: Prof
   });
 
   const onSubmit = async (data: ProfileCompletionInput) => {
-    console.log('[ProfileCompletion] onSubmit started', { data, userId, profileType });
     setError(null);
     setIsLoading(true);
 
@@ -55,7 +54,6 @@ export function ProfileCompletionForm({ userId, profileType, initialData }: Prof
         nickname: data.nickname,
       };
 
-      console.log('[ProfileCompletion] Updating profile...', { tableName, updateData });
       const { error: updateError } = await supabase
         .from(tableName)
         .update(updateData)
@@ -65,13 +63,10 @@ export function ProfileCompletionForm({ userId, profileType, initialData }: Prof
         console.error('[ProfileCompletion] Update failed:', updateError);
         throw new Error(updateError.message);
       }
-      console.log('[ProfileCompletion] ✓ Profile updated successfully');
 
       // MUST refresh user context BEFORE navigate to avoid race condition with ProtectedRoute
       // ProtectedRoute checks user.profile.nickname - if not refreshed, it redirects back here
-      try {
-        console.log('[ProfileCompletion] Refreshing user context (skipping session refresh)...');
-        
+      try {        
         // Skip refreshSession() as it may hang with JWT hook issues
         // Just refresh user context directly from database
         await Promise.race([
@@ -80,21 +75,17 @@ export function ProfileCompletionForm({ userId, profileType, initialData }: Prof
             setTimeout(() => reject(new Error('User context refresh timeout')), 3000)
           )
         ]);
-        console.log('[ProfileCompletion] ✓ User context refreshed');
       } catch (refreshErr) {
         console.error('[ProfileCompletion] Refresh failed:', refreshErr);
         // Continue anyway - worst case user will re-login
       }
 
-      console.log('[ProfileCompletion] Navigating to /');
       // Now safe to navigate - user context has updated nickname
       navigate('/');
-      console.log('[ProfileCompletion] ✓ Navigate called');
     } catch (err) {
       console.error('[ProfileCompletion] Error in onSubmit:', err);
       setError(err instanceof Error ? err.message : 'Failed to update profile. Please try again.');
     } finally {
-      console.log('[ProfileCompletion] onSubmit finished, setIsLoading(false)');
       setIsLoading(false);
     }
   };
