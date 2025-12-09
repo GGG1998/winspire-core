@@ -289,7 +289,7 @@ func main() {
 			"participant_count": len(participantIDs),
 		})
 		if len(participantIDs) >= 2 {
-			if err := bracketService.GenerateBracket(context.Background(), tournamentID, participantIDs); err != nil {
+			if err := bracketService.GenerateBracket(context.Background(), tournamentID, participantIDs, nil); err != nil {
 				logger.Error("Failed to generate bracket from grace period callback", map[string]interface{}{
 					"tournament_id": tournamentID.String(),
 					"error":         err.Error(),

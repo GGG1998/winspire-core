@@ -7,6 +7,7 @@
 CREATE TABLE tournament_brackets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tournament_id UUID NOT NULL UNIQUE,
+    game_snapshot JSONB,
     total_rounds INTEGER NOT NULL CHECK (total_rounds > 0),
     total_matches INTEGER NOT NULL CHECK (total_matches > 0),
     byes_count INTEGER NOT NULL DEFAULT 0 CHECK (byes_count >= 0),

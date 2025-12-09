@@ -51,11 +51,12 @@ func NewEventHandler(
 
 // TournamentStartRequestedPayload represents the payload of TournamentStartRequested event
 type TournamentStartRequestedPayload struct {
-	TournamentID string   `json:"tournament_id"`
-	HostID       string   `json:"host_id"`
-	Participants []string `json:"participants"` // Array of participant UUIDs
-	GameID       string   `json:"game_id"`
-	StartedAt    string   `json:"started_at"`
+	TournamentID string                 `json:"tournament_id"`
+	HostID       string                 `json:"host_id"`
+	Participants []string               `json:"participants"` // Array of participant UUIDs
+	GameID       string                 `json:"game_id"`
+	GameSnapshot map[string]interface{} `json:"game_snapshot,omitempty"` // Optional game snapshot
+	StartedAt    string                 `json:"started_at"`
 }
 
 // HandleTournamentStartRequested processes TournamentStartRequested events from competition service
@@ -91,6 +92,34 @@ func (h *EventHandler) HandleTournamentStartRequested(ctx context.Context, event
 	// Add correlation ID to context
 	if correlationID, ok := metadata["correlation_id"]; ok {
 		ctx = context.WithValue(ctx, "correlation_id", correlationID)
+	}
+
+	// Extract game snapshot from event payload if available
+	var gameSnapshot *domain.GameSnapshot
+	if eventPayload.GameSnapshot != nil {
+		gameSnapshot = &domain.GameSnapshot{}
+		if id, ok := eventPayload.GameSnapshot["id"].(string); ok {
+			parsedID, _ := uuid.Parse(id)
+			gameSnapshot.ID = parsedID
+		}
+		if slug, ok := eventPayload.GameSnapshot["slug"].(string); ok {
+			gameSnapshot.Slug = slug
+		}
+		if name, ok := eventPayload.GameSnapshot["name"].(string); ok {
+			gameSnapshot.Name = name
+		}
+		if version, ok := eventPayload.GameSnapshot["version"].(string); ok {
+			gameSnapshot.Version = version
+		}
+		if logoURL, ok := eventPayload.GameSnapshot["logoUrl"].(string); ok {
+			gameSnapshot.LogoURL = &logoURL
+		}
+		if description, ok := eventPayload.GameSnapshot["description"].(string); ok {
+			gameSnapshot.Description = &description
+		}
+		if storagePath, ok := eventPayload.GameSnapshot["storagePath"].(string); ok {
+			gameSnapshot.StoragePath = storagePath
+		}
 	}
 
 	// Check if pre-lobby service is available
@@ -145,7 +174,7 @@ func (h *EventHandler) HandleTournamentStartRequested(ctx context.Context, event
 				}
 
 				// Generate bracket with participants from snapshot
-				if err := h.bracketService.GenerateBracket(context.Background(), tournamentID, participantIDs); err != nil {
+				if err := h.bracketService.GenerateBracket(context.Background(), tournamentID, participantIDs, gameSnapshot); err != nil {
 					h.logger.Error("Failed to generate bracket after grace period", map[string]interface{}{
 						"tournament_id": tournamentID.String(),
 						"error":         err.Error(),
@@ -239,7 +268,7 @@ func (h *EventHandler) HandleTournamentStartRequested(ctx context.Context, event
 	}
 
 	// Generate bracket
-	if err := h.bracketService.GenerateBracket(ctx, tournamentID, participants); err != nil {
+	if err := h.bracketService.GenerateBracket(ctx, tournamentID, participants, gameSnapshot); err != nil {
 		h.logger.Error("Failed to generate bracket", map[string]interface{}{
 			"tournament_id":  tournamentID.String(),
 			"error":          err.Error(),
@@ -494,39 +523,85 @@ func (h *EventHandler) HandleMatchStarted(ctx context.Context, eventType string,
 		"tournament_id": tournamentID.String(),
 	})
 
-	// Fetch tournament info to get game_id
-	tournamentInfo, err := h.competitionClient.GetTournamentInfo(ctx, tournamentID)
+	// Fetch match to get round and bracket info
+	match, err := h.bracketService.matchRepo.GetByID(ctx, matchID)
 	if err != nil {
-		h.logger.Error("Failed to fetch tournament info", map[string]interface{}{
-			"tournament_id": tournamentID.String(),
-			"error":         err.Error(),
+		h.logger.Error("Failed to fetch match", map[string]interface{}{
+			"match_id": matchID.String(),
+			"error":    err.Error(),
 		})
-		return fmt.Errorf("fetch tournament info: %w", err)
+		return fmt.Errorf("fetch match: %w", err)
 	}
 
-	if tournamentInfo == nil {
-		return fmt.Errorf("tournament not found: %s", tournamentID)
-	}
-
-	// Fetch game info to get slug
-	gameInfo, err := h.gameManagementClient.GetGameByID(ctx, tournamentInfo.GameID)
+	// Fetch round to get bracket ID
+	round, err := h.bracketService.roundRepo.GetByID(ctx, match.RoundID)
 	if err != nil {
-		h.logger.Error("Failed to fetch game info", map[string]interface{}{
-			"game_id": tournamentInfo.GameID.String(),
-			"error":   err.Error(),
+		h.logger.Error("Failed to fetch round", map[string]interface{}{
+			"round_id": match.RoundID.String(),
+			"error":    err.Error(),
 		})
-		return fmt.Errorf("fetch game info: %w", err)
+		return fmt.Errorf("fetch round: %w", err)
 	}
 
-	// Construct game URL
-	gameURL := fmt.Sprintf("%s/v1/g/%s/bundle/", h.gameManagementURL, gameInfo.Slug)
+	// Fetch bracket to get game snapshot
+	bracket, err := h.bracketService.bracketRepo.GetByID(ctx, round.BracketID)
+	if err != nil {
+		h.logger.Error("Failed to fetch bracket", map[string]interface{}{
+			"bracket_id": round.BracketID.String(),
+			"error":      err.Error(),
+		})
+		return fmt.Errorf("fetch bracket: %w", err)
+	}
+
+	// Try to use game snapshot from bracket (fast path - no HTTP calls)
+	var gameURL string
 	gameSessionID := matchID.String()
 
-	h.logger.Info("Generated game URL", map[string]interface{}{
+	if bracket.GameSnapshot != nil {
+		// Use local game snapshot (zero HTTP calls!)
+		gameURL = fmt.Sprintf("%s/v1/g/%s/bundle/", h.gameManagementURL, bracket.GameSnapshot.Slug)
+		h.logger.Info("Using game snapshot from bracket", map[string]interface{}{
+			"match_id":  matchID.String(),
+			"game_slug": bracket.GameSnapshot.Slug,
+		})
+	} else {
+		// Fallback: Fetch from game-management service (backward compatibility)
+		h.logger.Warn("No game snapshot in bracket, falling back to HTTP calls", map[string]interface{}{
+			"match_id":      matchID.String(),
+			"tournament_id": tournamentID.String(),
+		})
+
+		// Fetch tournament info to get game_id
+		tournamentInfo, err := h.competitionClient.GetTournamentInfo(ctx, tournamentID)
+		if err != nil {
+			h.logger.Error("Failed to fetch tournament info", map[string]interface{}{
+				"tournament_id": tournamentID.String(),
+				"error":         err.Error(),
+			})
+			return fmt.Errorf("fetch tournament info: %w", err)
+		}
+
+		if tournamentInfo == nil {
+			return fmt.Errorf("tournament not found: %s", tournamentID)
+		}
+
+		// Fetch game info to get slug
+		gameInfo, err := h.gameManagementClient.GetGameByID(ctx, tournamentInfo.GameID)
+		if err != nil {
+			h.logger.Error("Failed to fetch game info", map[string]interface{}{
+				"game_id": tournamentInfo.GameID.String(),
+				"error":   err.Error(),
+			})
+			return fmt.Errorf("fetch game info: %w", err)
+		}
+
+		gameURL = fmt.Sprintf("%s/v1/g/%s/bundle/", h.gameManagementURL, gameInfo.Slug)
+	}
+
+	h.logger.Info("Game URL constructed for match", map[string]interface{}{
 		"match_id":        matchID.String(),
 		"game_url":        gameURL,
 		"game_session_id": gameSessionID,
-		"game_slug":       gameInfo.Slug,
 	})
 
 	// Broadcast match_started via WebSocket

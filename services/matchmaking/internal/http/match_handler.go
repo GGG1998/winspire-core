@@ -83,19 +83,22 @@ func (h *MatchHandler) GetMatch(c *gin.Context) {
 
 	// Build match data
 	matchData := map[string]interface{}{
-		"id":                 match.ID,
-		"match_number":       match.MatchNumber,
-		"participant1_id":    match.Participant1ID,
-		"participant2_id":    match.Participant2ID,
-		"next_match_id":      match.NextMatchID,
-		"status":             match.Status,
-		"participant1_ready": match.Participant1Ready,
-		"participant2_ready": match.Participant2Ready,
-		"winner_id":          match.WinnerID,
-		"score_player1":      match.ScorePlayer1,
-		"score_player2":      match.ScorePlayer2,
-		"started_at":         match.StartedAt,
-		"completed_at":       match.CompletedAt,
+		"id":                     match.ID,
+		"match_number":           match.MatchNumber,
+		"participant1_id":        match.Participant1ID,
+		"participant2_id":        match.Participant2ID,
+		"next_match_id":          match.NextMatchID,
+		"status":                 match.Status,
+		"participant1_ready":     match.Participant1Ready,
+		"participant2_ready":     match.Participant2Ready,
+		"winner_id":              match.WinnerID,
+		"score_player1":          match.ScorePlayer1,
+		"score_player2":          match.ScorePlayer2,
+		"game_api_match_id":      match.GameAPIMatchID,
+		"disconnected_player_id": match.DisconnectedPlayerID,
+		"disconnected_at":        match.DisconnectedAt,
+		"started_at":             match.StartedAt,
+		"completed_at":           match.CompletedAt,
 	}
 
 	// Build participant1 data
@@ -115,20 +118,13 @@ func (h *MatchHandler) GetMatch(c *gin.Context) {
 		}
 	}
 
-	// Build tournament data
-	tournamentData := map[string]interface{}{
-		"id":   bracket.TournamentID,
-		"name": "Tournament", // TODO: Fetch tournament name from competition service
-		"creator_id": "",     // TODO: Fetch creator ID from competition service
-	}
-
 	// Build response with nested structure
 	response := map[string]interface{}{
-		"match":        matchData,
-		"participant1": participant1Data,
-		"participant2": participant2Data,
-		"round_number": round.RoundNumber,
-		"tournament":   tournamentData,
+		"match":         matchData,
+		"participant1":  participant1Data,
+		"participant2":  participant2Data,
+		"round_number":  round.RoundNumber,
+		"game_snapshot": bracket.GameSnapshot,
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -307,7 +303,7 @@ func (h *MatchHandler) GetMatchesForTournament(c *gin.Context) {
 
 		// Get participant details from pre-lobby service
 		participant1Details := h.preLobbyService.GetParticipantDetails(bracket.TournamentID, match.Participant1ID)
-		
+
 		var participant2Details *application.PreLobbyParticipantInfo
 		if match.Participant2ID != nil {
 			details := h.preLobbyService.GetParticipantDetails(bracket.TournamentID, *match.Participant2ID)

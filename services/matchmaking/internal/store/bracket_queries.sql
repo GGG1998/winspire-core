@@ -6,12 +6,13 @@
 INSERT INTO tournament_brackets (
     id,
     tournament_id,
+    game_snapshot,
     total_rounds,
     total_matches,
     byes_count,
     generated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, NOW()
+    $1, $2, $3, $4, $5, $6, NOW()
 ) RETURNING *;
 
 -- name: GetBracketByID :one
@@ -27,6 +28,7 @@ WHERE tournament_id = $1;
 SELECT 
     b.id as bracket_id,
     b.tournament_id,
+    b.game_snapshot,
     b.total_rounds as bracket_total_rounds,
     b.total_matches as bracket_total_matches,
     b.byes_count,
@@ -67,4 +69,3 @@ WHERE id = $1;
 -- name: DeleteBracket :exec
 DELETE FROM tournament_brackets
 WHERE id = $1;
-

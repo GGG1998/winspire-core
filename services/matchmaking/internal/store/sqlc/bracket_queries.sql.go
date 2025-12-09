@@ -17,18 +17,20 @@ const CreateBracket = `-- name: CreateBracket :one
 INSERT INTO tournament_brackets (
     id,
     tournament_id,
+    game_snapshot,
     total_rounds,
     total_matches,
     byes_count,
     generated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, NOW()
-) RETURNING id, tournament_id, total_rounds, total_matches, byes_count, generated_at, completed_at
+    $1, $2, $3, $4, $5, $6, NOW()
+) RETURNING id, tournament_id, game_snapshot, total_rounds, total_matches, byes_count, generated_at, completed_at
 `
 
 type CreateBracketParams struct {
 	ID           pgtype.UUID `json:"id"`
 	TournamentID pgtype.UUID `json:"tournament_id"`
+	GameSnapshot []byte      `json:"game_snapshot"`
 	TotalRounds  int32       `json:"total_rounds"`
 	TotalMatches int32       `json:"total_matches"`
 	ByesCount    int32       `json:"byes_count"`
@@ -41,6 +43,7 @@ func (q *Queries) CreateBracket(ctx context.Context, arg CreateBracketParams) (T
 	row := q.db.QueryRow(ctx, CreateBracket,
 		arg.ID,
 		arg.TournamentID,
+		arg.GameSnapshot,
 		arg.TotalRounds,
 		arg.TotalMatches,
 		arg.ByesCount,
@@ -49,6 +52,7 @@ func (q *Queries) CreateBracket(ctx context.Context, arg CreateBracketParams) (T
 	err := row.Scan(
 		&i.ID,
 		&i.TournamentID,
+		&i.GameSnapshot,
 		&i.TotalRounds,
 		&i.TotalMatches,
 		&i.ByesCount,
@@ -69,7 +73,7 @@ func (q *Queries) DeleteBracket(ctx context.Context, id pgtype.UUID) error {
 }
 
 const GetBracketByID = `-- name: GetBracketByID :one
-SELECT id, tournament_id, total_rounds, total_matches, byes_count, generated_at, completed_at FROM tournament_brackets
+SELECT id, tournament_id, game_snapshot, total_rounds, total_matches, byes_count, generated_at, completed_at FROM tournament_brackets
 WHERE id = $1
 `
 
@@ -79,6 +83,7 @@ func (q *Queries) GetBracketByID(ctx context.Context, id pgtype.UUID) (Tournamen
 	err := row.Scan(
 		&i.ID,
 		&i.TournamentID,
+		&i.GameSnapshot,
 		&i.TotalRounds,
 		&i.TotalMatches,
 		&i.ByesCount,
@@ -89,7 +94,7 @@ func (q *Queries) GetBracketByID(ctx context.Context, id pgtype.UUID) (Tournamen
 }
 
 const GetBracketByTournamentID = `-- name: GetBracketByTournamentID :one
-SELECT id, tournament_id, total_rounds, total_matches, byes_count, generated_at, completed_at FROM tournament_brackets
+SELECT id, tournament_id, game_snapshot, total_rounds, total_matches, byes_count, generated_at, completed_at FROM tournament_brackets
 WHERE tournament_id = $1
 `
 
@@ -99,6 +104,7 @@ func (q *Queries) GetBracketByTournamentID(ctx context.Context, tournamentID pgt
 	err := row.Scan(
 		&i.ID,
 		&i.TournamentID,
+		&i.GameSnapshot,
 		&i.TotalRounds,
 		&i.TotalMatches,
 		&i.ByesCount,
@@ -112,6 +118,7 @@ const GetBracketWithRoundsAndMatches = `-- name: GetBracketWithRoundsAndMatches 
 SELECT 
     b.id as bracket_id,
     b.tournament_id,
+    b.game_snapshot,
     b.total_rounds as bracket_total_rounds,
     b.total_matches as bracket_total_matches,
     b.byes_count,
@@ -148,6 +155,7 @@ ORDER BY r.round_number ASC, m.match_number ASC
 type GetBracketWithRoundsAndMatchesRow struct {
 	BracketID           pgtype.UUID      `json:"bracket_id"`
 	TournamentID        pgtype.UUID      `json:"tournament_id"`
+	GameSnapshot        []byte           `json:"game_snapshot"`
 	BracketTotalRounds  int32            `json:"bracket_total_rounds"`
 	BracketTotalMatches int32            `json:"bracket_total_matches"`
 	ByesCount           int32            `json:"byes_count"`
@@ -189,6 +197,7 @@ func (q *Queries) GetBracketWithRoundsAndMatches(ctx context.Context, tournament
 		if err := rows.Scan(
 			&i.BracketID,
 			&i.TournamentID,
+			&i.GameSnapshot,
 			&i.BracketTotalRounds,
 			&i.BracketTotalMatches,
 			&i.ByesCount,

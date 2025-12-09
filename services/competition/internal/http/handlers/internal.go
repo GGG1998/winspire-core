@@ -51,6 +51,7 @@ func RegisterInternalRoutes(router *gin.Engine, deps InternalDeps) {
 			c.JSON(http.StatusOK, gin.H{
 				"id":                   tournament.ID.String(),
 				"name":                 tournament.Name,
+				"hostId":               tournament.HostID.String(),
 				"status":               tournament.Status,
 				"scheduledStartTimeAt": tournament.ScheduledStartTimeAt,
 				"minParticipants":      tournament.MinimumTeamCount,
@@ -100,8 +101,3 @@ func RegisterInternalRoutes(router *gin.Engine, deps InternalDeps) {
 		})
 	}
 }
-
-
-
-
-

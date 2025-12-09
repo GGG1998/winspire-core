@@ -57,6 +57,16 @@ export function formToApiInput(formData: TournamentFormData): CreateTournamentIn
     scheduledStartTimeAt,
     minimumTeamCount: formData.minPlayers,
     maximumTeamCount: formData.maxPlayers,
+    gameSnapshot: formData.gameSnapshot ? {
+      id: formData.gameSnapshot.id,
+      slug: formData.gameSnapshot.slug,
+      name: formData.gameSnapshot.name,
+      version: formData.gameSnapshot.version,
+      logoUrl: formData.gameSnapshot.logoUrl,
+      description: formData.gameSnapshot.description,
+      storagePath: formData.gameSnapshot.storagePath
+    } : undefined,
+    // TODO clean, we use gameSnapshot instead of gameId
     game: formData.game ? {
       id: formData.game
     } : undefined
@@ -77,8 +87,19 @@ export function apiToUiTournament(apiData: TournamentApiData): Tournament {
     name: apiData.name,
     status: apiData.status as Tournament['status'],
     startTime,
+    // TODO clean 
     game: apiData.game || 'Unknown',
     gameLogoUrl: apiData.gameLogoUrl,
+    gameSnapshot: apiData.gameSnapshot ? {
+      id: apiData.gameSnapshot.id,
+      slug: apiData.gameSnapshot.slug,
+      name: apiData.gameSnapshot.name,
+      version: apiData.gameSnapshot.version,
+      logoUrl: apiData.gameSnapshot.logoUrl,
+      description: apiData.gameSnapshot.description,
+      storagePath: apiData.gameSnapshot.storagePath
+    } : undefined,
+
     bannerUrl: apiData.bannerUrl,
     creatorId: apiData.creatorId || '',
     roomLink: apiData.roomLink || `${window.location.origin}/h/${apiData.creatorId}/tournaments/${apiData.id}`,

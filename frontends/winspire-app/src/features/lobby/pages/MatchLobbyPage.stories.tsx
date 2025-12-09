@@ -56,6 +56,7 @@ const createMockMatch = (overrides?: Partial<Match>): Match => ({
   disconnectedPlayerId: null,
   disconnectedAt: null,
   gameApiMatchId: null,
+  gameUrl: null,
   createdAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
   startedAt: null,
   completedAt: null,
@@ -340,6 +341,7 @@ export const GameInProgress: Story = {
               participant1Ready: true,
               participant2Ready: true,
               gameApiMatchId: 'session-123',
+              gameUrl: 'http://localhost:8085/v1/g/test-game/bundle/',
               startedAt: new Date().toISOString(),
             })
           );
@@ -513,6 +515,7 @@ export const OpponentDisconnected: Story = {
             createMockMatchResponse({
               status: 'started',
               gameApiMatchId: 'session-123',
+              gameUrl: 'http://localhost:8085/v1/g/test-game/bundle/',
               disconnectedPlayerId: mockOpponent.id,
               disconnectedAt: new Date(Date.now() - 5000).toISOString(),
             })

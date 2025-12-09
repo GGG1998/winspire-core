@@ -41,9 +41,18 @@ export const createTournamentSchema = z.object({
       },
       { message: 'Czas rozpoczęcia musi być co najmniej 1 minutę w przyszłości' }
     ),
-  
+  // TODO clean, we use gameSnapshot instead of gameId
   game: z.string().min(1, 'Gra jest wymagana'),
-  
+  gameSnapshot: z.object({
+    id: z.string().min(1, 'Game ID jest wymagane'),
+    slug: z.string().min(1, 'Game slug jest wymagany'),
+    name: z.string().min(1, 'Nazwa gry jest wymagana'),
+    version: z.string().min(1, 'Wersja gry jest wymagana'),
+    storagePath: z.string().min(1, 'Ścieżka do plików gry jest wymagana'),
+    logoUrl: z.string().optional(),
+    description: z.string().optional(),
+  }),
+
   teamMode: z.string(),
   minPlayers: z.number().min(2),
   maxPlayers: z.number().max(250),

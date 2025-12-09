@@ -111,9 +111,16 @@ func main() {
 	// Initialize event publisher
 	eventPublisher := pubsub.NewEventPublisher(redisClient)
 
+	// Initialize game-management client
+	gameManagementURL := os.Getenv("GAME_MANAGEMENT_URL")
+	if gameManagementURL == "" {
+		gameManagementURL = "http://localhost:8083" // Default for local dev
+	}
+	gameClient := application.NewGameManagementClient(gameManagementURL)
+
 	// Initialize event subscriber for saga coordination
 	eventSubscriber := pubsub.NewEventSubscriber(redisClient, logger)
-	eventHandler := application.NewEventHandler(tournamentPersistenceRepo, eventPublisher, logger)
+	eventHandler := application.NewEventHandler(tournamentPersistenceRepo, gameClient, eventPublisher, logger)
 	eventHandler.RegisterHandlers(eventSubscriber)
 
 	// Start event subscriber in background

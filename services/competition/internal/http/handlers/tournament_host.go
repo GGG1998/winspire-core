@@ -346,6 +346,28 @@ func RegisterTournamentHostRoutes(group *gin.RouterGroup, deps TournamentHostDep
 							}
 						}
 
+						// Prepare event payload
+						eventPayload := map[string]interface{}{
+							"tournament_id": tournamentID.String(),
+							"host_id":       tournament.HostID.String(),
+							"participants":  participantIDs,
+							"started_at":    time.Now().Format(time.RFC3339),
+						}
+
+						// Add game_id if available
+						// TODO clean, we use GameSnapshot
+						if tournament.GameID != nil {
+							eventPayload["game_id"] = tournament.GameID.String()
+						}
+
+						// Add game snapshot if available (for performance optimization)
+						if tournament.GameSnapshot != nil {
+							var gameSnapshotMap map[string]interface{}
+							if err := json.Unmarshal(tournament.GameSnapshot, &gameSnapshotMap); err == nil {
+								eventPayload["game_snapshot"] = gameSnapshotMap
+							}
+						}
+
 						// Publish TournamentStartRequested event (represents intent, not fact)
 						event := pubsub.DomainEvent{
 							EventID:       uuid.New().String(),
@@ -353,13 +375,7 @@ func RegisterTournamentHostRoutes(group *gin.RouterGroup, deps TournamentHostDep
 							AggregateID:   tournamentID.String(),
 							AggregateType: "Tournament",
 							Timestamp:     time.Now(),
-							Payload: map[string]interface{}{
-								"tournament_id": tournamentID.String(),
-								"host_id":       tournament.HostID.String(),
-								"participants":  participantIDs,
-								"game_id":       "", // TODO: Add game_id when available
-								"started_at":    time.Now().Format(time.RFC3339),
-							},
+							Payload:       eventPayload,
 							Metadata: map[string]string{
 								"correlation_id": c.GetString("correlation_id"),
 							},

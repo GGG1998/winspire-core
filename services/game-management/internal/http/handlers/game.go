@@ -79,13 +79,14 @@ func RegisterGameRoutes(group *gin.RouterGroup, deps GameDeps) {
 
 func gameToResponse(game repository.Game) GameResponse {
 	resp := GameResponse{
-		ID:        game.ID.String(),
-		Slug:      game.Slug,
-		Name:      game.Name,
-		Version:   game.Version,
-		IsActive:  game.IsActive,
-		CreatedAt: game.CreatedAt,
-		UpdatedAt: game.UpdatedAt,
+		ID:          game.ID.String(),
+		Slug:        game.Slug,
+		Name:        game.Name,
+		Version:     game.Version,
+		StoragePath: game.StoragePath,
+		IsActive:    game.IsActive,
+		CreatedAt:   game.CreatedAt,
+		UpdatedAt:   game.UpdatedAt,
 	}
 
 	if game.GameIntegrationID != nil {
@@ -101,4 +102,3 @@ func gameToResponse(game repository.Game) GameResponse {
 
 	return resp
 }
-

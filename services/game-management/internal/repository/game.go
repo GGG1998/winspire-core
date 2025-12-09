@@ -173,7 +173,6 @@ func (r *GameRepository) ListAll(ctx context.Context) ([]Game, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list all games: %w", err)
 	}
-
 	games := make([]Game, 0, len(sqlcGames))
 	for _, sg := range sqlcGames {
 		games = append(games, *sqlcGameToGame(sg))

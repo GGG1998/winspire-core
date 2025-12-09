@@ -13,6 +13,7 @@ import type {
   PreLobbyParticipant,
   ActivityFeedItem,
 } from '../types';
+import type { GameSnapshot } from '../../game-management';
 
 // ============================================================================
 // Response Transformers (snake_case API → camelCase frontend)
@@ -52,9 +53,10 @@ function transformMatch(apiData: MatchApiData): Match {
     scorePlayer1: apiData.score_player1,
     scorePlayer2: apiData.score_player2,
     resultSource: null, // Not in MatchApiData
-    disconnectedPlayerId: null, // Not in MatchApiData
-    disconnectedAt: null, // Not in MatchApiData
-    gameApiMatchId: null, // Not in MatchApiData
+    disconnectedPlayerId: apiData.disconnected_player_id,
+    disconnectedAt: apiData.disconnected_at,
+    gameApiMatchId: apiData.game_api_match_id,
+    gameUrl: apiData.game_url,
     createdAt: '', // Not in MatchApiData
     startedAt: apiData.started_at,
     completedAt: apiData.completed_at,
@@ -116,11 +118,15 @@ export interface GetMatchApiResponse {
     avatar_url: string | null;
   } | null;
   round_number: number;
-  tournament?: {
+  game_snapshot?: {
     id: string;
+    slug: string;
     name: string;
-    creator_id: string;
-  };
+    version: string;
+    logoUrl?: string;
+    description?: string;
+    storagePath: string;
+  } | null;
 }
 
 // Transformed response for frontend
@@ -129,11 +135,7 @@ export interface GetMatchResponse {
   participant1: import('../types').PlayerInfo;
   participant2: import('../types').PlayerInfo | null;
   roundNumber: number;
-  tournament?: {
-    id: string;
-    name: string;
-    creatorId: string;
-  };
+  gameSnapshot?: GameSnapshot | null;
 }
 
 /**
@@ -162,10 +164,14 @@ export async function getMatch(matchId: string): Promise<GetMatchResponse> {
       avatarUrl: data.participant2.avatar_url,
     } : null,
     roundNumber: data.round_number,
-    tournament: data.tournament ? {
-      id: data.tournament.id,
-      name: data.tournament.name,
-      creatorId: data.tournament.creator_id,
+    gameSnapshot: data.game_snapshot ? {
+      id: data.game_snapshot.id,
+      slug: data.game_snapshot.slug,
+      name: data.game_snapshot.name,
+      version: data.game_snapshot.version,
+      logoUrl: data.game_snapshot.logoUrl,
+      description: data.game_snapshot.description,
+      storagePath: data.game_snapshot.storagePath,
     } : undefined,
   };
 

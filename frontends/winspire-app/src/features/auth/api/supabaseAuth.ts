@@ -390,30 +390,42 @@ export async function registerStreamer(data: StreamerRegisterData): Promise<{ us
 
 export async function getCurrentUser(): Promise<User | null> {
   try {
+    console.log('[getCurrentUser] Fetching current user session');
+    
     // Use getSession() first - it's synchronous from localStorage cache
     // This prevents the hanging issue with getUser() which makes a network request
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
-    if (sessionError || !session?.user) {
+    if (sessionError) {
+      console.error('[getCurrentUser] Session error:', sessionError);
+      return null;
+    }
+    
+    if (!session?.user) {
+      console.log('[getCurrentUser] No active session found');
       return null;
     }
 
     const authUser = session.user;
+    console.log('[getCurrentUser] Active session found for user:', authUser.id);
 
     // Try user profile first
     let profile = await fetchUserProfile(authUser.id, 'user');
     let profileType: UserProfileType = 'user';
 
     if (!profile) {
+      console.log('[getCurrentUser] User profile not found, trying streamer profile');
       // Try streamer profile
       profile = await fetchUserProfile(authUser.id, 'streamer');
       profileType = 'streamer';
     }
 
     if (!profile) {
+      console.error('[getCurrentUser] No profile found for user:', authUser.id);
       return null;
     }
 
+    console.log('[getCurrentUser] User profile loaded:', { profileType, userId: authUser.id });
     return {
       id: authUser.id,
       email: authUser.email!,
@@ -421,7 +433,7 @@ export async function getCurrentUser(): Promise<User | null> {
       profile,
     };
   } catch (error) {
-    console.error('Error getting current user:', error);
+    console.error('[getCurrentUser] Error getting current user:', error);
     return null;
   }
 }
@@ -536,9 +548,12 @@ export async function signInWithDiscord(): Promise<{ error: AuthError | null }> 
 // Handle OAuth callback and create/fetch profile
 export async function handleOAuthCallback(): Promise<{ user: User | null; error: AuthError | null }> {
   try {
+    console.log('[handleOAuthCallback] Starting OAuth callback processing');
+    
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !authUser) {
+      console.error('[handleOAuthCallback] Failed to get authenticated user:', authError);
       return {
         user: null,
         error: {
@@ -548,28 +563,48 @@ export async function handleOAuthCallback(): Promise<{ user: User | null; error:
       };
     }
 
+    console.log('[handleOAuthCallback] Authenticated user found:', {
+      id: authUser.id,
+      email: authUser.email,
+      provider: authUser.app_metadata.provider,
+    });
+
     // Determine profile type based on OAuth provider
     const provider = authUser.app_metadata.provider;
     let profileType: UserProfileType;
     
     if (provider === 'twitch' || provider === 'discord') {
       profileType = 'streamer';
+      console.log('[handleOAuthCallback] Provider is', provider, '- using streamer profile');
     } else if (provider === 'google') {
       profileType = 'user';
+      console.log('[handleOAuthCallback] Provider is Google - using user profile');
     } else {
       // Default to user for unknown providers
       profileType = 'user';
+      console.log('[handleOAuthCallback] Unknown provider', provider, '- defaulting to user profile');
     }
 
     // Try to fetch existing profile
+    console.log('[handleOAuthCallback] Checking for existing profile...');
     let profile = await fetchUserProfile(authUser.id, profileType);
 
     // If profile doesn't exist, create it with OAuth data
     if (!profile) {
+      console.log('[handleOAuthCallback] Profile not found, creating new profile');
       const oauthMetadata = authUser.user_metadata;
+      console.log('[handleOAuthCallback] OAuth metadata:', {
+        full_name: oauthMetadata.full_name,
+        name: oauthMetadata.name,
+        preferred_username: oauthMetadata.preferred_username,
+        user_name: oauthMetadata.user_name,
+      });
+      
       const firstName = oauthMetadata.full_name?.split(' ')[0] || oauthMetadata.name?.split(' ')[0] || 'User';
       const lastName = oauthMetadata.full_name?.split(' ').slice(1).join(' ') || oauthMetadata.name?.split(' ').slice(1).join(' ') || '';
       const nickname = oauthMetadata.preferred_username || oauthMetadata.user_name || oauthMetadata.name || authUser.email?.split('@')[0] || 'user';
+
+      console.log('[handleOAuthCallback] Creating profile with:', { firstName, lastName, nickname, profileType });
 
       if (profileType === 'streamer') {
         profile = await createStreamerProfile(authUser.id, {
@@ -592,6 +627,7 @@ export async function handleOAuthCallback(): Promise<{ user: User | null; error:
       }
 
       if (!profile) {
+        console.error('[handleOAuthCallback] Failed to create profile');
         return {
           user: null,
           error: {
@@ -600,8 +636,13 @@ export async function handleOAuthCallback(): Promise<{ user: User | null; error:
           },
         };
       }
+      
+      console.log('[handleOAuthCallback] Profile created successfully');
+    } else {
+      console.log('[handleOAuthCallback] Existing profile found');
     }
 
+    console.log('[handleOAuthCallback] OAuth callback completed successfully');
     return {
       user: {
         id: authUser.id,
@@ -612,6 +653,7 @@ export async function handleOAuthCallback(): Promise<{ user: User | null; error:
       error: null,
     };
   } catch (error) {
+    console.error('[handleOAuthCallback] Unexpected error:', error);
     return {
       user: null,
       error: {

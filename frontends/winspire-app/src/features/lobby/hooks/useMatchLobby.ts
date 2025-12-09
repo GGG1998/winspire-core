@@ -4,6 +4,7 @@ import { matchmakingApi, getMatchLobbyWebSocketUrl } from '../api/matchmakingApi
 import { WS_BASE_URL } from '../../../shared/config/websocket';
 import { supabase } from '../../../shared/api/supabase';
 import { useAuth } from '../../auth';
+import type { GameSnapshot } from '../../game-management';
 import type {
   Match,
   PlayerInfo,
@@ -34,15 +35,10 @@ export interface MatchLobbyState {
   player1: PlayerInfo | null;
   player2: PlayerInfo | null;
   roundNumber: number;
-  tournament?: {
-    id: string;
-    name: string;
-    creatorId: string;
-  };
+  gameSnapshot?: GameSnapshot | null;
   status: Match['status'];
   matchStarting: boolean; // Countdown active
   countdownSeconds: number | null; // 3, 2, 1, null
-  gameUrl: string | null; // Set when match starts
   disconnectedPlayerId: string | null; // ID of disconnected player
   disconnectedAt: string | null; // Timestamp of disconnect
   canClaimWalkover: boolean; // 2 minutes elapsed, opponent not present
@@ -115,11 +111,10 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
             player1: matchData.participant1,
             player2: matchData.participant2,
             roundNumber: matchData.roundNumber || 1,
-            tournament: matchData.tournament,
+            gameSnapshot: matchData.gameSnapshot,
             status: matchData.match.status,
             matchStarting: false,
             countdownSeconds: null,
-            gameUrl: matchData.match.status === 'started' ? matchData.match.gameApiMatchId : null,
             disconnectedPlayerId: matchData.match.disconnectedPlayerId || null,
             disconnectedAt: matchData.match.disconnectedAt || null,
             canClaimWalkover: false,
@@ -162,11 +157,10 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
           player1: matchData.participant1,
           player2: matchData.participant2,
           roundNumber: matchData.roundNumber || 1,
-          tournament: matchData.tournament,
+          gameSnapshot: matchData.gameSnapshot,
           status: matchData.match.status,
           matchStarting: false,
           countdownSeconds: null,
-          gameUrl: null,
           disconnectedPlayerId: matchData.match.disconnectedPlayerId || null,
           disconnectedAt: matchData.match.disconnectedAt || null,
           canClaimWalkover: false,
@@ -181,7 +175,6 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
         setIsLoading(false);
       }
     };
-
     loadMatchData();
   }, [matchId]);
 
@@ -243,11 +236,10 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
       player1: payload.participant1,
       player2: payload.participant2,
       roundNumber: prev?.roundNumber || 1,
-      tournament: prev?.tournament,
+      gameSnapshot: prev?.gameSnapshot,
       status: payload.match.status,
       matchStarting: prev?.matchStarting || false,
       countdownSeconds: prev?.countdownSeconds || null,
-      gameUrl: prev?.gameUrl || null,
       disconnectedPlayerId: payload.match.disconnectedPlayerId || null,
       disconnectedAt: payload.match.disconnectedAt || null,
       canClaimWalkover: prev?.canClaimWalkover || false,
@@ -347,7 +339,6 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
         status: 'started',
         matchStarting: false,
         countdownSeconds: null,
-        gameUrl: payload.gameUrl,
       };
     });
   }, []);

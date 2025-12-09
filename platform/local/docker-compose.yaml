@@ -100,10 +100,15 @@ services:
       # Path-based routing (like ALB)
       - "traefik.http.routers.game-management.rule=PathPrefix(`/v1/games`) || PathPrefix(`/v1/g`) || PathPrefix(`/v1/admin`)"
       - "traefik.http.routers.game-management.entrypoints=web"
+      - "traefik.http.routers.game-management.priority=100"
+      - "traefik.http.routers.game-management.middlewares=game-bundle-iframe"
       - "traefik.http.services.game-management.loadbalancer.server.port=8085"
       # Health check
       - "traefik.http.services.game-management.loadbalancer.healthcheck.path=/healthz"
       - "traefik.http.services.game-management.loadbalancer.healthcheck.interval=30s"
+      # Middleware to allow iframe embedding for game bundles
+      - "traefik.http.middlewares.game-bundle-iframe.headers.customresponseheaders.X-Frame-Options="
+      - "traefik.http.middlewares.game-bundle-iframe.headers.customresponseheaders.Content-Security-Policy=frame-ancestors *"
       # CORS middleware for development
       - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowmethods=GET,POST,PUT,PATCH,DELETE,OPTIONS"
       - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowheaders=Origin,Content-Type,Authorization,X-Request-ID"
@@ -141,6 +146,9 @@ services:
       
       # Competition Service (for tournament info)
       - COMPETITION_SERVICE_URL=http://competition:8089
+      
+      # Game Management Service (for game info and URLs)
+      - GAME_MANAGEMENT_URL=http://game-management:8085
       
       # Supabase Storage
       - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}

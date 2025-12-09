@@ -79,6 +79,7 @@ export interface Match {
   disconnectedPlayerId: string | null;
   disconnectedAt: string | null; // ISO timestamp
   gameApiMatchId: string | null; // External game session ID
+  gameUrl: string | null; // Game URL (constructed when match starts)
   createdAt: string; // ISO timestamp
   startedAt: string | null; // ISO timestamp
   completedAt: string | null; // ISO timestamp
@@ -371,6 +372,10 @@ export interface MatchApiData {
   winner_id: string | null;
   score_player1: number | null;
   score_player2: number | null;
+  game_api_match_id: string | null;
+  game_url: string | null;
+  disconnected_player_id: string | null;
+  disconnected_at: string | null;
   started_at: string | null;
   completed_at: string | null;
 }

@@ -81,6 +81,8 @@ type Tournament struct {
 	ReadyWindow []byte `json:"ready_window"`
 	// JSONB configuration for tournament prize structure
 	Prize []byte `json:"prize"`
+	// Snapshot of game data at tournament creation (slug, name, version, logo, etc.). Used for event-driven flows to avoid synchronous HTTP calls to game-management service.
+	GameSnapshot []byte `json:"game_snapshot"`
 }
 
 // Participant registrations for tournaments

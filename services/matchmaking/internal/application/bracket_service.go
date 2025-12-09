@@ -46,7 +46,7 @@ func NewBracketService(
 }
 
 // GenerateBracket generates a complete single-elimination bracket
-func (s *BracketService) GenerateBracket(ctx context.Context, tournamentID uuid.UUID, participants []uuid.UUID) error {
+func (s *BracketService) GenerateBracket(ctx context.Context, tournamentID uuid.UUID, participants []uuid.UUID, gameSnapshot *domain.GameSnapshot) error {
 	start := time.Now()
 	defer func() {
 		duration := time.Since(start)
@@ -68,6 +68,9 @@ func (s *BracketService) GenerateBracket(ctx context.Context, tournamentID uuid.
 	if err != nil {
 		return fmt.Errorf("create bracket: %w", err)
 	}
+
+	// Attach game snapshot if provided
+	bracket.GameSnapshot = gameSnapshot
 
 	// Generate rounds
 	rounds, err := s.generateRounds(bracket, participants)

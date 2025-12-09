@@ -33,16 +33,42 @@ export function GameFrame({
   const [error, setError] = useState<string | null>(null);
   const [loadTimeout, setLoadTimeout] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Validate gameUrl early
+  useEffect(() => {
+    if (!gameUrl || gameUrl === '') {
+      console.error('[GameFrame] Empty game URL provided');
+      setError('Brak URL gry - sprawdź czy gameSnapshot.slug jest dostępny');
+      setIsLoading(false);
+      onGameError?.('Empty game URL');
+    }
+  }, [gameUrl, onGameError]);
 
   // Construct full game URL with session parameters
   const fullGameUrl = React.useMemo(() => {
-    const url = new URL(gameUrl);
-    url.searchParams.set('matchId', matchId);
-    if (sessionToken) {
-      url.searchParams.set('sessionToken', sessionToken);
+    // Don't try to construct URL if gameUrl is empty
+    if (!gameUrl || gameUrl === '') {
+      console.warn('[GameFrame] Empty gameUrl provided, cannot construct URL');
+      return '';
     }
-    return url.toString();
+    
+    try {
+      console.log('[GameFrame] Constructing URL from:', gameUrl);
+      const url = new URL(gameUrl);
+      url.searchParams.set('matchId', matchId);
+      if (sessionToken) {
+        url.searchParams.set('sessionToken', sessionToken);
+      }
+      const finalUrl = url.toString();
+      console.log('[GameFrame] Final game URL:', finalUrl);
+      return finalUrl;
+    } catch (err) {
+      console.error('[GameFrame] Invalid game URL:', gameUrl, err);
+      setError(`Nieprawidłowy URL gry: ${gameUrl}`);
+      setIsLoading(false);
+      return '';
+    }
   }, [gameUrl, matchId, sessionToken]);
 
   // Set up 30-second timeout for game load
@@ -77,15 +103,29 @@ export function GameFrame({
   // Listen for postMessage from game iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // Log all postMessages in development for debugging
+      if (import.meta.env.DEV) {
+        console.log('[GameFrame] Received postMessage:', {
+          origin: event.origin,
+          data: event.data,
+          source: event.source === iframeRef.current?.contentWindow ? 'game iframe' : 'other'
+        });
+      }
+
       // Verify origin for security
       // TODO: Add origin validation based on environment config
       
       try {
         const message = event.data;
 
+        // Ignore messages that don't have a type (might be from other sources)
+        if (!message || typeof message !== 'object') {
+          return;
+        }
+
         // Handle game completion signal
         if (message.type === 'game_complete' || message.type === 'GAME_COMPLETE') {
-          console.log('[GameFrame] Game completed:', message);
+          console.log('[GameFrame] ✅ Game completed:', message);
           
           if (message.winnerId) {
             onGameComplete?.({
@@ -97,14 +137,14 @@ export function GameFrame({
 
         // Handle game error signal
         if (message.type === 'game_error' || message.type === 'GAME_ERROR') {
-          console.error('[GameFrame] Game error:', message);
+          console.error('[GameFrame] ❌ Game error:', message);
           setError(message.error || 'Błąd gry');
           onGameError?.(message.error);
         }
 
-        // Handle game ready signal
+        // Handle game ready signal (optional - for games that explicitly signal readiness)
         if (message.type === 'game_ready' || message.type === 'GAME_READY') {
-          console.log('[GameFrame] Game ready');
+          console.log('[GameFrame] ✅ Game ready signal received - clearing loading state immediately');
           setIsLoading(false);
           setError(null);
         }
@@ -114,29 +154,42 @@ export function GameFrame({
     };
 
     window.addEventListener('message', handleMessage);
+    console.log('[GameFrame] postMessage listener registered');
 
     return () => {
       window.removeEventListener('message', handleMessage);
+      console.log('[GameFrame] postMessage listener removed');
     };
   }, [onGameComplete, onGameError]);
 
   // Handle iframe load event
   const handleIframeLoad = () => {
-    console.log('[GameFrame] Iframe loaded');
     
     // Clear timeout on successful load
     if (loadTimeoutRef.current) {
       clearTimeout(loadTimeoutRef.current);
     }
 
-    // Note: Don't hide loading state yet - wait for game_ready postMessage
-    // The iframe might load but game might still be initializing
+    // Try to access iframe content for debugging (will fail for cross-origin)
+    try {
+      if (iframeRef.current?.contentWindow) {
+        console.log('[GameFrame] Iframe contentWindow accessible');
+      }
+    } catch (err) {
+      console.log('[GameFrame] Iframe is cross-origin (expected):', err);
+    }
+
+    // Hide loading state after brief delay to allow Unity games to initialize
+    // Games that send game_ready postMessage will hide loading sooner
+    setTimeout(() => {
+      setIsLoading(false);
+      setError(null);
+    }, 1000); // 1 second buffer for Unity initialization
   };
 
   // Handle iframe error
-  const handleIframeError = () => {
-    console.error('[GameFrame] Iframe load error');
-    setError('Nie udało się załadować gry');
+  const handleIframeError = (e: React.SyntheticEvent<HTMLIFrameElement, Event>) => {
+    setError('Nie udało się załadować gry. Sprawdź konsolę przeglądarki.');
     setIsLoading(false);
     onGameError?.('Iframe load error');
   };
@@ -155,6 +208,25 @@ export function GameFrame({
 
   return (
     <div className="relative w-full">
+      {/* Debug Info Panel (only in development) */}
+      {import.meta.env.DEV && (
+        <div className="mb-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs">
+          <h4 className="font-bold mb-2">🐛 Debug Info:</h4>
+          <div className="space-y-1 font-mono">
+            <div><strong>Game URL:</strong> {fullGameUrl || 'Not set'}</div>
+            <div><strong>Match ID:</strong> {matchId}</div>
+            <div><strong>Loading:</strong> {isLoading ? 'Yes' : 'No'}</div>
+            <div><strong>Error:</strong> {error || 'None'}</div>
+            <div><strong>Timeout:</strong> {loadTimeout ? 'Yes' : 'No'}</div>
+          </div>
+          <div className="mt-2 p-2 bg-yellow-100 dark:bg-yellow-900/20 rounded text-yellow-800 dark:text-yellow-200">
+            <strong>⚠️ Check browser console for detailed logs</strong>
+            <div className="mt-1">Game will auto-load 1s after iframe loads (Unity games)</div>
+            <div className="mt-1">Or immediately if game sends postMessage 'game_ready'</div>
+          </div>
+        </div>
+      )}
+
       {/* Loading Overlay */}
       {isLoading && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-900 rounded-lg z-10">
@@ -192,18 +264,27 @@ export function GameFrame({
         </div>
       )}
 
-      {/* Game Iframe */}
+      {/* Game Iframe - Only render if we have a valid URL */}
       <div className="relative rounded-lg overflow-hidden bg-black" style={{ aspectRatio: '16/9' }}>
-        <iframe
-          ref={iframeRef}
-          src={fullGameUrl}
-          title="Game"
-          className="w-full h-full"
-          onLoad={handleIframeLoad}
-          onError={handleIframeError}
-          allow="fullscreen; gamepad; microphone"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-        />
+        {fullGameUrl ? (
+          <iframe
+            ref={iframeRef}
+            src={fullGameUrl}
+            title="Game"
+            className="w-full h-full"
+            onLoad={handleIframeLoad}
+            onError={handleIframeError}
+            allow="fullscreen; gamepad; microphone"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-white">
+            <div className="text-center">
+              <p className="text-lg font-semibold mb-2">Brak URL gry</p>
+              <p className="text-sm text-gray-400">Oczekiwanie na dane gry...</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

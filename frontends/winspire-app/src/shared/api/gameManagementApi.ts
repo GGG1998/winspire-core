@@ -15,6 +15,7 @@ export interface Game {
   gameIntegrationId?: string
   slug: string
   name: string
+  storagePath: string
   description?: string
   logoUrl?: string
   version: string

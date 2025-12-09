@@ -13,9 +13,17 @@ import (
 // SecurityHeaders adds common security headers to responses
 func SecurityHeaders(cfg Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+
 		// Basic security headers (always applied)
 		c.Header("X-Content-Type-Options", "nosniff")
-		c.Header("X-Frame-Options", "DENY")
+
+		// X-Frame-Options: Skip for game bundle routes (they need to be embedded in iframes)
+		// Game bundles are served at /v1/g/:slug/bundle/*
+		if !strings.Contains(path, "/bundle/") {
+			c.Header("X-Frame-Options", "DENY")
+		}
+
 		c.Header("X-XSS-Protection", "1; mode=block")
 
 		// HSTS for production

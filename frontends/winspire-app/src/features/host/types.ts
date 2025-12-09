@@ -3,6 +3,8 @@
  * Feature: 002-streamer-tournament-creation
  */
 
+import type { GameSnapshot } from '../../features/game-management'
+
 // ============================================================================
 // Core Entities
 // ============================================================================
@@ -98,10 +100,14 @@ export interface Tournament {
   startTime: Date
   
   /** Game identifier (currently always "Packman") */
+  // TODO clean, we use gameSnapshot instead of gameId
   game: string
   
   /** Game logo/icon URL */
   gameLogoUrl?: string
+
+  /** Game snapshot data from game-management service */
+  gameSnapshot?: GameSnapshot
   
   /** Tournament banner/cover image URL */
   bannerUrl?: string
@@ -231,6 +237,9 @@ export interface CreateTournamentInput {
   /** Game identifier */
   game?: GameIdentifierInput
   
+  /** Game snapshot data from game-management service */
+  gameSnapshot?: GameSnapshot
+  
   /** Space identifier */
   space?: SpaceIdentifierInput
 }
@@ -306,7 +315,11 @@ export interface TournamentFormData {
   startTime: string
   
   /** Game selection (pre-filled, disabled) */
+  // TODO clean, we use gameSnapshot instead of gameId
   game: string
+
+  /** Game snapshot data from game-management service */
+  gameSnapshot: GameSnapshot
   
   /** Team mode (e.g., '1v1', '2v2', etc.) */
   teamMode: string
@@ -402,10 +415,13 @@ export interface TournamentApiData {
   /** Creation timestamp (ISO 8601) */
   createdAt: string
   /** Game slug */
+  // TODO clean, we use gameSnapshot instead of gameId
   game?: string
   /** Game logo URL */
   gameLogoUrl?: string
   /** Banner URL */
+  /** Game snapshot data from game-management service */
+  gameSnapshot?: GameSnapshot
   bannerUrl?: string
   /** Creator ID */
   creatorId?: string

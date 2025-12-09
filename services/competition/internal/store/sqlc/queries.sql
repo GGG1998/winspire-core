@@ -137,7 +137,7 @@ SELECT
     actual_start_time_at, completed_at, cancelled_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
     game_id, space_id, template_id,
-    ready_window, prize,
+    ready_window, prize, game_snapshot,
     created_at, updated_at
 FROM tournaments
 WHERE id = $1;
@@ -150,7 +150,7 @@ SELECT
     actual_start_time_at, completed_at, cancelled_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
     game_id, space_id, template_id,
-    ready_window, prize,
+    ready_window, prize, game_snapshot,
     created_at, updated_at
 FROM tournaments
 WHERE host_id = $1 AND id = $2;
@@ -187,16 +187,16 @@ INSERT INTO tournaments (
     host_id, name, description, external_id,
     status, scheduled_start_time_at, registration_window_open_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
-    game_id, space_id, template_id
+    game_id, space_id, template_id, game_snapshot
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 RETURNING 
     id, host_id, name, description, external_id,
     status, scheduled_start_time_at, registration_window_open_at,
     actual_start_time_at, completed_at, cancelled_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
     game_id, space_id, template_id,
-    ready_window, prize,
+    ready_window, prize, game_snapshot,
     created_at, updated_at;
 
 -- name: UpdateTournament :one
@@ -235,6 +235,7 @@ SET
     maximum_team_count = $10,
     ready_window = $11,
     prize = $12,
+    game_snapshot = $13,
     updated_at = NOW()
 WHERE id = $1
 RETURNING 
@@ -243,7 +244,7 @@ RETURNING
     actual_start_time_at, completed_at, cancelled_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
     game_id, space_id, template_id,
-    ready_window, prize,
+    ready_window, prize, game_snapshot,
     created_at, updated_at;
 
 -- name: UpdateTournamentStatus :exec
@@ -298,6 +299,7 @@ SELECT
     actual_start_time_at, completed_at, cancelled_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
     game_id, space_id, template_id,
+    ready_window, prize, game_snapshot,
     created_at, updated_at
 FROM tournaments
 WHERE external_id = $1 AND host_id = $2;
@@ -310,7 +312,7 @@ SELECT
     actual_start_time_at, completed_at, cancelled_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
     game_id, space_id, template_id,
-    ready_window, prize,
+    ready_window, prize, game_snapshot,
     created_at, updated_at
 FROM tournaments
 WHERE status = ANY($1::text[])

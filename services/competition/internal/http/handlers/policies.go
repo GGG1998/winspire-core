@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"encoding/json"
+
 	"github.com/google/uuid"
 
 	"github.com/winspire/competition/internal/repository"
@@ -68,6 +70,31 @@ func ApplyCreateTournamentPolicy(hostID uuid.UUID, req CreateTournamentRequest) 
 	// Apply space reference
 	if req.Space != nil {
 		params.SpaceID = req.Space.ID
+	}
+
+	// Apply game snapshot if provided
+	if req.GameSnapshot != nil {
+		// Parse game ID from string
+		gameID, err := uuid.Parse(req.GameSnapshot.ID)
+		if err == nil {
+			// Convert GameSnapshotInput to repository.GameSnapshot
+			snapshot := repository.GameSnapshot{
+				ID:          gameID,
+				Slug:        req.GameSnapshot.Slug,
+				Name:        req.GameSnapshot.Name,
+				Version:     req.GameSnapshot.Version,
+				LogoURL:     req.GameSnapshot.LogoURL,
+				Description: req.GameSnapshot.Description,
+				StoragePath: req.GameSnapshot.StoragePath,
+			}
+
+			// Marshal to JSONB
+			snapshotJSON, err := json.Marshal(snapshot)
+			if err == nil {
+				params.GameSnapshot = &snapshotJSON
+			}
+			// If marshaling fails, params.GameSnapshot remains nil (graceful degradation)
+		}
 	}
 
 	return params

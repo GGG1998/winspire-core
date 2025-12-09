@@ -109,6 +109,24 @@ type GameIdentifierInput struct {
 	Slug *string `json:"slug,omitempty"`
 }
 
+// GameSnapshotInput represents a snapshot of game data provided by the frontend.
+type GameSnapshotInput struct {
+	// ID is the game ID.
+	ID string `json:"id" binding:"required"`
+	// Slug is the game slug.
+	Slug string `json:"slug" binding:"required"`
+	// Name is the game name.
+	Name string `json:"name" binding:"required"`
+	// Version is the game version.
+	Version string `json:"version" binding:"required"`
+	// LogoURL is the URL to the game logo.
+	LogoURL *string `json:"logoUrl,omitempty"`
+	// Description is the game description.
+	Description *string `json:"description,omitempty"`
+	// StoragePath is the path to the game files.
+	StoragePath string `json:"storagePath" binding:"required"`
+}
+
 // CreateTournamentRequest represents the request body for creating a tournament.
 // The hostId is provided as a path parameter.
 type CreateTournamentRequest struct {
@@ -130,8 +148,11 @@ type CreateTournamentRequest struct {
 	MinimumTeamCount *int `json:"minimumTeamCount,omitempty"`
 	// MaximumTeamCount is the maximum teams allowed. Defaults to 250.
 	MaximumTeamCount *int `json:"maximumTeamCount,omitempty"`
+	// TODO clean, we use gameSnapshot instead of gameId
 	// Game identifies the game for this tournament.
 	Game *GameIdentifierInput `json:"game,omitempty"`
+	// GameSnapshot is a snapshot of game data provided by the frontend.
+	GameSnapshot *GameSnapshotInput `json:"gameSnapshot,omitempty"`
 	// Space identifies the hosting space.
 	Space *SpaceIdentifierInput `json:"space,omitempty"`
 }

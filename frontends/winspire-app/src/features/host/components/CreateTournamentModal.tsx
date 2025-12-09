@@ -28,6 +28,7 @@ import {
 } from '../constants'
 import type { CreateTournamentModalProps } from '../types'
 import { gameManagementApi, type Game } from '../../../shared/api/gameManagementApi'
+import type { GameSnapshot } from '../../../features/game-management'
 
 /**
  * Get default start time (now + 1 hour)
@@ -72,12 +73,21 @@ export function CreateTournamentModal({
       name: '',
       startTime: getDefaultStartTime(),
       game: '',
+      gameSnapshot: {
+        id: '',
+        slug: '',
+        name: '',
+        version: '',
+        logoUrl: '',
+        description: '',
+        storagePath: ''
+      },
       teamMode: DEFAULT_TEAM_MODE,
       minPlayers: 2,
       maxPlayers: DEFAULT_MAX_PLAYERS
     }
   })
-
+  console.log('errors', errors)
   // Fetch games when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -93,6 +103,15 @@ export function CreateTournamentModal({
             name: '',
             startTime: getDefaultStartTime(),
             game: defaultGameId,
+            gameSnapshot: {
+              id: defaultGameId,
+              slug: fetchedGames[0].slug,
+              name: fetchedGames[0].name,
+              version: fetchedGames[0].version,
+              logoUrl: fetchedGames[0].logoUrl,
+              description: fetchedGames[0].description,
+              storagePath: fetchedGames[0].storagePath
+            },
             teamMode: DEFAULT_TEAM_MODE,
             minPlayers: 2,
             maxPlayers: DEFAULT_MAX_PLAYERS
@@ -105,6 +124,15 @@ export function CreateTournamentModal({
             name: '',
             startTime: getDefaultStartTime(),
             game: '',
+            gameSnapshot: {
+              id: '',
+              slug: '',
+              name: '',
+              version: '',
+              logoUrl: '',
+              description: '',
+              storagePath: ''
+            },
             teamMode: DEFAULT_TEAM_MODE,
             minPlayers: 2,
             maxPlayers: DEFAULT_MAX_PLAYERS
@@ -121,10 +149,13 @@ export function CreateTournamentModal({
    */
   const onSubmit = async (data: CreateTournamentFormData) => {
     try {
+      // Convert form data to API input
       const input = formToApiInput({
         name: data.name,
         startTime: data.startTime,
+        // TODO clean, we use gameSnapshot instead of gameId
         game: data.game,
+        gameSnapshot: data.gameSnapshot,
         teamMode: data.teamMode,
         minPlayers: 2,
         maxPlayers: data.maxPlayers

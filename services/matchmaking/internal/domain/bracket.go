@@ -13,11 +13,23 @@ import (
 type Bracket struct {
 	ID           uuid.UUID
 	TournamentID uuid.UUID
+	GameSnapshot *GameSnapshot // Denormalized from tournament for performance
 	TotalRounds  int
 	TotalMatches int
 	ByesCount    int
 	GeneratedAt  time.Time
 	Rounds       []Round
+}
+
+// GameSnapshot represents a snapshot of game data stored with the bracket
+type GameSnapshot struct {
+	ID          uuid.UUID `json:"id"`
+	Slug        string    `json:"slug"`
+	Name        string    `json:"name"`
+	Version     string    `json:"version"`
+	LogoURL     *string   `json:"logoUrl,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	StoragePath string    `json:"storagePath"`
 }
 
 // NewBracket creates a new bracket for a tournament

@@ -237,16 +237,16 @@ INSERT INTO tournaments (
     host_id, name, description, external_id,
     status, scheduled_start_time_at, registration_window_open_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
-    game_id, space_id, template_id
+    game_id, space_id, template_id, game_snapshot
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 RETURNING 
     id, host_id, name, description, external_id,
     status, scheduled_start_time_at, registration_window_open_at,
     actual_start_time_at, completed_at, cancelled_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
     game_id, space_id, template_id,
-    ready_window, prize,
+    ready_window, prize, game_snapshot,
     created_at, updated_at
 `
 
@@ -265,6 +265,7 @@ type CreateTournamentParams struct {
 	GameID                   pgtype.UUID        `json:"game_id"`
 	SpaceID                  pgtype.UUID        `json:"space_id"`
 	TemplateID               pgtype.UUID        `json:"template_id"`
+	GameSnapshot             []byte             `json:"game_snapshot"`
 }
 
 type CreateTournamentRow struct {
@@ -288,6 +289,7 @@ type CreateTournamentRow struct {
 	TemplateID               pgtype.UUID        `json:"template_id"`
 	ReadyWindow              []byte             `json:"ready_window"`
 	Prize                    []byte             `json:"prize"`
+	GameSnapshot             []byte             `json:"game_snapshot"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }
@@ -309,6 +311,7 @@ func (q *Queries) CreateTournament(ctx context.Context, arg CreateTournamentPara
 		arg.GameID,
 		arg.SpaceID,
 		arg.TemplateID,
+		arg.GameSnapshot,
 	)
 	var i CreateTournamentRow
 	err := row.Scan(
@@ -332,6 +335,7 @@ func (q *Queries) CreateTournament(ctx context.Context, arg CreateTournamentPara
 		&i.TemplateID,
 		&i.ReadyWindow,
 		&i.Prize,
+		&i.GameSnapshot,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -505,6 +509,7 @@ SELECT
     actual_start_time_at, completed_at, cancelled_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
     game_id, space_id, template_id,
+    ready_window, prize, game_snapshot,
     created_at, updated_at
 FROM tournaments
 WHERE external_id = $1 AND host_id = $2
@@ -534,6 +539,9 @@ type GetTournamentByExternalIDRow struct {
 	GameID                   pgtype.UUID        `json:"game_id"`
 	SpaceID                  pgtype.UUID        `json:"space_id"`
 	TemplateID               pgtype.UUID        `json:"template_id"`
+	ReadyWindow              []byte             `json:"ready_window"`
+	Prize                    []byte             `json:"prize"`
+	GameSnapshot             []byte             `json:"game_snapshot"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }
@@ -561,6 +569,9 @@ func (q *Queries) GetTournamentByExternalID(ctx context.Context, arg GetTourname
 		&i.GameID,
 		&i.SpaceID,
 		&i.TemplateID,
+		&i.ReadyWindow,
+		&i.Prize,
+		&i.GameSnapshot,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -574,7 +585,7 @@ SELECT
     actual_start_time_at, completed_at, cancelled_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
     game_id, space_id, template_id,
-    ready_window, prize,
+    ready_window, prize, game_snapshot,
     created_at, updated_at
 FROM tournaments
 WHERE host_id = $1 AND id = $2
@@ -606,6 +617,7 @@ type GetTournamentByHostAndIDRow struct {
 	TemplateID               pgtype.UUID        `json:"template_id"`
 	ReadyWindow              []byte             `json:"ready_window"`
 	Prize                    []byte             `json:"prize"`
+	GameSnapshot             []byte             `json:"game_snapshot"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }
@@ -635,6 +647,7 @@ func (q *Queries) GetTournamentByHostAndID(ctx context.Context, arg GetTournamen
 		&i.TemplateID,
 		&i.ReadyWindow,
 		&i.Prize,
+		&i.GameSnapshot,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -649,7 +662,7 @@ SELECT
     actual_start_time_at, completed_at, cancelled_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
     game_id, space_id, template_id,
-    ready_window, prize,
+    ready_window, prize, game_snapshot,
     created_at, updated_at
 FROM tournaments
 WHERE id = $1
@@ -676,6 +689,7 @@ type GetTournamentByIDRow struct {
 	TemplateID               pgtype.UUID        `json:"template_id"`
 	ReadyWindow              []byte             `json:"ready_window"`
 	Prize                    []byte             `json:"prize"`
+	GameSnapshot             []byte             `json:"game_snapshot"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }
@@ -709,6 +723,7 @@ func (q *Queries) GetTournamentByID(ctx context.Context, id pgtype.UUID) (GetTou
 		&i.TemplateID,
 		&i.ReadyWindow,
 		&i.Prize,
+		&i.GameSnapshot,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -1214,7 +1229,7 @@ SELECT
     actual_start_time_at, completed_at, cancelled_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
     game_id, space_id, template_id,
-    ready_window, prize,
+    ready_window, prize, game_snapshot,
     created_at, updated_at
 FROM tournaments
 WHERE status = ANY($1::text[])
@@ -1242,6 +1257,7 @@ type ListTournamentsByStatusRow struct {
 	TemplateID               pgtype.UUID        `json:"template_id"`
 	ReadyWindow              []byte             `json:"ready_window"`
 	Prize                    []byte             `json:"prize"`
+	GameSnapshot             []byte             `json:"game_snapshot"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }
@@ -1277,6 +1293,7 @@ func (q *Queries) ListTournamentsByStatus(ctx context.Context, dollar_1 []string
 			&i.TemplateID,
 			&i.ReadyWindow,
 			&i.Prize,
+			&i.GameSnapshot,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -1320,6 +1337,7 @@ SET
     maximum_team_count = $10,
     ready_window = $11,
     prize = $12,
+    game_snapshot = $13,
     updated_at = NOW()
 WHERE id = $1
 RETURNING 
@@ -1328,7 +1346,7 @@ RETURNING
     actual_start_time_at, completed_at, cancelled_at,
     minimum_team_count, maximum_team_count, team_size, auto_force_ready,
     game_id, space_id, template_id,
-    ready_window, prize,
+    ready_window, prize, game_snapshot,
     created_at, updated_at
 `
 
@@ -1345,6 +1363,7 @@ type SaveTournamentParams struct {
 	MaximumTeamCount     pgtype.Int4        `json:"maximum_team_count"`
 	ReadyWindow          []byte             `json:"ready_window"`
 	Prize                []byte             `json:"prize"`
+	GameSnapshot         []byte             `json:"game_snapshot"`
 }
 
 type SaveTournamentRow struct {
@@ -1368,6 +1387,7 @@ type SaveTournamentRow struct {
 	TemplateID               pgtype.UUID        `json:"template_id"`
 	ReadyWindow              []byte             `json:"ready_window"`
 	Prize                    []byte             `json:"prize"`
+	GameSnapshot             []byte             `json:"game_snapshot"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }
@@ -1388,6 +1408,7 @@ func (q *Queries) SaveTournament(ctx context.Context, arg SaveTournamentParams) 
 		arg.MaximumTeamCount,
 		arg.ReadyWindow,
 		arg.Prize,
+		arg.GameSnapshot,
 	)
 	var i SaveTournamentRow
 	err := row.Scan(
@@ -1411,6 +1432,7 @@ func (q *Queries) SaveTournament(ctx context.Context, arg SaveTournamentParams) 
 		&i.TemplateID,
 		&i.ReadyWindow,
 		&i.Prize,
+		&i.GameSnapshot,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

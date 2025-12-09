@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth';
 import { LoadingSpinner } from '../../../shared/components/common/LoadingSpinner';
@@ -16,6 +16,8 @@ import { useReadyState } from '../hooks/useReadyState';
 import { useDisconnect } from '../hooks/useDisconnect';
 import { LobbyLayout } from '../layouts';
 import { ERROR_MESSAGES } from '../constants';
+import { competitionApi, type TournamentInfo } from '../../../shared/api/competitionApi';
+import { GAME_MANAGEMENT_URL } from '../../../shared/config/api';
 
 /**
  * Match Lobby Page
@@ -42,6 +44,20 @@ export function MatchLobbyPage() {
     claimWalkover,
   } = useMatchLobby(matchId || null);
   console.log('[MatchLobbyPage] matchState:', matchState);
+
+  // Fetch tournament info for display and navigation
+  const [tournamentInfo, setTournamentInfo] = useState<TournamentInfo | null>(null);
+
+  useEffect(() => {
+    if (!tournamentId) return;
+    
+    competitionApi.getTournamentInfo(tournamentId)
+      .then(setTournamentInfo)
+      .catch(err => {
+        console.error('[MatchLobbyPage] Failed to fetch tournament info:', err);
+        // Don't fail the whole page, just log the error
+      });
+  }, [tournamentId]);
   // Determine current player's ready status
   const currentPlayerReady = user && matchState
     ? (matchState.player1?.id === user.id ? matchState.match.participant1Ready : matchState.match.participant2Ready)
@@ -115,7 +131,7 @@ export function MatchLobbyPage() {
   // Loading state
   if (isLoading) {
     return (
-      <LobbyLayout tournamentId={tournamentId} streamerId={matchState?.tournament?.creatorId}>
+      <LobbyLayout tournamentId={tournamentId} streamerId={tournamentInfo?.hostId}>
         <div className="flex items-center justify-center min-h-screen">
           <LoadingSpinner size="lg" />
         </div>
@@ -126,7 +142,7 @@ export function MatchLobbyPage() {
   // Error state
   if (error) {
     return (
-      <LobbyLayout tournamentId={tournamentId} streamerId={matchState?.tournament?.creatorId}>
+      <LobbyLayout tournamentId={tournamentId} streamerId={tournamentInfo?.hostId}>
         <div className="max-w-4xl px-4 py-8">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
@@ -169,8 +185,8 @@ export function MatchLobbyPage() {
 
   return (
     <LobbyLayout 
-      tournamentId={matchState.tournament?.id || tournamentId} 
-      streamerId={matchState.tournament?.creatorId}
+      tournamentId={tournamentId} 
+      streamerId={tournamentInfo?.hostId}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* WebSocket Connection Status Banner */}
@@ -242,7 +258,7 @@ export function MatchLobbyPage() {
                 Lobby Meczu
               </h1>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {matchState.tournament?.name || 'Turniej'} · Runda {matchState.roundNumber}
+                {tournamentInfo?.name || 'Turniej'} · Runda {matchState.roundNumber}
               </p>
             </div>
 
@@ -339,22 +355,24 @@ export function MatchLobbyPage() {
         )}
 
         {/* Game Iframe - Show when match has started and game URL is available */}
-        {matchState.status === 'started' && matchState.gameUrl && matchState.match.status !== 'completed' && (
-          <div className="mt-8">
-            <GameFrame
-              gameUrl={matchState.gameUrl}
-              matchId={matchState.match.id}
-              sessionToken={undefined} // TODO: Get session token from auth context
-              onGameComplete={(result) => {
-                console.log('[MatchLobbyPage] Game completed:', result);
-                // The match_completed WebSocket message will update the state
-              }}
-              onGameError={(error) => {
-                console.error('[MatchLobbyPage] Game error:', error);
-              }}
-            />
-          </div>
-        )}
+        <div className="mt-8">
+          <GameFrame
+            gameUrl={
+              matchState.gameSnapshot?.slug 
+                ? `${GAME_MANAGEMENT_URL}/v1/g/${matchState.gameSnapshot.slug}/bundle/`
+                : ''
+            }
+            matchId={matchState.match.id}
+            sessionToken={undefined} // TODO: Get session token from auth context
+            onGameComplete={(result) => {
+              console.log('[MatchLobbyPage] Game completed:', result);
+              // The match_completed WebSocket message will update the state
+            }}
+            onGameError={(error) => {
+              console.error('[MatchLobbyPage] Game error:', error);
+            }}
+          />
+        </div>
 
         {/* Match Result - Show when match is completed */}
         {matchState.status === 'completed' && matchState.match.winnerId && (
@@ -367,7 +385,7 @@ export function MatchLobbyPage() {
               scoreLoser={matchState.match.winnerId === matchState.player1?.id ? matchState.match.scorePlayer2 : matchState.match.scorePlayer1}
               resultSource={matchState.match.resultSource || undefined}
               onContinue={() => {
-                navigate(`/h/${matchState.tournament?.creatorId}/tournaments/${tournamentId}`);
+                navigate(`/h/${tournamentInfo?.hostId}/tournaments/${tournamentId}`);
               }}
             />
           </div>

@@ -41,6 +41,7 @@ type PrelobbyParticipantSnapshot struct {
 type TournamentBracket struct {
 	ID           pgtype.UUID      `json:"id"`
 	TournamentID pgtype.UUID      `json:"tournament_id"`
+	GameSnapshot []byte           `json:"game_snapshot"`
 	TotalRounds  int32            `json:"total_rounds"`
 	TotalMatches int32            `json:"total_matches"`
 	ByesCount    int32            `json:"byes_count"`

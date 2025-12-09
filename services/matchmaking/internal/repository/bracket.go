@@ -3,6 +3,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -49,10 +50,17 @@ func (r *bracketRepository) Create(ctx context.Context, bracket *domain.Bracket,
 
 	qtx := r.queries.WithTx(tx)
 
+	// Marshal game snapshot to JSONB if present
+	var gameSnapshotJSON []byte
+	if bracket.GameSnapshot != nil {
+		gameSnapshotJSON, _ = json.Marshal(bracket.GameSnapshot)
+	}
+
 	// Create bracket (use domain-generated ID to ensure FK consistency)
 	_, err = qtx.CreateBracket(ctx, sqlc.CreateBracketParams{
 		ID:           pgtypeconv.UUIDToPgtype(bracket.ID),
 		TournamentID: pgtypeconv.UUIDToPgtype(bracket.TournamentID),
+		GameSnapshot: gameSnapshotJSON,
 		TotalRounds:  int32(bracket.TotalRounds),
 		TotalMatches: int32(bracket.TotalMatches),
 		ByesCount:    int32(bracket.ByesCount),
@@ -107,9 +115,20 @@ func (r *bracketRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.
 		return nil, fmt.Errorf("get bracket by ID: %w", err)
 	}
 
+	// Unmarshal game snapshot if present
+	var gameSnapshot *domain.GameSnapshot
+	if len(row.GameSnapshot) > 0 {
+		gameSnapshot = &domain.GameSnapshot{}
+		if err := json.Unmarshal(row.GameSnapshot, gameSnapshot); err != nil {
+			// Log error but don't fail - continue without snapshot
+			fmt.Printf("WARN: Failed to unmarshal game snapshot for bracket %s: %v\n", id, err)
+		}
+	}
+
 	return &domain.Bracket{
 		ID:           pgtypeconv.PgtypeToUUID(row.ID),
 		TournamentID: pgtypeconv.PgtypeToUUID(row.TournamentID),
+		GameSnapshot: gameSnapshot,
 		TotalRounds:  int(row.TotalRounds),
 		TotalMatches: int(row.TotalMatches),
 		ByesCount:    int(row.ByesCount),
@@ -124,9 +143,20 @@ func (r *bracketRepository) GetByTournamentID(ctx context.Context, tournamentID 
 		return nil, fmt.Errorf("get bracket by tournament ID: %w", err)
 	}
 
+	// Unmarshal game snapshot if present
+	var gameSnapshot *domain.GameSnapshot
+	if len(row.GameSnapshot) > 0 {
+		gameSnapshot = &domain.GameSnapshot{}
+		if err := json.Unmarshal(row.GameSnapshot, gameSnapshot); err != nil {
+			// Log error but don't fail - continue without snapshot
+			fmt.Printf("WARN: Failed to unmarshal game snapshot for bracket tournament %s: %v\n", tournamentID, err)
+		}
+	}
+
 	return &domain.Bracket{
 		ID:           pgtypeconv.PgtypeToUUID(row.ID),
 		TournamentID: pgtypeconv.PgtypeToUUID(row.TournamentID),
+		GameSnapshot: gameSnapshot,
 		TotalRounds:  int(row.TotalRounds),
 		TotalMatches: int(row.TotalMatches),
 		ByesCount:    int(row.ByesCount),
@@ -145,10 +175,21 @@ func (r *bracketRepository) GetWithRoundsAndMatches(ctx context.Context, tournam
 		return nil, nil, nil, fmt.Errorf("bracket not found for tournament %s", tournamentID)
 	}
 
+	// Unmarshal game snapshot if present
+	var gameSnapshot *domain.GameSnapshot
+	if len(rows[0].GameSnapshot) > 0 {
+		gameSnapshot = &domain.GameSnapshot{}
+		if err := json.Unmarshal(rows[0].GameSnapshot, gameSnapshot); err != nil {
+			// Log error but don't fail - continue without snapshot
+			fmt.Printf("WARN: Failed to unmarshal game snapshot: %v\n", err)
+		}
+	}
+
 	// Extract bracket from first row
 	bracket := &domain.Bracket{
 		ID:           pgtypeconv.PgtypeToUUID(rows[0].BracketID),
 		TournamentID: pgtypeconv.PgtypeToUUID(rows[0].TournamentID),
+		GameSnapshot: gameSnapshot,
 		TotalRounds:  int(rows[0].BracketTotalRounds),
 		TotalMatches: int(rows[0].BracketTotalMatches),
 		ByesCount:    int(rows[0].ByesCount),

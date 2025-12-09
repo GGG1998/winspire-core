@@ -59,12 +59,24 @@ type Tournament struct {
 	TemplateID *uuid.UUID
 
 	// Rich data (stored as JSONB)
-	ReadyWindow []byte // JSONB
-	Prize       []byte // JSONB
+	ReadyWindow  []byte // JSONB
+	Prize        []byte // JSONB
+	GameSnapshot []byte // JSONB - snapshot of game data from game-management service
 
 	// Metadata
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+// GameSnapshot represents a snapshot of game data stored with the tournament
+type GameSnapshot struct {
+	ID          uuid.UUID `json:"id"`
+	Slug        string    `json:"slug"`
+	Name        string    `json:"name"`
+	Version     string    `json:"version"`
+	LogoURL     *string   `json:"logoUrl,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	StoragePath string    `json:"storagePath"`
 }
 
 // TournamentListItem is a simplified view for list responses.
@@ -264,6 +276,7 @@ func (r *TournamentRepository) GetByID(ctx context.Context, id uuid.UUID) (*Tour
 		TemplateID:               pgtypeconv.PgtypeToUUIDPtr(row.TemplateID),
 		ReadyWindow:              row.ReadyWindow,
 		Prize:                    row.Prize,
+		GameSnapshot:             row.GameSnapshot,
 		CreatedAt:                row.CreatedAt.Time,
 		UpdatedAt:                row.UpdatedAt.Time,
 	}, nil
@@ -305,6 +318,7 @@ func (r *TournamentRepository) GetByHostAndID(ctx context.Context, hostID, tourn
 		TemplateID:               pgtypeconv.PgtypeToUUIDPtr(row.TemplateID),
 		ReadyWindow:              row.ReadyWindow,
 		Prize:                    row.Prize,
+		GameSnapshot:             row.GameSnapshot,
 		CreatedAt:                row.CreatedAt.Time,
 		UpdatedAt:                row.UpdatedAt.Time,
 	}, nil
@@ -361,6 +375,7 @@ func (r *TournamentRepository) ListByStatus(ctx context.Context, statuses []stri
 			TemplateID:               pgtypeconv.PgtypeToUUIDPtr(row.TemplateID),
 			ReadyWindow:              row.ReadyWindow,
 			Prize:                    row.Prize,
+			GameSnapshot:             row.GameSnapshot,
 			CreatedAt:                row.CreatedAt.Time,
 			UpdatedAt:                row.UpdatedAt.Time,
 		}
@@ -383,14 +398,19 @@ type CreateTournamentParams struct {
 	MaximumTeamCount *int32
 	TeamSize         int32
 	AutoForceReady   *bool
-
-	GameID     *uuid.UUID
-	SpaceID    *uuid.UUID
-	TemplateID *uuid.UUID
+	GameSnapshot     *[]byte
+	GameID           *uuid.UUID
+	SpaceID          *uuid.UUID
+	TemplateID       *uuid.UUID
 }
 
 // Create creates a new tournament.
 func (r *TournamentRepository) Create(ctx context.Context, params CreateTournamentParams) (*Tournament, error) {
+	var gameSnapshot []byte
+	if params.GameSnapshot != nil {
+		gameSnapshot = *params.GameSnapshot
+	}
+
 	sqlcParams := sqlc.CreateTournamentParams{
 		HostID:                   pgtypeconv.UUIDToPgtype(params.HostID),
 		Name:                     params.Name,
@@ -404,6 +424,7 @@ func (r *TournamentRepository) Create(ctx context.Context, params CreateTourname
 		TeamSize:                 params.TeamSize,
 		AutoForceReady:           pgtypeconv.BoolPtrToPgtype(params.AutoForceReady),
 		GameID:                   pgtypeconv.UUIDPtrToPgtype(params.GameID),
+		GameSnapshot:             gameSnapshot,
 		SpaceID:                  pgtypeconv.UUIDPtrToPgtype(params.SpaceID),
 		TemplateID:               pgtypeconv.UUIDPtrToPgtype(params.TemplateID),
 	}
@@ -434,6 +455,7 @@ func (r *TournamentRepository) Create(ctx context.Context, params CreateTourname
 		TemplateID:               pgtypeconv.PgtypeToUUIDPtr(row.TemplateID),
 		ReadyWindow:              row.ReadyWindow,
 		Prize:                    row.Prize,
+		GameSnapshot:             row.GameSnapshot,
 		CreatedAt:                row.CreatedAt.Time,
 		UpdatedAt:                row.UpdatedAt.Time,
 	}, nil
@@ -487,6 +509,7 @@ func (r *TournamentRepository) Update(ctx context.Context, id uuid.UUID, params 
 		TemplateID:               pgtypeconv.PgtypeToUUIDPtr(row.TemplateID),
 		ReadyWindow:              nil, // UpdateTournament doesn't return these fields
 		Prize:                    nil,
+		GameSnapshot:             nil, // UpdateTournament doesn't return these fields
 		CreatedAt:                row.CreatedAt.Time,
 		UpdatedAt:                row.UpdatedAt.Time,
 	}, nil
@@ -508,6 +531,7 @@ func (r *TournamentRepository) Save(ctx context.Context, tournament *Tournament)
 		MaximumTeamCount:     pgtypeconv.Int32PtrToPgtype(tournament.MaximumTeamCount),
 		ReadyWindow:          tournament.ReadyWindow,
 		Prize:                tournament.Prize,
+		GameSnapshot:         tournament.GameSnapshot,
 	}
 
 	row, err := r.queries.SaveTournament(ctx, sqlcParams)
@@ -536,6 +560,7 @@ func (r *TournamentRepository) Save(ctx context.Context, tournament *Tournament)
 		TemplateID:               pgtypeconv.PgtypeToUUIDPtr(row.TemplateID),
 		ReadyWindow:              row.ReadyWindow,
 		Prize:                    row.Prize,
+		GameSnapshot:             row.GameSnapshot,
 		CreatedAt:                row.CreatedAt.Time,
 		UpdatedAt:                row.UpdatedAt.Time,
 	}, nil
@@ -583,6 +608,7 @@ func sqlcTournamentToTournament(t sqlc.Tournament) *Tournament {
 		TemplateID:               pgtypeconv.PgtypeToUUIDPtr(t.TemplateID),
 		ReadyWindow:              t.ReadyWindow,
 		Prize:                    t.Prize,
+		GameSnapshot:             t.GameSnapshot,
 		CreatedAt:                t.CreatedAt.Time,
 		UpdatedAt:                t.UpdatedAt.Time,
 	}

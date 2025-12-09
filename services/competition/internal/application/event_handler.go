@@ -15,6 +15,7 @@ import (
 // EventHandler handles incoming domain events from other services
 type EventHandler struct {
 	tournamentRepo *repository.TournamentRepository
+	gameClient     *GameManagementClient
 	publisher      *pubsub.EventPublisher
 	logger         *slog.Logger
 }
@@ -22,11 +23,13 @@ type EventHandler struct {
 // NewEventHandler creates a new event handler
 func NewEventHandler(
 	tournamentRepo *repository.TournamentRepository,
+	gameClient *GameManagementClient,
 	publisher *pubsub.EventPublisher,
 	logger *slog.Logger,
 ) *EventHandler {
 	return &EventHandler{
 		tournamentRepo: tournamentRepo,
+		gameClient:     gameClient,
 		publisher:      publisher,
 		logger:         logger,
 	}
@@ -43,7 +46,7 @@ type GracePeriodStartedPayload struct {
 // This confirms that the tournament start saga has progressed successfully
 // Transitions tournament status from "starting" → "started"
 func (h *EventHandler) HandleGracePeriodStarted(ctx context.Context, eventType string, payload map[string]interface{}, metadata map[string]string) error {
-	h.logger.Info("received GracePeriodStarted event", 
+	h.logger.Info("received GracePeriodStarted event",
 		"event_type", eventType,
 		"correlation_id", metadata["correlation_id"],
 	)
@@ -73,16 +76,49 @@ func (h *EventHandler) HandleGracePeriodStarted(ctx context.Context, eventType s
 	// Get tournament
 	tournament, err := h.tournamentRepo.GetByID(ctx, tournamentID)
 	if err != nil {
-		h.logger.Error("failed to get tournament", 
+		h.logger.Error("failed to get tournament",
 			"tournament_id", tournamentID.String(),
 			"error", err,
 		)
 		return fmt.Errorf("get tournament: %w", err)
 	}
 
+	// Fetch and store game snapshot if GameID exists and snapshot doesn't exist yet
+	if tournament.GameID != nil && tournament.GameSnapshot == nil && h.gameClient != nil {
+		h.logger.Info("fetching game snapshot for tournament",
+			"tournament_id", tournamentID.String(),
+			"game_id", tournament.GameID.String(),
+		)
+
+		gameSnapshot, err := h.gameClient.GetGameByID(ctx, *tournament.GameID)
+		if err != nil {
+			h.logger.Warn("failed to fetch game snapshot, continuing without it",
+				"tournament_id", tournamentID.String(),
+				"game_id", tournament.GameID.String(),
+				"error", err,
+			)
+			// Don't fail the tournament start if game fetch fails - continue without snapshot
+		} else {
+			// Marshal game snapshot to JSONB
+			snapshotJSON, err := json.Marshal(gameSnapshot)
+			if err != nil {
+				h.logger.Warn("failed to marshal game snapshot",
+					"tournament_id", tournamentID.String(),
+					"error", err,
+				)
+			} else {
+				tournament.GameSnapshot = snapshotJSON
+				h.logger.Info("game snapshot stored in tournament",
+					"tournament_id", tournamentID.String(),
+					"game_slug", gameSnapshot.Slug,
+				)
+			}
+		}
+	}
+
 	// Confirm start (transitions "starting" → "started")
 	if err := tournament.ConfirmStart(); err != nil {
-		h.logger.Warn("failed to confirm start", 
+		h.logger.Warn("failed to confirm start",
 			"tournament_id", tournamentID.String(),
 			"current_status", tournament.Status,
 			"error", err,
@@ -92,17 +128,36 @@ func (h *EventHandler) HandleGracePeriodStarted(ctx context.Context, eventType s
 
 	// Save tournament state
 	if _, err := h.tournamentRepo.Save(ctx, tournament); err != nil {
-		h.logger.Error("failed to save tournament after confirming start", 
+		h.logger.Error("failed to save tournament after confirming start",
 			"tournament_id", tournamentID.String(),
 			"error", err,
 		)
 		return fmt.Errorf("save tournament: %w", err)
 	}
 
-	h.logger.Info("tournament start confirmed", 
+	h.logger.Info("tournament start confirmed",
 		"tournament_id", tournamentID.String(),
 		"status", tournament.Status,
 	)
+
+	// Prepare event payload
+	startedEventPayload := map[string]interface{}{
+		"tournament_id": tournamentID.String(),
+		"started_at":    time.Now().Format(time.RFC3339),
+	}
+
+	// Include game snapshot in event payload if available
+	if tournament.GameSnapshot != nil {
+		var gameSnapshotMap map[string]interface{}
+		if err := json.Unmarshal(tournament.GameSnapshot, &gameSnapshotMap); err == nil {
+			startedEventPayload["game_snapshot"] = gameSnapshotMap
+		} else {
+			h.logger.Warn("failed to unmarshal game snapshot for event",
+				"tournament_id", tournamentID.String(),
+				"error", err,
+			)
+		}
+	}
 
 	// Publish TournamentStarted event (the fact, not the intent)
 	event := pubsub.DomainEvent{
@@ -111,23 +166,20 @@ func (h *EventHandler) HandleGracePeriodStarted(ctx context.Context, eventType s
 		AggregateID:   tournamentID.String(),
 		AggregateType: "Tournament",
 		Timestamp:     time.Now(),
-		Payload: map[string]interface{}{
-			"tournament_id": tournamentID.String(),
-			"started_at":    time.Now().Format(time.RFC3339),
-		},
+		Payload:       startedEventPayload,
 		Metadata: map[string]string{
 			"correlation_id": metadata["correlation_id"],
 		},
 	}
 
 	if err := h.publisher.Publish(ctx, pubsub.ChannelTournamentStarted, event); err != nil {
-		h.logger.Error("failed to publish TournamentStarted event", 
+		h.logger.Error("failed to publish TournamentStarted event",
 			"tournament_id", tournamentID.String(),
 			"error", err,
 		)
 		// Don't fail the handler if event publishing fails
 	} else {
-		h.logger.Info("published TournamentStarted event", 
+		h.logger.Info("published TournamentStarted event",
 			"tournament_id", tournamentID.String(),
 		)
 	}
@@ -146,7 +198,7 @@ type BracketGenerationFailedPayload struct {
 // This is a compensating action for the tournament start saga
 // Transitions tournament status from "starting" → "registration_open" (rollback)
 func (h *EventHandler) HandleBracketGenerationFailed(ctx context.Context, eventType string, payload map[string]interface{}, metadata map[string]string) error {
-	h.logger.Warn("received BracketGenerationFailed event", 
+	h.logger.Warn("received BracketGenerationFailed event",
 		"event_type", eventType,
 		"correlation_id", metadata["correlation_id"],
 	)
@@ -176,7 +228,7 @@ func (h *EventHandler) HandleBracketGenerationFailed(ctx context.Context, eventT
 	// Get tournament
 	tournament, err := h.tournamentRepo.GetByID(ctx, tournamentID)
 	if err != nil {
-		h.logger.Error("failed to get tournament for rollback", 
+		h.logger.Error("failed to get tournament for rollback",
 			"tournament_id", tournamentID.String(),
 			"error", err,
 		)
@@ -185,7 +237,7 @@ func (h *EventHandler) HandleBracketGenerationFailed(ctx context.Context, eventT
 
 	// Rollback start (transitions "starting" → "registration_open")
 	if err := tournament.RollbackStart(); err != nil {
-		h.logger.Warn("failed to rollback start", 
+		h.logger.Warn("failed to rollback start",
 			"tournament_id", tournamentID.String(),
 			"current_status", tournament.Status,
 			"error", err,
@@ -195,14 +247,14 @@ func (h *EventHandler) HandleBracketGenerationFailed(ctx context.Context, eventT
 
 	// Save tournament state
 	if _, err := h.tournamentRepo.Save(ctx, tournament); err != nil {
-		h.logger.Error("failed to save tournament after rollback", 
+		h.logger.Error("failed to save tournament after rollback",
 			"tournament_id", tournamentID.String(),
 			"error", err,
 		)
 		return fmt.Errorf("save tournament: %w", err)
 	}
 
-	h.logger.Info("tournament start rolled back", 
+	h.logger.Info("tournament start rolled back",
 		"tournament_id", tournamentID.String(),
 		"status", tournament.Status,
 		"reason", eventPayload.Reason,
@@ -227,13 +279,13 @@ func (h *EventHandler) HandleBracketGenerationFailed(ctx context.Context, eventT
 	}
 
 	if err := h.publisher.Publish(ctx, pubsub.ChannelTournamentStartFailed, event); err != nil {
-		h.logger.Error("failed to publish TournamentStartFailed event", 
+		h.logger.Error("failed to publish TournamentStartFailed event",
 			"tournament_id", tournamentID.String(),
 			"error", err,
 		)
 		// Don't fail the handler if event publishing fails
 	} else {
-		h.logger.Info("published TournamentStartFailed event", 
+		h.logger.Info("published TournamentStartFailed event",
 			"tournament_id", tournamentID.String(),
 		)
 	}
@@ -247,8 +299,3 @@ func (h *EventHandler) RegisterHandlers(subscriber *pubsub.EventSubscriber) {
 	subscriber.Subscribe("BracketGenerationFailed", h.HandleBracketGenerationFailed)
 	h.logger.Info("registered event handlers for GracePeriodStarted, BracketGenerationFailed")
 }
-
-
-
-
-

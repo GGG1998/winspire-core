@@ -7,7 +7,24 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // Automatically detect session from URL hash fragment (OAuth callback)
+    detectSessionInUrl: true,
+    // Use PKCE flow for OAuth (more secure)
+    flowType: 'pkce',
+    // Store session in localStorage
+    storage: window.localStorage,
+    // Custom storage key for easier debugging
+    storageKey: 'winspire-auth',
+    // Auto-refresh tokens before they expire
+    autoRefreshToken: true,
+    // Persist session across page refreshes
+    persistSession: true,
+    // Enable debug logging in development
+    debug: import.meta.env.DEV,
+  },
+});
 
 
 

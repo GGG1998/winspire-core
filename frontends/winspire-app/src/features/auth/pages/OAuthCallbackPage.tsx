@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { handleOAuthCallback } from '../api/supabaseAuth';
 import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../../../shared/api/supabase';
 import { AuthLayout } from '../../../shared/components/ui/auth-layout';
 import { Heading } from '../../../shared/components/ui/heading';
 import { Text } from '../../../shared/components/ui/text';
@@ -10,35 +11,114 @@ export function OAuthCallbackPage() {
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const handledRef = useRef(false);
 
   useEffect(() => {
+    // Prevent double execution in React StrictMode
+    if (handledRef.current) {
+      return;
+    }
+
+    console.log('[OAuthCallbackPage] Starting OAuth callback processing');
+    console.log('[OAuthCallbackPage] Current URL:', window.location.href);
+
+    let timeoutId: NodeJS.Timeout;
+    let unsubscribe: (() => void) | null = null;
+
     const handleCallback = async () => {
       try {
-        const result = await handleOAuthCallback();
-
-        if (result.error || !result.user) {
-          setError(result.error?.message || 'Authentication failed');
-          // Redirect to login after showing error
+        // Set a timeout in case Supabase never fires the auth event
+        timeoutId = setTimeout(() => {
+          console.error('[OAuthCallbackPage] Timeout waiting for session establishment');
+          setError('Authentication timeout. Please try again.');
           setTimeout(() => {
             navigate('/auth/login');
           }, 3000);
-          return;
+        }, 15000); // 15 second timeout
+
+        console.log('[OAuthCallbackPage] Waiting for Supabase to process session from URL...');
+
+        // Listen for auth state changes from Supabase
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          console.log('[OAuthCallbackPage] Auth event received:', event, session ? 'Session exists' : 'No session');
+
+          // Only process SIGNED_IN event (when OAuth callback is processed)
+          if (event === 'SIGNED_IN' && session && !handledRef.current) {
+            handledRef.current = true;
+            clearTimeout(timeoutId);
+            
+            console.log('[OAuthCallbackPage] Session established, processing user profile...');
+
+            try {
+              const result = await handleOAuthCallback();
+
+              if (result.error || !result.user) {
+                console.error('[OAuthCallbackPage] Profile processing failed:', result.error);
+                setError(result.error?.message || 'Authentication failed');
+                setTimeout(() => {
+                  navigate('/auth/login');
+                }, 3000);
+                return;
+              }
+
+              console.log('[OAuthCallbackPage] Profile processed successfully:', result.user.profileType);
+
+              // Refresh the auth context with the new user
+              await refreshUser();
+
+              // Check if user has completed their profile (nickname is required)
+              if (!result.user.profile.nickname || result.user.profile.nickname.trim() === '') {
+                console.log('[OAuthCallbackPage] Profile incomplete, redirecting to completion page');
+                navigate('/auth/complete-profile');
+                return;
+              }
+
+              // Profile complete, redirect to home page
+              console.log('[OAuthCallbackPage] Authentication complete, redirecting to home');
+              navigate('/');
+            } catch (err) {
+              console.error('[OAuthCallbackPage] Error during profile processing:', err);
+              setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+              setTimeout(() => {
+                navigate('/auth/login');
+              }, 3000);
+            }
+          }
+        });
+
+        unsubscribe = subscription.unsubscribe;
+
+        // Check if session already exists (in case event already fired)
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session && !handledRef.current) {
+          console.log('[OAuthCallbackPage] Session already exists, processing immediately');
+          handledRef.current = true;
+          clearTimeout(timeoutId);
+          
+          const result = await handleOAuthCallback();
+
+          if (result.error || !result.user) {
+            console.error('[OAuthCallbackPage] Profile processing failed:', result.error);
+            setError(result.error?.message || 'Authentication failed');
+            setTimeout(() => {
+              navigate('/auth/login');
+            }, 3000);
+            return;
+          }
+
+          console.log('[OAuthCallbackPage] Profile processed successfully');
+
+          await refreshUser();
+
+          if (!result.user.profile.nickname || result.user.profile.nickname.trim() === '') {
+            navigate('/auth/complete-profile');
+            return;
+          }
+
+          navigate('/');
         }
-
-        // Refresh the auth context with the new user
-        await refreshUser();
-
-        // Check if user has completed their profile (nickname is required)
-        if (!result.user.profile.nickname || result.user.profile.nickname.trim() === '') {
-          // Profile incomplete, redirect to profile completion
-          navigate('/auth/complete-profile');
-          return;
-        }
-
-        // Profile complete, redirect to home page
-        navigate('/');
       } catch (err) {
-        console.error('OAuth callback error:', err);
+        console.error('[OAuthCallbackPage] Unexpected error:', err);
         setError(err instanceof Error ? err.message : 'An unexpected error occurred');
         setTimeout(() => {
           navigate('/auth/login');
@@ -47,6 +127,16 @@ export function OAuthCallbackPage() {
     };
 
     handleCallback();
+
+    // Cleanup
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [navigate, refreshUser]);
 
   if (error) {
