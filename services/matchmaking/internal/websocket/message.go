@@ -67,13 +67,15 @@ type HeartbeatPayload struct {
 
 // LobbyStatePayload contains current lobby state
 type LobbyStatePayload struct {
-	MatchID           uuid.UUID  `json:"match_id"`
-	Status            string     `json:"status"`
-	Participant1ID    uuid.UUID  `json:"participant1_id"`
-	Participant2ID    *uuid.UUID `json:"participant2_id"`
-	Participant1Ready bool       `json:"participant1_ready"`
-	Participant2Ready bool       `json:"participant2_ready"`
-	BothReady         bool       `json:"both_ready"`
+	MatchID                uuid.UUID  `json:"match_id"`
+	Status                 string     `json:"status"`
+	Participant1ID         uuid.UUID  `json:"participant1_id"`
+	Participant2ID         *uuid.UUID `json:"participant2_id"`
+	Participant1Ready      bool       `json:"participant1_ready"`
+	Participant2Ready      bool       `json:"participant2_ready"`
+	Participant1GameLoaded bool       `json:"participant1_game_loaded"`
+	Participant2GameLoaded bool       `json:"participant2_game_loaded"`
+	BothReady              bool       `json:"both_ready"`
 }
 
 // PlayerReadyPayload for player ready notifications
@@ -146,10 +148,10 @@ type ErrorPayload struct {
 
 // PreLobbyParticipantPayload represents a participant in pre-lobby messages
 type PreLobbyParticipantPayload struct {
-	UserID      uuid.UUID  `json:"user_id"`
-	DisplayName string     `json:"display_name"`
-	AvatarURL   *string    `json:"avatar_url,omitempty"`
-	JoinedAt    time.Time  `json:"joined_at"`
+	UserID      uuid.UUID `json:"user_id"`
+	DisplayName string    `json:"display_name"`
+	AvatarURL   *string   `json:"avatar_url,omitempty"`
+	JoinedAt    time.Time `json:"joined_at"`
 }
 
 // GracePeriodInfoPayload represents grace period timing info
@@ -228,4 +230,3 @@ type MatchAssignedPayload struct {
 type TournamentCancelledPayload struct {
 	Reason string `json:"reason"`
 }
-

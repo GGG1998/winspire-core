@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/winspire/game-management/internal/config"
@@ -20,6 +21,17 @@ import (
 )
 
 func main() {
+	// Load .env file in development (Docker Compose will override with its own env vars)
+	// Try multiple locations to handle different working directories
+	envPaths := []string{".env", "services/game-management/.env", "../../.env"}
+	for _, path := range envPaths {
+		if _, err := os.Stat(path); err == nil {
+			if err := godotenv.Load(path); err == nil {
+				break
+			}
+		}
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		panic(err)

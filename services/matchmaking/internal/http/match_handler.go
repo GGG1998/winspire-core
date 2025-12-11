@@ -3,8 +3,11 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -21,6 +24,9 @@ type matchService interface {
 	OnGameLoaded(ctx context.Context, matchID, userID uuid.UUID) error
 	GrantWalkover(ctx context.Context, matchID, userID, noShowPlayerID uuid.UUID, reason string) error
 	GetCurrentMatchForUser(ctx context.Context, userID uuid.UUID) (*domain.Match, *domain.Round, uuid.UUID, error)
+	// TODO CompleteMatch(ctx context.Context, matchID, winnerID uuid.UUID, scorePlayer1, scorePlayer2 int, source domain.ResultSource) error
+	// TODO AdvanceWinner(ctx context.Context, winnerID, fromMatchID, toMatchID uuid.UUID) error
+	// TODO HandleByeMatch(ctx context.Context, matchID uuid.UUID) error
 }
 
 // MatchHandler handles match-related HTTP requests
@@ -237,6 +243,15 @@ func (h *MatchHandler) MarkGameLoaded(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "match not found", "details": err.Error()})
 		return
 	}
+	// #region agent log
+	func() {
+		f, _ := os.OpenFile("/Users/gabrieldomanowski/programming/winspire-core/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if f != nil {
+			defer f.Close()
+			json.NewEncoder(f).Encode(map[string]interface{}{"location": "match_handler.go:242", "message": "match fetched", "data": map[string]interface{}{"matchId": matchID.String(), "status": string(match.Status), "p1Loaded": match.Participant1GameLoaded, "p2Loaded": match.Participant2GameLoaded}, "timestamp": time.Now().UnixMilli(), "sessionId": "debug-session", "hypothesisId": "H3"})
+		}
+	}()
+	// #endregion
 
 	// Verify user is a participant
 	isParticipant1 := match.Participant1ID == userID

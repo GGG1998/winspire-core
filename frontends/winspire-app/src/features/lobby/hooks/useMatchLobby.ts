@@ -90,6 +90,8 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
     return session?.access_token || null;
   }, []);
 
+  // Our custom hook handles token auth internally via getToken callback
+
   // Load initial match data via REST API
   useEffect(() => {
     if (!matchId) {
@@ -104,20 +106,33 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
 
         const matchData = await matchmakingApi.getMatch(matchId);
         
-        // Initialize match state from REST response
-        setMatchState({
-          match: matchData.match,
-          player1: matchData.participant1,
-          player2: matchData.participant2,
-          roundNumber: matchData.roundNumber || 1,
-          gameSnapshot: matchData.gameSnapshot,
-          status: matchData.match.status,
-          matchStarting: false,
-          countdownSeconds: null,
-          disconnectedPlayerId: matchData.match.disconnectedPlayerId || null,
-          disconnectedAt: matchData.match.disconnectedAt || null,
-          canClaimWalkover: false,
-          walkoverClaimableAt: null,
+        // Initialize match state from REST response using functional updater
+        // to preserve any WebSocket updates that arrived while REST call was in-flight
+        setMatchState((prev) => {
+          const mergedP1 = prev?.match.participant1GameLoaded ?? matchData.match.participant1GameLoaded;
+          const mergedP2 = prev?.match.participant2GameLoaded ?? matchData.match.participant2GameLoaded;
+          
+          const newState = {
+            match: {
+              ...matchData.match,
+              // Preserve game loaded status from WebSocket if already updated
+              participant1GameLoaded: mergedP1,
+              participant2GameLoaded: mergedP2,
+            },
+            player1: matchData.participant1,
+            player2: matchData.participant2,
+            roundNumber: matchData.roundNumber || 1,
+            gameSnapshot: matchData.gameSnapshot,
+            status: matchData.match.status,
+            matchStarting: prev?.matchStarting || false,
+            countdownSeconds: prev?.countdownSeconds || null,
+            disconnectedPlayerId: matchData.match.disconnectedPlayerId || null,
+            disconnectedAt: matchData.match.disconnectedAt || null,
+            canClaimWalkover: false,
+            walkoverClaimableAt: null,
+          };
+          
+          return newState;
         });
 
         initialLoadComplete.current = true;
@@ -135,21 +150,37 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
   const handleLobbyState = useCallback((payload: LobbyStatePayload) => {
     console.log('[useMatchLobby] Lobby state update:', payload);
     
-    setMatchState((prev) => ({
-      match: payload.match,
-      // Preserve player info from REST API if not in WebSocket payload
-      player1: payload.participant1 ?? prev?.player1 ?? null,
-      player2: payload.participant2 ?? prev?.player2 ?? null,
-      roundNumber: prev?.roundNumber || 1,
-      gameSnapshot: prev?.gameSnapshot,
-      status: payload.match.status,
-      matchStarting: prev?.matchStarting || false,
-      countdownSeconds: prev?.countdownSeconds || null,
-      disconnectedPlayerId: payload.match.disconnectedPlayerId || null,
-      disconnectedAt: payload.match.disconnectedAt || null,
-      canClaimWalkover: prev?.canClaimWalkover || false,
-      walkoverClaimableAt: prev?.walkoverClaimableAt || null,
-    }));
+    setMatchState((prev) => {
+      // Backend sends snake_case, convert to camelCase
+      const payloadP1 = (payload.match as any).participant1_game_loaded ?? payload.match.participant1GameLoaded;
+      const payloadP2 = (payload.match as any).participant2_game_loaded ?? payload.match.participant2GameLoaded;
+      
+      const mergedP1 = payloadP1 ?? prev?.match.participant1GameLoaded ?? false;
+      const mergedP2 = payloadP2 ?? prev?.match.participant2GameLoaded ?? false;
+      
+      const newState = {
+        match: {
+          ...payload.match,
+          // Preserve game loaded fields from previous state if not in payload
+          participant1GameLoaded: mergedP1,
+          participant2GameLoaded: mergedP2,
+        },
+        // Preserve player info from REST API if not in WebSocket payload
+        player1: payload.participant1 ?? prev?.player1 ?? null,
+        player2: payload.participant2 ?? prev?.player2 ?? null,
+        roundNumber: prev?.roundNumber || 1,
+        gameSnapshot: prev?.gameSnapshot,
+        status: payload.match.status,
+        matchStarting: prev?.matchStarting || false,
+        countdownSeconds: prev?.countdownSeconds || null,
+        disconnectedPlayerId: payload.match.disconnectedPlayerId || null,
+        disconnectedAt: payload.match.disconnectedAt || null,
+        canClaimWalkover: prev?.canClaimWalkover || false,
+        walkoverClaimableAt: prev?.walkoverClaimableAt || null,
+      };
+      
+      return newState;
+    });
   }, []);
 
   // Handle player_joined message
@@ -415,6 +446,7 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
       console.error('[useMatchLobby] Failed to parse WebSocket message:', err);
     }
   }, [
+    matchId,
     handleLobbyState,
     handlePlayerJoined,
     handlePlayerLeft,
@@ -428,13 +460,16 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
     handlePlayerReconnected,
   ]);
 
-  // Initialize WebSocket connection
-  const { status: connectionStatus } = useWebSocket({
-    url: wsUrl,
-    getToken,
+  // Initialize WebSocket connection using our custom hook
+  const { 
+    status: wsStatus,
+    isConnected: _isConnected, // Keep for future use
+  } = useWebSocket({
+    url: wsUrl, // Our hook handles token internally via getToken
+    getToken: getToken,
     onMessage: handleWebSocketMessage,
     onOpen: () => {
-      console.log('[useMatchLobby] WebSocket connected');
+      console.log('[useMatchLobby] WebSocket connection opened');
 
       // Clear server restarting flag on successful connection
       setServerRestarting(false);
@@ -447,19 +482,29 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
         // Re-fetch match data
         matchmakingApi.getMatch(matchId)
           .then((matchData) => {
-            setMatchState({
-              match: matchData.match,
-              player1: matchData.participant1,
-              player2: matchData.participant2,
-              roundNumber: matchData.roundNumber || 1,
-              gameSnapshot: matchData.gameSnapshot,
-              status: matchData.match.status,
-              matchStarting: false,
-              countdownSeconds: null,
-              disconnectedPlayerId: matchData.match.disconnectedPlayerId || null,
-              disconnectedAt: matchData.match.disconnectedAt || null,
-              canClaimWalkover: false,
-              walkoverClaimableAt: null,
+            // Use functional updater to preserve WebSocket-updated values
+            setMatchState((prev) => {
+              const mergedP1 = prev?.match.participant1GameLoaded ?? matchData.match.participant1GameLoaded;
+              const mergedP2 = prev?.match.participant2GameLoaded ?? matchData.match.participant2GameLoaded;
+
+              return {
+                match: {
+                  ...matchData.match,
+                  participant1GameLoaded: mergedP1,
+                  participant2GameLoaded: mergedP2,
+                },
+                player1: matchData.participant1,
+                player2: matchData.participant2,
+                roundNumber: matchData.roundNumber || 1,
+                gameSnapshot: matchData.gameSnapshot,
+                status: matchData.match.status,
+                matchStarting: false,
+                countdownSeconds: null,
+                disconnectedPlayerId: matchData.match.disconnectedPlayerId || null,
+                disconnectedAt: matchData.match.disconnectedAt || null,
+                canClaimWalkover: false,
+                walkoverClaimableAt: null,
+              };
             });
           })
           .catch((err) => {
@@ -470,19 +515,21 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
       previousStatusRef.current = 'connected';
     },
     onClose: () => {
-      console.log('[useMatchLobby] WebSocket disconnected');
+      console.log('[useMatchLobby] WebSocket connection closed');
       previousStatusRef.current = 'disconnected';
     },
     onError: (error) => {
       console.error('[useMatchLobby] WebSocket error:', error);
       setError('Błąd połączenia WebSocket');
     },
+    reconnect: true,
+    maxReconnectAttempts: Infinity,
+    reconnectBackoff: [1000, 2000, 4000, 8000, 16000, 30000],
+    heartbeatInterval: 15000,
   });
 
-  // Track last connection status for reconnection logic
-  useEffect(() => {
-    previousStatusRef.current = connectionStatus;
-  }, [connectionStatus]);
+  // Messages are handled via onMessage callback in useWebSocket options
+  // wsStatus already has correct ConnectionState type from our custom hook
 
   // Walkover timer - enable claim button after 2 minutes if opponent doesn't join
   useEffect(() => {
@@ -574,7 +621,7 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
     matchState,
     isLoading,
     error,
-    connectionStatus,
+    connectionStatus: wsStatus,
     serverRestarting,
     claimWalkover,
   };

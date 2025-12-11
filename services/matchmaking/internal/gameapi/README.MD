@@ -1,0 +1,3 @@
+# TODO
+- MAKE IT APART 
+- ADD GRPC

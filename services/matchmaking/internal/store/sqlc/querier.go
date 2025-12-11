@@ -87,6 +87,9 @@ type Querier interface {
 	GetRoundByBracketAndNumber(ctx context.Context, arg GetRoundByBracketAndNumberParams) (TournamentRound, error)
 	GetRoundByID(ctx context.Context, id pgtype.UUID) (TournamentRound, error)
 	GetRoundsByBracketID(ctx context.Context, bracketID pgtype.UUID) ([]TournamentRound, error)
+	// Atomically mark game loaded and return if both are now loaded
+	// Uses idempotency check - only updates if player not already marked as loaded
+	MarkGameLoadedAndCheckBoth(ctx context.Context, arg MarkGameLoadedAndCheckBothParams) (TournamentMatch, error)
 	// Checks if a snapshot already exists for a tournament
 	ParticipantSnapshotExists(ctx context.Context, tournamentID pgtype.UUID) (bool, error)
 	// Transitions pre-lobby to grace_period status with 30-second window
@@ -94,8 +97,6 @@ type Querier interface {
 	UpdateBracketCompletedAt(ctx context.Context, arg UpdateBracketCompletedAtParams) error
 	// Update disconnected player info without changing status
 	UpdateDisconnectedPlayerOnly(ctx context.Context, arg UpdateDisconnectedPlayerOnlyParams) error
-	// Mark a player's game as loaded
-	UpdateGameLoaded(ctx context.Context, arg UpdateGameLoadedParams) error
 	// Track player disconnect for CS:GO-style handling
 	UpdateMatchDisconnect(ctx context.Context, arg UpdateMatchDisconnectParams) error
 	// Track Game API polling attempts

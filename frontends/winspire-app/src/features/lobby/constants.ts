@@ -116,17 +116,17 @@ export const API_ENDPOINTS = {
   WS_PRE_LOBBY: (tournamentId: string) => `/v1/matchmaking/tournaments/${tournamentId}/lobby/ws`,
 
   // Match Lobby (Matchmaking Service)
-  GET_MATCH: (matchId: string) => `/v1/matchmaking/matches/${matchId}`,
-  MARK_READY: (matchId: string) => `/v1/matchmaking/matches/${matchId}/ready`,
+  GET_MATCH: (matchId: string) => `:8088/v1/matchmaking/matches/${matchId}`,
+  MARK_READY: (matchId: string) => `:8088/v1/matchmaking/matches/${matchId}/ready`,
   MARK_GAME_LOADED: (matchId: string) => `/v1/matchmaking/matches/${matchId}/game-loaded`,
   CLAIM_WALKOVER: (matchId: string) => `/v1/matchmaking/matches/${matchId}/claim-walkover`,
-  WS_MATCH_LOBBY: (matchId: string) => `/v1/matchmaking/matches/${matchId}/lobby`,
+  WS_MATCH_LOBBY: (matchId: string) => `:8088/v1/matchmaking/matches/${matchId}/lobby`,
 
   // Bracket (Matchmaking Service)
-  GET_BRACKET: (tournamentId: string) => `/v1/matchmaking/tournaments/${tournamentId}/bracket`,
+  GET_BRACKET: (tournamentId: string) => `:8088/v1/matchmaking/tournaments/${tournamentId}/bracket`,
 
   // Matches List (Matchmaking Service)
-  GET_MATCHES: (tournamentId: string) => `/v1/matchmaking/tournaments/${tournamentId}/matches`,
+  GET_MATCHES: (tournamentId: string) => `:8088/v1/matchmaking/tournaments/${tournamentId}/matches`,
 } as const;
 
 // ============================================================================

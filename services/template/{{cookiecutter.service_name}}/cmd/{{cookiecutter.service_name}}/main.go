@@ -14,12 +14,24 @@ import (
 	"github.com/redis/go-redis/v9"
 {% endif %}
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 
 	"{{ cookiecutter.go_module }}/internal/config"
 	httpx "{{ cookiecutter.go_module }}/internal/http"
 )
 
 func main() {
+	// Load .env file in development (Docker Compose will override with its own env vars)
+	// Try multiple locations to handle different working directories
+	envPaths := []string{".env", "services/{{ cookiecutter.service_name }}/.env", "../../.env"}
+	for _, path := range envPaths {
+		if _, err := os.Stat(path); err == nil {
+			if err := godotenv.Load(path); err == nil {
+				break
+			}
+		}
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		panic(err)

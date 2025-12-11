@@ -74,7 +74,7 @@ func Load() (*Config, error) {
 		GinMode: getEnv("GIN_MODE", "release"),
 
 		// Database
-		DatabaseURL:      getEnv("DATABASE_URL", ""),
+		DatabaseURL:      getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/competition_db?sslmode=disable"),
 		DatabaseMaxConns: getEnvAsInt32("DATABASE_MAX_CONNS", 25),
 		DatabaseMaxIdle:  getEnvAsInt32("DATABASE_MAX_IDLE_CONNS", 5),
 

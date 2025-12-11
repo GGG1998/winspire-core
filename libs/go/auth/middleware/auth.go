@@ -21,6 +21,11 @@ func ValidateJWTMiddleware(cfg Config) gin.HandlerFunc {
 	validator := jwt.NewValidator(cfg.JWTSecret, cfg.Issuer, cfg.Audience)
 
 	return func(c *gin.Context) {
+		// H14: Log every request that hits this middleware
+		if c.Request.URL.Path != "/health" && c.Request.URL.Path != "/ready" && c.Request.URL.Path != "/live" {
+			println("[JWT-H14] Request:", c.Request.Method, c.Request.URL.Path, "Query:", c.Request.URL.RawQuery)
+		}
+
 		var tokenString string
 
 		// Extract token from Authorization header (preferred method)

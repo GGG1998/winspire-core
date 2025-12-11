@@ -120,7 +120,29 @@ async function getOrCreateAccount(spec: AccountSpec): Promise<SeededAccount> {
     },
   });
 
+  // If user already exists, try to sign in instead
   if (signUpError) {
+    // Check if error is due to existing user (various possible messages)
+    const isDuplicateUser = signUpError.message.toLowerCase().includes('already') ||
+                           signUpError.message.toLowerCase().includes('duplicate') ||
+                           signUpError.message.toLowerCase().includes('exists');
+    
+    if (isDuplicateUser) {
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: spec.email,
+        password: spec.password,
+      });
+      
+      if (signInError) {
+        throw new Error(`Sign in failed for ${spec.email}: ${signInError.message}`);
+      }
+      
+      const account = toSeededAccount(signInData.session!, spec);
+      accountCache.set(spec.email, account);
+      return account;
+    }
+    
+    // For other signup errors, throw
     throw new Error(`Auth failed for ${spec.email}: ${signUpError.message}`);
   }
 

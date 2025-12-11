@@ -3,8 +3,11 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -484,7 +487,7 @@ func (s *MatchService) OnGameLoaded(ctx context.Context, matchID, playerID uuid.
 		"player_id": playerID.String(),
 	})
 
-	// Fetch match
+	// Fetch match first to validate status
 	match, err := s.matchRepo.GetByID(ctx, matchID)
 	if err != nil {
 		return fmt.Errorf("get match: %w", err)
@@ -492,6 +495,15 @@ func (s *MatchService) OnGameLoaded(ctx context.Context, matchID, playerID uuid.
 
 	// Validate match is in loading state
 	if match.Status != domain.MatchStatusLoading {
+		// #region agent log
+		func() {
+			f, _ := os.OpenFile("/Users/gabrieldomanowski/programming/winspire-core/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if f != nil {
+				defer f.Close()
+				json.NewEncoder(f).Encode(map[string]interface{}{"location": "match_service.go:495", "message": "match not in loading state", "data": map[string]interface{}{"matchId": matchID.String(), "status": string(match.Status)}, "timestamp": time.Now().UnixMilli(), "sessionId": "debug-session", "hypothesisId": "H6"})
+			}
+		}()
+		// #endregion
 		s.logger.Warn("Game loaded callback for non-loading match", map[string]interface{}{
 			"match_id": matchID.String(),
 			"status":   match.Status,
@@ -499,16 +511,57 @@ func (s *MatchService) OnGameLoaded(ctx context.Context, matchID, playerID uuid.
 		return fmt.Errorf("match is not in loading state, current status: %s", match.Status)
 	}
 
-	// Mark game as loaded for this player
-	err = s.matchRepo.UpdateGameLoaded(ctx, matchID, playerID)
+	// Atomically mark game as loaded and get updated match
+	updatedMatch, err := s.matchRepo.UpdateGameLoadedAtomic(ctx, matchID, playerID)
 	if err != nil {
-		return fmt.Errorf("update game loaded: %w", err)
-	}
+		errMsg := err.Error()
+		// If error contains "no rows" - player already marked as loaded (idempotent)
+		if strings.Contains(errMsg, "no rows") {
+			s.logger.Info("Player game already marked as loaded (idempotent call), broadcasting current state", map[string]interface{}{
+				"match_id":  matchID.String(),
+				"player_id": playerID.String(),
+			})
 
-	// Re-fetch match to get updated game loaded status
-	match, err = s.matchRepo.GetByID(ctx, matchID)
-	if err != nil {
-		return fmt.Errorf("get match after update: %w", err)
+			// Fetch current match state from DB
+			currentMatch, fetchErr := s.matchRepo.GetByID(ctx, matchID)
+			if fetchErr != nil {
+				s.logger.Error("Failed to fetch match after idempotent game loaded", map[string]interface{}{
+					"match_id": matchID.String(),
+					"error":    fetchErr.Error(),
+				})
+				return nil // Still return nil (success) for idempotent call
+			}
+
+			// Broadcast game_loaded event with current state
+			if s.hub != nil {
+				msg := map[string]interface{}{
+					"type":      "game_loaded",
+					"timestamp": time.Now(),
+					"payload": map[string]interface{}{
+						"playerId":               playerID.String(),
+						"participant1GameLoaded": currentMatch.Participant1GameLoaded,
+						"participant2GameLoaded": currentMatch.Participant2GameLoaded,
+					},
+				}
+				s.hub.BroadcastToMatch(matchID, msg)
+				s.logger.Info("Broadcasted game_loaded (idempotent)", map[string]interface{}{
+					"match_id": matchID.String(),
+				})
+			}
+
+			// Check if both games are loaded (idempotent path)
+			if currentMatch.BothGamesLoaded() {
+				fmt.Printf("[H17] Idempotent path: both games loaded, starting countdown\n")
+				s.logger.Info("Both games loaded (idempotent path), starting countdown", map[string]interface{}{
+					"match_id": matchID.String(),
+				})
+				// Start countdown in a goroutine
+				go s.startCountdownAndMatch(matchID)
+			}
+
+			return nil
+		}
+		return fmt.Errorf("update game loaded atomic: %w", err)
 	}
 
 	// Broadcast game_loaded status to all players in match
@@ -518,16 +571,26 @@ func (s *MatchService) OnGameLoaded(ctx context.Context, matchID, playerID uuid.
 			"timestamp": time.Now(),
 			"payload": map[string]interface{}{
 				"playerId":               playerID.String(),
-				"participant1GameLoaded": match.Participant1GameLoaded,
-				"participant2GameLoaded": match.Participant2GameLoaded,
+				"participant1GameLoaded": updatedMatch.Participant1GameLoaded,
+				"participant2GameLoaded": updatedMatch.Participant2GameLoaded,
 			},
 		}
 		s.hub.BroadcastToMatch(matchID, msg)
+		// #region agent log
+		func() {
+			f, _ := os.OpenFile("/Users/gabrieldomanowski/programming/winspire-core/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if f != nil {
+				defer f.Close()
+				json.NewEncoder(f).Encode(map[string]interface{}{"location": "match_service.go:528", "message": "broadcast game_loaded", "data": map[string]interface{}{"matchId": matchID.String()}, "timestamp": time.Now().UnixMilli(), "sessionId": "debug-session", "hypothesisId": "H4"})
+			}
+		}()
+		// #endregion
 	}
 
-	// Check if both games are loaded
-	if match.BothGamesLoaded() {
-		s.logger.Info("Both games loaded, starting countdown", map[string]interface{}{
+	// Check if both games are loaded AFTER atomic update
+	// Only ONE thread will see both=true for the first time
+	if updatedMatch.BothGamesLoaded() {
+		s.logger.Info("Both games loaded (atomic check), starting countdown", map[string]interface{}{
 			"match_id": matchID.String(),
 		})
 

@@ -3,6 +3,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -56,17 +57,23 @@ func NewWebSocketHandler(
 // UpgradeLobbyConnection upgrades HTTP connection to WebSocket for match lobby
 // GET /v1/matches/:id/lobby
 func (h *WebSocketHandler) UpgradeLobbyConnection(c *gin.Context) {
+	fmt.Printf("[WS-H13] >>>> UpgradeLobbyConnection CALLED for match=%s\n", c.Param("id"))
+
 	// Parse match ID
 	matchID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
+		fmt.Printf("[WS-H13] ERROR: invalid match ID: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid match ID", "details": err.Error()})
 		return
 	}
 
 	// Get authenticated user from JWT (set by auth middleware)
 	user := httpx.MustGetUser(c)
+	fmt.Printf("[WS-H13] Got user from JWT: %s\n", user.ID)
+
 	userID, err := uuid.Parse(string(user.ID))
 	if err != nil {
+		fmt.Printf("[WS-H13] ERROR: invalid user ID from JWT: %v\n", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user ID", "details": err.Error()})
 		return
 	}
@@ -74,9 +81,11 @@ func (h *WebSocketHandler) UpgradeLobbyConnection(c *gin.Context) {
 	// Fetch match to verify user is a participant
 	match, err := h.matchRepo.GetByID(c.Request.Context(), matchID)
 	if err != nil {
+		fmt.Printf("[WS-H13] ERROR: match not found: %v\n", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "match not found", "details": err.Error()})
 		return
 	}
+	fmt.Printf("[WS-H13] Match found, checking participant access\n")
 
 	// FR-023, FR-024: Verify user ID matches a participant in the match
 	isParticipant1 := match.Participant1ID == userID
@@ -84,10 +93,12 @@ func (h *WebSocketHandler) UpgradeLobbyConnection(c *gin.Context) {
 
 	if !isParticipant1 && !isParticipant2 {
 		// FR-024, FR-025: Deny access with specific error message
+		fmt.Printf("[WS-H13] ERROR: Access denied - user=%s not participant in match=%s\n", userID, matchID)
 		log.Printf("[WebSocket] Unauthorized lobby access attempt: user=%s, match=%s", userID, matchID)
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied: you are not a participant in this match"})
 		return
 	}
+	fmt.Printf("[WS-H13] User verified as participant, proceeding to upgrade\n")
 
 	// Check if this is a reconnection (session was active in Redis)
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)

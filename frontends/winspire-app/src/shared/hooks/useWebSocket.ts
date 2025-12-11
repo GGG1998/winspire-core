@@ -286,6 +286,9 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       }
 
       console.log('[WebSocket] Connecting to:', url);
+      console.log('[WebSocket-H15] FINAL WS URL:', wsUrl);
+      // H15: Log WebSocket connection attempt
+      fetch('http://127.0.0.1:7242/ingest/79a701eb-2b46-4fc0-9477-fca1e4d8fd71',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useWebSocket.ts:288',message:'WebSocket connecting',data:{url,wsUrl,hasToken:!!getToken},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H15'})}).catch(()=>{});
       setStatus('connecting');
       isManualCloseRef.current = false;
       setLastCloseEvent(null);

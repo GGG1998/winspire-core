@@ -3,7 +3,9 @@ package websocket
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -168,8 +170,10 @@ func (h *Hub) registerClient(client *Client) {
 	log.Printf("[Hub] Player %s connected to match %s (total clients: %d)",
 		client.PlayerID, client.MatchID, len(h.matches[client.MatchID]))
 
+	log.Printf("[Hub-H12] About to call sendLobbyStateToClient for newly connected player=%s", client.PlayerID)
 	// Send current lobby state to the newly connected client
 	h.sendLobbyStateToClient(client)
+	log.Printf("[Hub-H12] Finished initial sendLobbyStateToClient for player=%s", client.PlayerID)
 }
 
 // unregisterClient unregisters a client connection
@@ -389,6 +393,8 @@ func (h *Hub) handleClientMessage(client *Client, messageBytes []byte) {
 
 // sendLobbyStateToClient sends current lobby state to a client
 func (h *Hub) sendLobbyStateToClient(client *Client) {
+	fmt.Printf("[Hub-H12] >>>> sendLobbyStateToClient CALLED for player=%s match=%s\n", client.PlayerID, client.MatchID)
+
 	// Fetch full match state from database
 	if h.matchRepo == nil {
 		log.Printf("[Hub] WARN: matchRepo is nil, cannot fetch match state")
@@ -409,21 +415,35 @@ func (h *Hub) sendLobbyStateToClient(client *Client) {
 	// We only need to send updated match state here
 	payload := map[string]interface{}{
 		"match": map[string]interface{}{
-			"id":                     match.ID,
-			"status":                 match.Status,
-			"participant1_id":        match.Participant1ID,
-			"participant2_id":        match.Participant2ID,
-			"participant1_ready":     match.Participant1Ready,
-			"participant2_ready":     match.Participant2Ready,
-			"winner_id":              match.WinnerID,
-			"score_player1":          match.ScorePlayer1,
-			"score_player2":          match.ScorePlayer2,
-			"disconnected_player_id": match.DisconnectedPlayerID,
-			"disconnected_at":        match.DisconnectedAt,
-			"started_at":             match.StartedAt,
-			"completed_at":           match.CompletedAt,
+			"id":                       match.ID,
+			"status":                   match.Status,
+			"participant1_id":          match.Participant1ID,
+			"participant2_id":          match.Participant2ID,
+			"participant1_ready":       match.Participant1Ready,
+			"participant2_ready":       match.Participant2Ready,
+			"participant1_game_loaded": match.Participant1GameLoaded,
+			"participant2_game_loaded": match.Participant2GameLoaded,
+			"winner_id":                match.WinnerID,
+			"score_player1":            match.ScorePlayer1,
+			"score_player2":            match.ScorePlayer2,
+			"disconnected_player_id":   match.DisconnectedPlayerID,
+			"disconnected_at":          match.DisconnectedAt,
+			"started_at":               match.StartedAt,
+			"completed_at":             match.CompletedAt,
 		},
 	}
+
+	fmt.Printf("[Hub-H12] Payload constructed with: p1_game_loaded=%v p2_game_loaded=%v\n", payload["match"].(map[string]interface{})["participant1_game_loaded"], payload["match"].(map[string]interface{})["participant2_game_loaded"])
+
+	// #region agent log
+	func() {
+		f, _ := os.OpenFile("/Users/gabrieldomanowski/programming/winspire-core/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if f != nil {
+			defer f.Close()
+			json.NewEncoder(f).Encode(map[string]interface{}{"location": "hub.go:428", "message": "lobby_state payload constructed", "data": map[string]interface{}{"payloadMatch": payload["match"]}, "timestamp": time.Now().UnixMilli(), "sessionId": "debug-session", "hypothesisId": "H10"})
+		}
+	}()
+	// #endregion
 
 	msg, err := NewMessage(MessageTypeLobbyState, payload)
 	if err != nil {

@@ -494,6 +494,93 @@ func (q *Queries) GetMatchesForPlayer(ctx context.Context, participant1ID pgtype
 	return items, nil
 }
 
+const MarkGameLoadedAndCheckBoth = `-- name: MarkGameLoadedAndCheckBoth :one
+UPDATE tournament_matches
+SET 
+    participant1_game_loaded = CASE 
+        WHEN participant1_id = $2 THEN true 
+        ELSE participant1_game_loaded 
+    END,
+    participant2_game_loaded = CASE 
+        WHEN participant2_id = $2 THEN true 
+        ELSE participant2_game_loaded 
+    END,
+    updated_at = NOW()
+WHERE id = $1
+  AND status = 'loading'
+  AND (
+    (participant1_id = $2 AND NOT participant1_game_loaded) 
+    OR 
+    (participant2_id = $2 AND NOT participant2_game_loaded)
+  )
+RETURNING 
+    id,
+    round_id,
+    match_number,
+    next_match_id,
+    participant1_id,
+    participant2_id,
+    status,
+    participant1_ready,
+    participant2_ready,
+    participant1_game_loaded,
+    participant2_game_loaded,
+    winner_id,
+    score_player1,
+    score_player2,
+    result_source,
+    disconnected_player_id,
+    disconnected_at,
+    game_api_match_id,
+    game_api_poll_attempts,
+    game_api_last_poll,
+    version,
+    created_at,
+    started_at,
+    completed_at,
+    updated_at
+`
+
+type MarkGameLoadedAndCheckBothParams struct {
+	ID             pgtype.UUID `json:"id"`
+	Participant1ID pgtype.UUID `json:"participant1_id"`
+}
+
+// Atomically mark game loaded and return if both are now loaded
+// Uses idempotency check - only updates if player not already marked as loaded
+func (q *Queries) MarkGameLoadedAndCheckBoth(ctx context.Context, arg MarkGameLoadedAndCheckBothParams) (TournamentMatch, error) {
+	row := q.db.QueryRow(ctx, MarkGameLoadedAndCheckBoth, arg.ID, arg.Participant1ID)
+	var i TournamentMatch
+	err := row.Scan(
+		&i.ID,
+		&i.RoundID,
+		&i.MatchNumber,
+		&i.NextMatchID,
+		&i.Participant1ID,
+		&i.Participant2ID,
+		&i.Status,
+		&i.Participant1Ready,
+		&i.Participant2Ready,
+		&i.Participant1GameLoaded,
+		&i.Participant2GameLoaded,
+		&i.WinnerID,
+		&i.ScorePlayer1,
+		&i.ScorePlayer2,
+		&i.ResultSource,
+		&i.DisconnectedPlayerID,
+		&i.DisconnectedAt,
+		&i.GameApiMatchID,
+		&i.GameApiPollAttempts,
+		&i.GameApiLastPoll,
+		&i.Version,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const UpdateDisconnectedPlayerOnly = `-- name: UpdateDisconnectedPlayerOnly :exec
 UPDATE tournament_matches
 SET disconnected_player_id = $2, disconnected_at = $3, updated_at = NOW()
@@ -509,32 +596,6 @@ type UpdateDisconnectedPlayerOnlyParams struct {
 // Update disconnected player info without changing status
 func (q *Queries) UpdateDisconnectedPlayerOnly(ctx context.Context, arg UpdateDisconnectedPlayerOnlyParams) error {
 	_, err := q.db.Exec(ctx, UpdateDisconnectedPlayerOnly, arg.ID, arg.DisconnectedPlayerID, arg.DisconnectedAt)
-	return err
-}
-
-const UpdateGameLoaded = `-- name: UpdateGameLoaded :exec
-UPDATE tournament_matches
-SET 
-    participant1_game_loaded = CASE 
-        WHEN participant1_id = $2 THEN true 
-        ELSE participant1_game_loaded 
-    END,
-    participant2_game_loaded = CASE 
-        WHEN participant2_id = $2 THEN true 
-        ELSE participant2_game_loaded 
-    END,
-    updated_at = NOW()
-WHERE id = $1
-`
-
-type UpdateGameLoadedParams struct {
-	ID             pgtype.UUID `json:"id"`
-	Participant1ID pgtype.UUID `json:"participant1_id"`
-}
-
-// Mark a player's game as loaded
-func (q *Queries) UpdateGameLoaded(ctx context.Context, arg UpdateGameLoadedParams) error {
-	_, err := q.db.Exec(ctx, UpdateGameLoaded, arg.ID, arg.Participant1ID)
 	return err
 }
 

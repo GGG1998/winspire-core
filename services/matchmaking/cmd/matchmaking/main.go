@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/winspire-core/services/matchmaking/internal/application"
@@ -29,6 +30,17 @@ import (
 )
 
 func main() {
+	// Load .env file in development (Docker Compose will override with its own env vars)
+	// Try multiple locations to handle different working directories
+	envPaths := []string{".env", "services/matchmaking/.env", "../../.env"}
+	for _, path := range envPaths {
+		if _, err := os.Stat(path); err == nil {
+			if err := godotenv.Load(path); err == nil {
+				break
+			}
+		}
+	}
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {

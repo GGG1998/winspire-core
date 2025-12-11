@@ -1,6 +1,6 @@
 import { test, expect, BrowserContext } from '@playwright/test';
 import { getStreamer, getUser, type SeededAccount } from '../fixtures/auth.fixture';
-import { seedMatchLobby1v1 } from './fixture';
+import { seedMatchLobby1v1, seedMatchInLoadingState } from './fixture';
 
 import type { Page } from '@playwright/test';
 
@@ -221,6 +221,150 @@ test.describe('Match Lobby websocket readiness', () => {
 
     // Countdown overlay should appear
     await expect(page1.getByRole('heading', { name: /Mecz rozpoczyna się/i })).toBeVisible({ timeout: 10000 });
+
+    await Promise.all([ctx1.close(), ctx2.close()]);
+  });
+});
+
+test.describe('Game loading synchronization', () => {
+  
+  test('both players load game, countdown starts', async ({ browser, request }) => {
+    const streamer = await getStreamer(3);
+    const user = await getUser(3);
+    const seed = await seedMatchInLoadingState(streamer, user);
+
+    const ctx1 = await browser.newContext();
+    const page1 = await ctx1.newPage();
+    await setupAuth(page1, streamer);
+    await page1.goto(seed.lobbyUrl, { waitUntil: 'networkidle' });
+
+    const ctx2 = await browser.newContext();
+    const page2 = await ctx2.newPage();
+    await setupAuth(page2, user);
+    await page2.goto(seed.lobbyUrl, { waitUntil: 'networkidle' });
+
+    // Both should see loading status
+    await expect(page1.getByRole('heading', { name: 'Status: Ładowanie gry' })).toBeVisible({ timeout: 5000 });
+    await expect(page2.getByRole('heading', { name: 'Status: Ładowanie gry' })).toBeVisible({ timeout: 5000 });
+
+    // Mark player 1's game as loaded via API
+    await request.post(`http://localhost:8088/v1/matchmaking/matches/${seed.matchId}/game-loaded`, {
+      headers: {
+        'Authorization': `Bearer ${streamer.session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      data: {
+        player_id: streamer.id,
+      },
+    });
+
+    await page1.waitForTimeout(500);
+
+    // Countdown should NOT appear yet (only 1 player loaded)
+    await expect(page1.getByText(/Mecz rozpoczyna się za/i)).toHaveCount(0);
+
+    // Mark player 2's game as loaded via API
+    await request.post(`http://localhost:8088/v1/matchmaking/matches/${seed.matchId}/game-loaded`, {
+      headers: {
+        'Authorization': `Bearer ${user.session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      data: {
+        player_id: user.id,
+      },
+    });
+
+    // NOW countdown should appear for both players
+    await expect(page1.getByText(/Mecz rozpoczyna się za/i)).toBeVisible({ timeout: 3000 });
+    await expect(page2.getByText(/Mecz rozpoczyna się za/i)).toBeVisible({ timeout: 3000 });
+
+    await Promise.all([ctx1.close(), ctx2.close()]);
+  });
+
+  test('only one player loads, countdown does not start', async ({ browser, request }) => {
+    const streamer = await getStreamer(3);
+    const user = await getUser(3);
+    const seed = await seedMatchInLoadingState(streamer, user);
+
+    const ctx1 = await browser.newContext();
+    const page1 = await ctx1.newPage();
+    await setupAuth(page1, streamer);
+    await page1.goto(seed.lobbyUrl, { waitUntil: 'networkidle' });
+
+    const ctx2 = await browser.newContext();
+    const page2 = await ctx2.newPage();
+    await setupAuth(page2, user);
+    await page2.goto(seed.lobbyUrl, { waitUntil: 'networkidle' });
+
+    // Mark only player 1's game as loaded via API
+    await request.post(`http://localhost:8088/v1/matchmaking/matches/${seed.matchId}/game-loaded`, {
+      headers: {
+        'Authorization': `Bearer ${streamer.session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      data: {
+        player_id: streamer.id,
+      },
+    });
+
+    await page1.waitForTimeout(2000);
+
+    // Status should show "Gracz 1 załadował grę, czekamy na Gracza 2"
+    await expect(page1.getByText(/załadował grę, czekamy/i)).toBeVisible();
+    
+    // Countdown should NOT appear
+    await expect(page1.getByText(/Mecz rozpoczyna się za/i)).toHaveCount(0);
+    await expect(page2.getByText(/Mecz rozpoczyna się za/i)).toHaveCount(0);
+
+    await Promise.all([ctx1.close(), ctx2.close()]);
+  });
+
+  test('second player loads after delay, countdown starts', async ({ browser, request }) => {
+    const streamer = await getStreamer(3);
+    const user = await getUser(3);
+    const seed = await seedMatchInLoadingState(streamer, user);
+
+    const ctx1 = await browser.newContext();
+    const page1 = await ctx1.newPage();
+    await setupAuth(page1, streamer);
+    await page1.goto(seed.lobbyUrl, { waitUntil: 'networkidle' });
+
+    const ctx2 = await browser.newContext();
+    const page2 = await ctx2.newPage();
+    await setupAuth(page2, user);
+    await page2.goto(seed.lobbyUrl, { waitUntil: 'networkidle' });
+
+    // Mark player 1's game as loaded via API
+    await request.post(`http://localhost:8088/v1/matchmaking/matches/${seed.matchId}/game-loaded`, {
+      headers: {
+        'Authorization': `Bearer ${streamer.session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      data: {
+        player_id: streamer.id,
+      },
+    });
+
+    // Wait 3 seconds
+    await page1.waitForTimeout(3000);
+
+    // Still no countdown
+    await expect(page1.getByText(/Mecz rozpoczyna się za/i)).toHaveCount(0);
+
+    // Mark player 2's game as loaded via API after delay
+    await request.post(`http://localhost:8088/v1/matchmaking/matches/${seed.matchId}/game-loaded`, {
+      headers: {
+        'Authorization': `Bearer ${user.session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      data: {
+        player_id: user.id,
+      },
+    });
+
+    // Countdown should now appear
+    await expect(page1.getByText(/Mecz rozpoczyna się za/i)).toBeVisible({ timeout: 2000 });
+    await expect(page2.getByText(/Mecz rozpoczyna się za/i)).toBeVisible({ timeout: 2000 });
 
     await Promise.all([ctx1.close(), ctx2.close()]);
   });

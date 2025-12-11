@@ -167,8 +167,9 @@ UPDATE tournament_matches
 SET disconnected_player_id = NULL, disconnected_at = NULL, updated_at = NOW()
 WHERE id = $1;
 
--- name: UpdateGameLoaded :exec
--- Mark a player's game as loaded
+-- name: MarkGameLoadedAndCheckBoth :one
+-- Atomically mark game loaded and return if both are now loaded
+-- Uses idempotency check - only updates if player not already marked as loaded
 UPDATE tournament_matches
 SET 
     participant1_game_loaded = CASE 
@@ -180,7 +181,39 @@ SET
         ELSE participant2_game_loaded 
     END,
     updated_at = NOW()
-WHERE id = $1;
+WHERE id = $1
+  AND status = 'loading'
+  AND (
+    (participant1_id = $2 AND NOT participant1_game_loaded) 
+    OR 
+    (participant2_id = $2 AND NOT participant2_game_loaded)
+  )
+RETURNING 
+    id,
+    round_id,
+    match_number,
+    next_match_id,
+    participant1_id,
+    participant2_id,
+    status,
+    participant1_ready,
+    participant2_ready,
+    participant1_game_loaded,
+    participant2_game_loaded,
+    winner_id,
+    score_player1,
+    score_player2,
+    result_source,
+    disconnected_player_id,
+    disconnected_at,
+    game_api_match_id,
+    game_api_poll_attempts,
+    game_api_last_poll,
+    version,
+    created_at,
+    started_at,
+    completed_at,
+    updated_at;
 
 -- name: UpdateMatchStatusWithVersion :one
 -- Update match status with optimistic locking

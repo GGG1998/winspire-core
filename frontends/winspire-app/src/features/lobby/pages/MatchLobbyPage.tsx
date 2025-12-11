@@ -45,6 +45,10 @@ export function MatchLobbyPage() {
     claimWalkover,
   } = useMatchLobby(matchId || null);
   console.log('[MatchLobbyPage] matchState:', matchState);
+  
+  // #region agent log
+  const pageIdentifier = user?.id || 'unknown';
+  // #endregion
 
   // Fetch tournament info for display and navigation
   const [tournamentInfo, setTournamentInfo] = useState<TournamentInfo | null>(null);
@@ -123,7 +127,7 @@ export function MatchLobbyPage() {
     const isParticipant = 
       matchState.player1?.id === user.id || 
       matchState.player2?.id === user.id;
-
+    
     if (!isParticipant) {
       // User is not a participant in this match
       navigate(`/tournaments/${tournamentId}`, {
@@ -339,12 +343,16 @@ export function MatchLobbyPage() {
                   <p className="text-lg font-semibold text-blue-900 dark:text-blue-200">
                     Ładowanie gry...
                   </p>
-                  <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
-                    {!matchState.match.participant1GameLoaded && !matchState.match.participant2GameLoaded && 'Oba graczy ładują grę'}
-                    {matchState.match.participant1GameLoaded && !matchState.match.participant2GameLoaded && 'Gracz 1 załadował grę, czekamy na Gracza 2'}
-                    {!matchState.match.participant1GameLoaded && matchState.match.participant2GameLoaded && 'Gracz 2 załadował grę, czekamy na Gracza 1'}
-                    {matchState.match.participant1GameLoaded && matchState.match.participant2GameLoaded && 'Oba graczy załadowali grę!'}
-                  </p>
+                <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                      {(() => { 
+                        let renderedText = '';
+                        if (!matchState.match.participant1GameLoaded && !matchState.match.participant2GameLoaded) renderedText = 'Oba graczy ładują grę';
+                        else if (matchState.match.participant1GameLoaded && !matchState.match.participant2GameLoaded) renderedText = 'Gracz 1 załadował grę, czekamy na Gracza 2';
+                        else if (!matchState.match.participant1GameLoaded && matchState.match.participant2GameLoaded) renderedText = 'Gracz 2 załadował grę, czekamy na Gracza 1';
+                        else if (matchState.match.participant1GameLoaded && matchState.match.participant2GameLoaded) renderedText = 'Oba graczy załadowali grę!';
+                        return renderedText;
+                      })()}
+                </p>
                 </div>
               </div>
             </div>

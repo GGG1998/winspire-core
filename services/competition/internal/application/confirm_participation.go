@@ -82,6 +82,7 @@ func (uc *ConfirmParticipationUseCase) Execute(ctx context.Context, tournamentID
 	}
 
 	// 4. Update participant status
+	// TODO: Synchronize with match status/participant
 	if err := uc.participantRepo.UpdateStatus(ctx, tournamentID, userID, participant.Status); err != nil {
 		uc.logger.Error("failed to update participant status", "error", err, "tournamentId", tournamentID, "userId", userID)
 		return fmt.Errorf("failed to register participation: %w", err)

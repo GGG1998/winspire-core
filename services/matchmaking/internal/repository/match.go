@@ -26,7 +26,7 @@ type MatchRepository interface {
 	UpdateScore(ctx context.Context, id uuid.UUID, scorePlayer1, scorePlayer2 int) error
 	UpdateDisconnectedPlayer(ctx context.Context, id uuid.UUID, playerID uuid.UUID, disconnectedAt time.Time) error
 	ClearDisconnectedPlayer(ctx context.Context, id uuid.UUID) error
-	UpdateGameLoaded(ctx context.Context, id uuid.UUID, playerID uuid.UUID) error
+	UpdateGameLoadedAtomic(ctx context.Context, id uuid.UUID, playerID uuid.UUID) (*domain.Match, error)
 	FindLoadingMatchesOlderThan(ctx context.Context, duration time.Duration) ([]domain.Match, error)
 }
 
@@ -259,17 +259,18 @@ func (r *matchRepository) ClearDisconnectedPlayer(ctx context.Context, id uuid.U
 	})
 }
 
-// UpdateGameLoaded marks a player's game as loaded
-func (r *matchRepository) UpdateGameLoaded(ctx context.Context, id uuid.UUID, playerID uuid.UUID) error {
-	err := r.queries.UpdateGameLoaded(ctx, sqlc.UpdateGameLoadedParams{
+// UpdateGameLoadedAtomic atomically marks game as loaded and returns updated match
+// Returns error if player already marked as loaded (idempotency check)
+func (r *matchRepository) UpdateGameLoadedAtomic(ctx context.Context, id uuid.UUID, playerID uuid.UUID) (*domain.Match, error) {
+	row, err := r.queries.MarkGameLoadedAndCheckBoth(ctx, sqlc.MarkGameLoadedAndCheckBothParams{
 		ID:             pgtypeconv.UUIDToPgtype(id),
 		Participant1ID: pgtypeconv.UUIDToPgtype(playerID),
 	})
 	if err != nil {
-		return fmt.Errorf("update game loaded: %w", err)
+		return nil, fmt.Errorf("mark game loaded atomic: %w", err)
 	}
 
-	return nil
+	return r.rowToMatch(row), nil
 }
 
 // FindLoadingMatchesOlderThan finds matches in loading status older than specified duration
