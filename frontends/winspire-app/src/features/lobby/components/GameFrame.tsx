@@ -6,6 +6,7 @@ interface GameFrameProps {
   gameUrl: string;
   matchId: string;
   sessionToken?: string;
+  onGameLoaded?: () => void; // Called when game finishes loading
   onGameComplete?: (result: { winnerId: string; score?: number }) => void;
   onGameError?: (error: string) => void;
 }
@@ -26,12 +27,14 @@ export function GameFrame({
   gameUrl, 
   matchId, 
   sessionToken,
+  onGameLoaded,
   onGameComplete, 
   onGameError 
 }: GameFrameProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadTimeout, setLoadTimeout] = useState(false);
+  const [gameLoadedCalled, setGameLoadedCalled] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -79,6 +82,7 @@ export function GameFrame({
     setIsLoading(true);
     setError(null);
     setLoadTimeout(false);
+    setGameLoadedCalled(false);
 
     // Start timeout
     loadTimeoutRef.current = setTimeout(() => {
@@ -126,10 +130,17 @@ export function GameFrame({
           onGameError?.(message.error);
         }
 
-        // Handle game ready signal (optional - for games that explicitly signal readiness)
+        // Handle game ready signal (game finished loading)
         if (message.type === 'game_ready' || message.type === 'GAME_READY') {
+          console.log('[GameFrame] Game ready signal received from iframe');
           setIsLoading(false);
           setError(null);
+          
+          // Call onGameLoaded callback (only once)
+          if (!gameLoadedCalled && onGameLoaded) {
+            setGameLoadedCalled(true);
+            onGameLoaded();
+          }
         }
       } catch (err) {
         console.error('[GameFrame] Failed to parse postMessage:', err);
@@ -140,7 +151,7 @@ export function GameFrame({
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [onGameComplete, onGameError]);
+  }, [onGameComplete, onGameError, onGameLoaded, gameLoadedCalled]);
 
   // Handle iframe load event
   const handleIframeLoad = () => {
@@ -149,12 +160,23 @@ export function GameFrame({
       clearTimeout(loadTimeoutRef.current);
     }
 
-    // Hide loading state after brief delay to allow Unity games to initialize
-    // Games that send game_ready postMessage will hide loading sooner
+    console.log('[GameFrame] Iframe loaded, waiting for game_ready signal from game...');
+    
+    // For games that don't send game_ready postMessage, assume loaded after delay
+    // Games that send game_ready postMessage will call onGameLoaded sooner
     setTimeout(() => {
-      setIsLoading(false);
-      setError(null);
-    }, 1000); // 1 second buffer for Unity initialization
+      if (isLoading && !gameLoadedCalled) {
+        console.log('[GameFrame] Game did not send ready signal, assuming loaded after timeout');
+        setIsLoading(false);
+        setError(null);
+        
+        // Call onGameLoaded callback (only once)
+        if (onGameLoaded) {
+          setGameLoadedCalled(true);
+          onGameLoaded();
+        }
+      }
+    }, 2000); // 2 second buffer for game initialization
   };
 
   // Handle iframe error

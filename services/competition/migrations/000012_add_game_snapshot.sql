@@ -17,3 +17,7 @@ ON tournaments ((game_snapshot->>'slug'));
 COMMENT ON INDEX idx_tournaments_game_snapshot_slug IS 
 'Index on game slug within snapshot for efficient queries by game slug';
 
+
+
+
+

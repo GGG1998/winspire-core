@@ -54,7 +54,7 @@ services:
       
       # Database (Supabase local)
       - POSTGRES_DSN=${POSTGRES_DSN:-postgresql://postgres:postgres@host.docker.internal:54322/postgres?sslmode=disable}
-      
+      - MATCHMAKING_BASE_URL=http://matchmaking:8081
       # Redis
       - REDIS_ADDR=redis:6379
       

@@ -6,6 +6,7 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -51,6 +52,8 @@ type Querier interface {
 	DeleteOldActivityFeedEvents(ctx context.Context, tournamentID pgtype.UUID) error
 	// Deletes a pre-lobby (cascades to snapshots and activity feed)
 	DeletePreLobby(ctx context.Context, tournamentID pgtype.UUID) error
+	// Find matches in 'loading' status older than specified timestamp (for timeout monitoring)
+	FindLoadingMatchesOlderThan(ctx context.Context, updatedAt time.Time) ([]TournamentMatch, error)
 	// Gets all pre-lobbies currently in grace period (for recovery on startup)
 	GetActiveGracePeriods(ctx context.Context) ([]Prelobby, error)
 	// Get all active rounds (in_progress status)
@@ -91,6 +94,8 @@ type Querier interface {
 	UpdateBracketCompletedAt(ctx context.Context, arg UpdateBracketCompletedAtParams) error
 	// Update disconnected player info without changing status
 	UpdateDisconnectedPlayerOnly(ctx context.Context, arg UpdateDisconnectedPlayerOnlyParams) error
+	// Mark a player's game as loaded
+	UpdateGameLoaded(ctx context.Context, arg UpdateGameLoadedParams) error
 	// Track player disconnect for CS:GO-style handling
 	UpdateMatchDisconnect(ctx context.Context, arg UpdateMatchDisconnectParams) error
 	// Track Game API polling attempts
@@ -101,6 +106,8 @@ type Querier interface {
 	// Update scores during match (for disconnect point adjustments)
 	UpdateMatchScore(ctx context.Context, arg UpdateMatchScoreParams) error
 	UpdateMatchStatus(ctx context.Context, arg UpdateMatchStatusParams) error
+	// Update match status with optimistic locking
+	UpdateMatchStatusWithVersion(ctx context.Context, arg UpdateMatchStatusWithVersionParams) (TournamentMatch, error)
 	// Updates pre-lobby status
 	UpdatePreLobbyStatus(ctx context.Context, arg UpdatePreLobbyStatusParams) (Prelobby, error)
 	UpdateRoundStatus(ctx context.Context, arg UpdateRoundStatusParams) error

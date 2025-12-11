@@ -63,11 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-
       if (event === 'INITIAL_SESSION') {
         didReceiveInitialSession = true;
         clearTimeout(safetyTimeout);
-        
         
         // This is the first event fired when the component mounts
         // It contains the session from localStorage if available

@@ -16,14 +16,13 @@ import (
 
 // EventHandler handles incoming domain events
 type EventHandler struct {
-	bracketService       *BracketService
-	preLobbyService      *PreLobbyService
-	publisher            *pubsub.EventPublisher
-	logger               *observability.Logger
-	competitionClient    *CompetitionClient
-	gameManagementClient *GameManagementClient
-	gameManagementURL    string
-	hub                  *websocket.Hub
+	bracketService    *BracketService
+	preLobbyService   *PreLobbyService
+	publisher         *pubsub.EventPublisher
+	logger            *observability.Logger
+	competitionClient *CompetitionClient
+	gameManagementURL string
+	hub               *websocket.Hub
 }
 
 // NewEventHandler creates a new event handler
@@ -33,19 +32,17 @@ func NewEventHandler(
 	publisher *pubsub.EventPublisher,
 	logger *observability.Logger,
 	competitionClient *CompetitionClient,
-	gameManagementClient *GameManagementClient,
 	gameManagementURL string,
 	hub *websocket.Hub,
 ) *EventHandler {
 	return &EventHandler{
-		bracketService:       bracketService,
-		preLobbyService:      preLobbyService,
-		publisher:            publisher,
-		logger:               logger,
-		competitionClient:    competitionClient,
-		gameManagementClient: gameManagementClient,
-		gameManagementURL:    gameManagementURL,
-		hub:                  hub,
+		bracketService:    bracketService,
+		preLobbyService:   preLobbyService,
+		publisher:         publisher,
+		logger:            logger,
+		competitionClient: competitionClient,
+		gameManagementURL: gameManagementURL,
+		hub:               hub,
 	}
 }
 
@@ -558,44 +555,11 @@ func (h *EventHandler) HandleMatchStarted(ctx context.Context, eventType string,
 	gameSessionID := matchID.String()
 
 	if bracket.GameSnapshot != nil {
-		// Use local game snapshot (zero HTTP calls!)
 		gameURL = fmt.Sprintf("%s/v1/g/%s/bundle/", h.gameManagementURL, bracket.GameSnapshot.Slug)
 		h.logger.Info("Using game snapshot from bracket", map[string]interface{}{
 			"match_id":  matchID.String(),
 			"game_slug": bracket.GameSnapshot.Slug,
 		})
-	} else {
-		// Fallback: Fetch from game-management service (backward compatibility)
-		h.logger.Warn("No game snapshot in bracket, falling back to HTTP calls", map[string]interface{}{
-			"match_id":      matchID.String(),
-			"tournament_id": tournamentID.String(),
-		})
-
-		// Fetch tournament info to get game_id
-		tournamentInfo, err := h.competitionClient.GetTournamentInfo(ctx, tournamentID)
-		if err != nil {
-			h.logger.Error("Failed to fetch tournament info", map[string]interface{}{
-				"tournament_id": tournamentID.String(),
-				"error":         err.Error(),
-			})
-			return fmt.Errorf("fetch tournament info: %w", err)
-		}
-
-		if tournamentInfo == nil {
-			return fmt.Errorf("tournament not found: %s", tournamentID)
-		}
-
-		// Fetch game info to get slug
-		gameInfo, err := h.gameManagementClient.GetGameByID(ctx, tournamentInfo.GameID)
-		if err != nil {
-			h.logger.Error("Failed to fetch game info", map[string]interface{}{
-				"game_id": tournamentInfo.GameID.String(),
-				"error":   err.Error(),
-			})
-			return fmt.Errorf("fetch game info: %w", err)
-		}
-
-		gameURL = fmt.Sprintf("%s/v1/g/%s/bundle/", h.gameManagementURL, gameInfo.Slug)
 	}
 
 	h.logger.Info("Game URL constructed for match", map[string]interface{}{

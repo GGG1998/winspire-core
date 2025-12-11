@@ -63,6 +63,7 @@ export const BRACKET_DEFAULT_ZOOM = 1.0;
 export const MATCH_STATUS_LABELS: Record<string, string> = {
   pending: 'Oczekuje',
   ready: 'Gotowy',
+  loading: 'Ładowanie gry',
   started: 'Na żywo',
   paused: 'Wstrzymany',
   completed: 'Zakończony',
@@ -117,6 +118,7 @@ export const API_ENDPOINTS = {
   // Match Lobby (Matchmaking Service)
   GET_MATCH: (matchId: string) => `/v1/matchmaking/matches/${matchId}`,
   MARK_READY: (matchId: string) => `/v1/matchmaking/matches/${matchId}/ready`,
+  MARK_GAME_LOADED: (matchId: string) => `/v1/matchmaking/matches/${matchId}/game-loaded`,
   CLAIM_WALKOVER: (matchId: string) => `/v1/matchmaking/matches/${matchId}/claim-walkover`,
   WS_MATCH_LOBBY: (matchId: string) => `/v1/matchmaking/matches/${matchId}/lobby`,
 

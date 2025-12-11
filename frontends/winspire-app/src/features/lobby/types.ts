@@ -48,7 +48,8 @@ export interface GracePeriodState {
 // Match status as returned from backend
 export type MatchStatus =
   | 'pending' // Waiting for participants
-  | 'ready' // Both participants assigned, waiting for ready
+  | 'ready' // Both participants ready, waiting for game to load
+  | 'loading' // Game is loading for both players
   | 'started' // Match in progress
   | 'paused' // Match paused (disconnect)
   | 'completed' // Match finished with result
@@ -72,6 +73,8 @@ export interface Match {
   status: MatchStatus;
   participant1Ready: boolean;
   participant2Ready: boolean;
+  participant1GameLoaded: boolean; // Player 1 has loaded the game
+  participant2GameLoaded: boolean; // Player 2 has loaded the game
   winnerId: string | null; // UUID of winner
   scorePlayer1: number | null; // Player 1 score
   scorePlayer2: number | null; // Player 2 score
@@ -203,7 +206,9 @@ export type ServerMessageType =
   | 'player_joined' // Opponent joined lobby
   | 'player_left' // Opponent left lobby
   | 'ready_updated' // Ready state changed
-  | 'match_starting' // Both ready, countdown starting
+  | 'match_ready_to_load' // Both players ready, send game URL
+  | 'game_loaded' // Player has loaded game
+  | 'match_starting' // Both games loaded, countdown starting
   | 'match_started' // Match is now active
   | 'player_disconnected' // Opponent disconnected
   | 'player_reconnected' // Opponent reconnected
@@ -297,6 +302,17 @@ export interface ReadyUpdatedPayload {
   ready: boolean;
 }
 
+export interface MatchReadyToLoadPayload {
+  gameUrl: string;
+  gameSessionId: string;
+}
+
+export interface GameLoadedPayload {
+  playerId: string;
+  participant1GameLoaded: boolean;
+  participant2GameLoaded: boolean;
+}
+
 export interface MatchStartingPayload {
   countdownSeconds: number; // 3, 2, 1...
 }
@@ -369,6 +385,8 @@ export interface MatchApiData {
   status: string;
   participant1_ready: boolean;
   participant2_ready: boolean;
+  participant1_game_loaded: boolean;
+  participant2_game_loaded: boolean;
   winner_id: string | null;
   score_player1: number | null;
   score_player2: number | null;

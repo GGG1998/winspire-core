@@ -145,6 +145,7 @@ func main() {
 		publisher,
 		metrics,
 		logger,
+		cfg.GameManagementURL,
 	)
 	// Set hub on match service after creation
 	matchService.SetHub(hub)
@@ -200,9 +201,6 @@ func main() {
 	// Initialize competition client (for fetching tournament info)
 	competitionClient := application.NewCompetitionClient(cfg.CompetitionServiceURL, logger)
 
-	// Initialize game management client (for fetching game info)
-	gameManagementClient := application.NewGameManagementClient(cfg.GameManagementURL, logger)
-
 	// Set hub on pre-lobby service (after hub is created)
 	preLobbyService.SetHub(hub)
 
@@ -213,7 +211,6 @@ func main() {
 		publisher,
 		logger,
 		competitionClient,
-		gameManagementClient,
 		cfg.GameManagementURL,
 		hub,
 	)
@@ -243,8 +240,10 @@ func main() {
 		matchmaking.GET("/tournaments/:id/bracket", bracketHandler.GetBracketByTournament)
 
 		// Match endpoints
+		matchmaking.GET("/me", matchHandler.GetCurrentUserMatch)
 		matchmaking.GET("/matches/:id", matchHandler.GetMatch)
 		matchmaking.POST("/matches/:id/ready", matchHandler.MarkPlayerReady)
+		matchmaking.POST("/matches/:id/game-loaded", matchHandler.MarkGameLoaded)
 		matchmaking.POST("/matches/:id/claim-walkover", matchHandler.ClaimWalkover)
 		matchmaking.GET("/tournaments/:id/matches", matchHandler.GetMatchesForTournament)
 

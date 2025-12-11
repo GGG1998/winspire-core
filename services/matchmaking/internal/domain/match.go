@@ -13,11 +13,23 @@ type MatchStatus string
 const (
 	MatchStatusPending   MatchStatus = "pending"
 	MatchStatusReady     MatchStatus = "ready"
+	MatchStatusLoading   MatchStatus = "loading"
 	MatchStatusStarted   MatchStatus = "started"
 	MatchStatusPaused    MatchStatus = "paused"
 	MatchStatusCompleted MatchStatus = "completed"
 	MatchStatusCancelled MatchStatus = "cancelled"
 )
+
+// validTransitions defines the allowed state transitions for a match
+var validTransitions = map[MatchStatus][]MatchStatus{
+	MatchStatusPending:   {MatchStatusReady, MatchStatusCancelled},
+	MatchStatusReady:     {MatchStatusLoading, MatchStatusCancelled},
+	MatchStatusLoading:   {MatchStatusStarted, MatchStatusCancelled},
+	MatchStatusStarted:   {MatchStatusPaused, MatchStatusCompleted},
+	MatchStatusPaused:    {MatchStatusStarted, MatchStatusCompleted},
+	MatchStatusCompleted: {},
+	MatchStatusCancelled: {},
+}
 
 // ResultSource indicates how the match result was determined
 type ResultSource string
@@ -30,45 +42,49 @@ const (
 
 // Match represents an individual 1v1 match aggregate
 type Match struct {
-	ID                   uuid.UUID
-	RoundID              uuid.UUID
-	MatchNumber          int
-	NextMatchID          *uuid.UUID
-	Participant1ID       uuid.UUID
-	Participant2ID       *uuid.UUID // Nil for bye matches
-	Status               MatchStatus
-	Participant1Ready    bool
-	Participant2Ready    bool
-	WinnerID             *uuid.UUID
-	ScorePlayer1         *int
-	ScorePlayer2         *int
-	ResultSource         *ResultSource
-	DisconnectedPlayerID *uuid.UUID
-	DisconnectedAt       *time.Time
-	GameAPIMatchID       *string
-	GameAPIPollAttempts  int
-	GameAPILastPoll      *time.Time
-	CreatedAt            time.Time
-	StartedAt            *time.Time
-	CompletedAt          *time.Time
-	UpdatedAt            time.Time
+	ID                     uuid.UUID
+	RoundID                uuid.UUID
+	MatchNumber            int
+	NextMatchID            *uuid.UUID
+	Participant1ID         uuid.UUID
+	Participant2ID         *uuid.UUID // Nil for bye matches
+	Status                 MatchStatus
+	Participant1Ready      bool
+	Participant2Ready      bool
+	Participant1GameLoaded bool
+	Participant2GameLoaded bool
+	WinnerID               *uuid.UUID
+	ScorePlayer1           *int
+	ScorePlayer2           *int
+	ResultSource           *ResultSource
+	DisconnectedPlayerID   *uuid.UUID
+	DisconnectedAt         *time.Time
+	GameAPIMatchID         *string
+	GameAPIPollAttempts    int
+	GameAPILastPoll        *time.Time
+	CreatedAt              time.Time
+	StartedAt              *time.Time
+	CompletedAt            *time.Time
+	UpdatedAt              time.Time
 }
 
 // NewMatch creates a new match
 func NewMatch(roundID uuid.UUID, matchNumber int, participant1ID uuid.UUID, participant2ID *uuid.UUID, nextMatchID *uuid.UUID) *Match {
 	now := time.Now()
 	return &Match{
-		ID:                uuid.New(),
-		RoundID:           roundID,
-		MatchNumber:       matchNumber,
-		NextMatchID:       nextMatchID,
-		Participant1ID:    participant1ID,
-		Participant2ID:    participant2ID,
-		Status:            MatchStatusPending,
-		Participant1Ready: false,
-		Participant2Ready: false,
-		CreatedAt:         now,
-		UpdatedAt:         now,
+		ID:                     uuid.New(),
+		RoundID:                roundID,
+		MatchNumber:            matchNumber,
+		NextMatchID:            nextMatchID,
+		Participant1ID:         participant1ID,
+		Participant2ID:         participant2ID,
+		Status:                 MatchStatusPending,
+		Participant1Ready:      false,
+		Participant2Ready:      false,
+		Participant1GameLoaded: false,
+		Participant2GameLoaded: false,
+		CreatedAt:              now,
+		UpdatedAt:              now,
 	}
 }
 
@@ -111,10 +127,75 @@ func (m *Match) BothPlayersReady() bool {
 	return m.Participant1Ready && m.Participant2Ready
 }
 
+// CanTransitionTo checks if a status transition is valid
+func (m *Match) CanTransitionTo(target MatchStatus) bool {
+	allowed, exists := validTransitions[m.Status]
+	if !exists {
+		return false
+	}
+
+	for _, status := range allowed {
+		if status == target {
+			return true
+		}
+	}
+	return false
+}
+
+// TransitionToLoading transitions the match to loading state
+func (m *Match) TransitionToLoading() error {
+	if !m.CanTransitionTo(MatchStatusLoading) {
+		return fmt.Errorf("cannot transition from %s to loading", m.Status)
+	}
+
+	if !m.BothPlayersReady() {
+		return fmt.Errorf("cannot transition to loading: both players must be ready")
+	}
+
+	m.Status = MatchStatusLoading
+	m.UpdatedAt = time.Now()
+
+	return nil
+}
+
+// MarkGameLoaded marks a player's game as loaded
+func (m *Match) MarkGameLoaded(playerID uuid.UUID) error {
+	if m.Status != MatchStatusLoading {
+		return fmt.Errorf("can only mark game loaded in loading state, current status: %s", m.Status)
+	}
+
+	if playerID == m.Participant1ID {
+		m.Participant1GameLoaded = true
+	} else if m.Participant2ID != nil && playerID == *m.Participant2ID {
+		m.Participant2GameLoaded = true
+	} else {
+		return fmt.Errorf("player %s is not a participant in this match", playerID)
+	}
+
+	m.UpdatedAt = time.Now()
+
+	return nil
+}
+
+// BothGamesLoaded returns true if both players have loaded the game
+func (m *Match) BothGamesLoaded() bool {
+	// Bye matches only need participant1 to load
+	if m.IsBye() {
+		return m.Participant1GameLoaded
+	}
+
+	return m.Participant1GameLoaded && m.Participant2GameLoaded
+}
+
 // Start transitions match to started state
 func (m *Match) Start() error {
-	if m.Status != MatchStatusReady && m.Status != MatchStatusPending {
-		return fmt.Errorf("can only start match from ready or pending state, current status: %s", m.Status)
+	if !m.CanTransitionTo(MatchStatusStarted) {
+		return fmt.Errorf("cannot transition from %s to started", m.Status)
+	}
+
+	// Allow starting from loading or ready (backward compatibility)
+	if m.Status == MatchStatusLoading && !m.BothGamesLoaded() {
+		return fmt.Errorf("cannot start match: not all games are loaded")
 	}
 
 	now := time.Now()
@@ -160,8 +241,9 @@ func (m *Match) Resume() error {
 
 // Complete marks the match as completed with results
 func (m *Match) Complete(winnerID uuid.UUID, scorePlayer1, scorePlayer2 int, source ResultSource) error {
-	if m.Status != MatchStatusStarted && m.Status != MatchStatusPending && m.Status != MatchStatusPaused {
-		return fmt.Errorf("can only complete started/pending/paused match, current status: %s", m.Status)
+	// Allow completing from started, pending, paused, or loading (for walkovers during loading)
+	if m.Status != MatchStatusStarted && m.Status != MatchStatusPending && m.Status != MatchStatusPaused && m.Status != MatchStatusLoading {
+		return fmt.Errorf("can only complete started/pending/paused/loading match, current status: %s", m.Status)
 	}
 
 	// Validate winner is a participant

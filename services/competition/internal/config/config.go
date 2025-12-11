@@ -9,11 +9,11 @@ import (
 
 // Config captures all runtime tunables provided via environment variables.
 type Config struct {
-	AppEnv        string
-	ServicePort   int
-	PostgresDSN   string
+	AppEnv      string
+	ServicePort int
+	PostgresDSN string
 
-	RedisAddr     string
+	RedisAddr string
 
 	ReadTimeout   time.Duration
 	WriteTimeout  time.Duration
@@ -23,6 +23,9 @@ type Config struct {
 	HostJWTSecret   string
 	HostJWTIssuer   string
 	HostJWTAudience string
+
+	// External services
+	MatchmakingBaseURL string
 
 	// Scheduler configuration
 	SchedulerEnabled  bool
@@ -35,11 +38,11 @@ type Config struct {
 // Load reads configuration from environment variables with sensible defaults.
 func Load() (Config, error) {
 	cfg := Config{
-		AppEnv:          valueOrDefault("APP_ENV", "development"),
-		ServicePort:     intFromEnv("SERVICE_PORT", 8089),
-		PostgresDSN:     valueOrDefault("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5432/competition_db?sslmode=disable"),
+		AppEnv:      valueOrDefault("APP_ENV", "development"),
+		ServicePort: intFromEnv("SERVICE_PORT", 8089),
+		PostgresDSN: valueOrDefault("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5432/competition_db?sslmode=disable"),
 
-		RedisAddr:       valueOrDefault("REDIS_ADDR", "localhost:6379"),
+		RedisAddr: valueOrDefault("REDIS_ADDR", "localhost:6379"),
 
 		ReadTimeout:     durationFromEnv("HTTP_READ_TIMEOUT", 15*time.Second),
 		WriteTimeout:    durationFromEnv("HTTP_WRITE_TIMEOUT", 15*time.Second),
@@ -47,7 +50,9 @@ func Load() (Config, error) {
 		HostJWTSecret:   valueOrDefault("HOST_JWT_SECRET", ""),
 		HostJWTIssuer:   valueOrDefault("HOST_JWT_ISSUER", ""),
 		HostJWTAudience: valueOrDefault("HOST_JWT_AUDIENCE", ""),
-		
+
+		MatchmakingBaseURL: valueOrDefault("MATCHMAKING_BASE_URL", "http://localhost:8081"),
+
 		SchedulerEnabled:  boolFromEnv("SCHEDULER_ENABLED", true),
 		SchedulerInterval: valueOrDefault("SCHEDULER_INTERVAL", "*/2 * * * *"),
 
@@ -61,7 +66,6 @@ func Load() (Config, error) {
 	if cfg.RedisAddr == "" {
 		return Config{}, fmt.Errorf("REDIS_ADDR must be provided")
 	}
-
 
 	return cfg, nil
 }
@@ -102,5 +106,3 @@ func boolFromEnv(key string, def bool) bool {
 	}
 	return def
 }
-
-

@@ -29,10 +29,10 @@ var upgrader = websocket.Upgrader{
 
 // WebSocketHandler handles WebSocket connections for match lobbies
 type WebSocketHandler struct {
-	hub              *wshub.Hub
-	matchRepo        repository.MatchRepository
-	publisher        *pubsub.EventPublisher
-	sessionStore     *wshub.SessionStore
+	hub               *wshub.Hub
+	matchRepo         repository.MatchRepository
+	publisher         *pubsub.EventPublisher
+	sessionStore      *wshub.SessionStore
 	disconnectService *application.DisconnectService
 }
 
@@ -45,10 +45,10 @@ func NewWebSocketHandler(
 	disconnectService *application.DisconnectService,
 ) *WebSocketHandler {
 	return &WebSocketHandler{
-		hub:              hub,
-		matchRepo:        matchRepo,
-		publisher:        publisher,
-		sessionStore:     sessionStore,
+		hub:               hub,
+		matchRepo:         matchRepo,
+		publisher:         publisher,
+		sessionStore:      sessionStore,
 		disconnectService: disconnectService,
 	}
 }
@@ -92,7 +92,7 @@ func (h *WebSocketHandler) UpgradeLobbyConnection(c *gin.Context) {
 	// Check if this is a reconnection (session was active in Redis)
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 	defer cancel()
-	
+
 	isReconnect := false
 	if h.sessionStore != nil {
 		wasActive, err := h.sessionStore.IsSessionActive(ctx, matchID, userID)
@@ -109,7 +109,7 @@ func (h *WebSocketHandler) UpgradeLobbyConnection(c *gin.Context) {
 		// Check if this user was the disconnected player
 		if match.DisconnectedPlayerID != nil && *match.DisconnectedPlayerID == userID {
 			log.Printf("[WebSocket] Reconnecting disconnected player: match=%s, user=%s", matchID, userID)
-			
+
 			// Call DisconnectService to handle reconnection logic
 			if h.disconnectService != nil {
 				if err := h.disconnectService.HandleReconnect(c.Request.Context(), matchID, userID); err != nil {
@@ -129,7 +129,7 @@ func (h *WebSocketHandler) UpgradeLobbyConnection(c *gin.Context) {
 			// Note: TournamentID would need to be fetched via round->bracket chain
 			// For now using Nil as it's not critical for reconnect event
 			tournamentID := uuid.Nil
-			
+
 			reconnectEvent := domain.NewPlayerConnectionRestored(
 				matchID,
 				tournamentID,
@@ -156,6 +156,9 @@ func (h *WebSocketHandler) UpgradeLobbyConnection(c *gin.Context) {
 	// Create client - constructor signature: NewClient(hub *Hub, conn *websocket.Conn, playerID, matchID uuid.UUID)
 	client := wshub.NewClient(h.hub, conn, userID, matchID)
 
+	// Register client with hub (CRITICAL: without this, broadcasts won't reach this client)
+	h.hub.Register(client)
+
 	// Publish appropriate event based on whether this is a reconnect or new join
 	if !isReconnect {
 		// Publish ParticipantJoinedLobby event (T060) for new connections
@@ -173,7 +176,7 @@ func (h *WebSocketHandler) UpgradeLobbyConnection(c *gin.Context) {
 	}
 
 	// Client will automatically receive the lobby state on connection
-	// The hub handles initial state transmission in the ReadPump/WritePump goroutines
+	// The hub handles initial state transmission via registerClient
 
 	log.Printf("[WebSocket] Client connected: match=%s, user=%s", matchID, userID)
 

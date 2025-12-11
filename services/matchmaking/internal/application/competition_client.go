@@ -86,9 +86,13 @@ func (c *CompetitionClient) GetTournamentInfo(ctx context.Context, tournamentID 
 		return nil, fmt.Errorf("parse tournament ID: %w", err)
 	}
 
-	parsedGameID, err := uuid.Parse(tournamentResp.GameID)
-	if err != nil {
-		return nil, fmt.Errorf("parse game ID: %w", err)
+	// Parse game ID only if it's provided (optional field)
+	var parsedGameID uuid.UUID
+	if tournamentResp.GameID != "" {
+		parsedGameID, err = uuid.Parse(tournamentResp.GameID)
+		if err != nil {
+			return nil, fmt.Errorf("parse game ID: %w", err)
+		}
 	}
 
 	// Default min participants if not set

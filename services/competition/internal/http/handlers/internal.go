@@ -48,14 +48,21 @@ func RegisterInternalRoutes(router *gin.Engine, deps InternalDeps) {
 			}
 
 			// Return simplified tournament info for matchmaking
-			c.JSON(http.StatusOK, gin.H{
+			response := gin.H{
 				"id":                   tournament.ID.String(),
 				"name":                 tournament.Name,
 				"hostId":               tournament.HostID.String(),
 				"status":               tournament.Status,
 				"scheduledStartTimeAt": tournament.ScheduledStartTimeAt,
 				"minParticipants":      tournament.MinimumTeamCount,
-			})
+			}
+
+			// Include gameId if present (optional field)
+			if tournament.GameID != nil {
+				response["gameId"] = tournament.GameID.String()
+			}
+
+			c.JSON(http.StatusOK, response)
 		})
 
 		// GET /internal/tournaments/:id/registrations/:userId - Check if user is registered

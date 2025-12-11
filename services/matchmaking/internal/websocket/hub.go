@@ -95,6 +95,11 @@ func (h *Hub) SetDisconnectCallback(cb DisconnectCallback) {
 	h.onDisconnect = cb
 }
 
+// Register registers a client with the hub for receiving broadcasts
+func (h *Hub) Register(client *Client) {
+	h.register <- client
+}
+
 // SetTournamentDisconnectCallback sets the callback for tournament disconnections
 func (h *Hub) SetTournamentDisconnectCallback(cb TournamentDisconnectCallback) {
 	h.mu.Lock()

@@ -388,7 +388,7 @@ export async function registerStreamer(data: StreamerRegisterData): Promise<{ us
 }
 
 export async function getCurrentUser(): Promise<User | null> {
-  try {    
+  try {
     // Use getSession() first - it's synchronous from localStorage cache
     // This prevents the hanging issue with getUser() which makes a network request
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();

@@ -1,11 +1,12 @@
 ---
-alwaysApply: false
+alwaysApply: true
 ---
-
 # 🧭 Winspire Platform — Repository Organization & Rules
 
 This document defines the structure, conventions, and core technologies used across the **Winspire Platform monorepo**.  
 It serves as a shared baseline for development, CI/CD automation, and release/versioning consistency.
+
+It is only example for future work
 
 ```bash
 repo/
@@ -95,15 +96,6 @@ services/
 │   ├── Aggregates: Bracket, Round, Match, MatchParticipant, Lobby
 │   └── Database: PostgreSQL (brackets, rounds, matches)
 │
-├── competition-host-stream/        # BC: Realtime/Projections
-│   ├── Domain: Real-time data streaming to clients
-│   ├── Responsibilities:
-│   │   ✅ SSE/WebSocket streaming
-│   │   ✅ Read model projections
-│   │   ✅ Event routing to frontend
-│   │   ❌ NO domain logic, only data transformation
-│   ├── Tech: SSE Broker, Redis (optional caching)
-│   └── Database: Read-only views from competition & matchmaking
 │
 └── game-management/                # BC: GameLibrary
     ├── Domain: Game catalog & asset management
@@ -119,22 +111,11 @@ services/
 ## 📡 Inter-Service Communication
 
 ### Event-Driven (Async)
-```
-competition        matchmaking        competition-host-stream
-     │                   │                      │
-     │ TournamentStarted │                      │
-     ├──────────────────>│                      │
-     │                   │ BracketGenerated     │
-     │                   ├─────────────────────>│
-     │                   │ MatchCreated         │
-     │                   ├─────────────────────>│
-     │                   │                      │ SSE → Clients
-```
 
 **Event Transport Options**:
-- **Phase 1 (current)**: PostgreSQL NOTIFY/LISTEN
-- **Phase 2 (future)**: AWS SNS/SQS or EventBridge
-- **Phase 3 (advanced)**: Event Store (DynamoDB/EventStoreDB)
+- **Phase 1 (current)**: Redis NOTIFY/LISTEN
+- **Phase 2 (future)**: AWS SNS/SQS or EventBridge or Redis Pub/Sub
+- **Phase 3 (advanced)**: Event Store (DynamoDB/EventStoreDB) for now Postgres
 
 ### REST APIs (Sync)
 Only for:
@@ -143,7 +124,7 @@ Only for:
 
 ## 🚫 Anti-Patterns to Avoid
 
-- ❌ **Shared database** between services (violates BC boundaries)
+- ❌ **Shared database** between services (violates BC boundaries) for now we have but create new table
 - ❌ **Direct service-to-service calls** for domain logic (use events)
 - ❌ **Domain logic in realtime stream** (only projections)
 - ❌ **Matchmaking logic in competition** (wrong BC)

@@ -246,7 +246,19 @@ type TournamentPrize struct {
 
 // TournamentMeInfo represents user-specific tournament information.
 type TournamentMeInfo struct {
-	ParticipationStatus *string `json:"participationStatus,omitempty"` // "registered", "confirmed", "checked_in", or null
+	ParticipationStatus *string    `json:"participationStatus,omitempty"` // "registered", "confirmed", "checked_in", or null
+	Match               *MatchInfo `json:"match,omitempty"`
+}
+
+// MatchInfo represents the current/last active match for the user
+type MatchInfo struct {
+	MatchID      string     `json:"matchId"`
+	TournamentID string     `json:"tournamentId"`
+	Status       string     `json:"status"`
+	Round        int32      `json:"round"`
+	Table        int32      `json:"table"`
+	StartedAt    *time.Time `json:"startedAt,omitempty"`
+	UpdatedAt    time.Time  `json:"updatedAt"`
 }
 
 // TournamentDetail represents a detailed tournament payload.

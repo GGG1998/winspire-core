@@ -95,12 +95,13 @@ func NewRouter(deps ServerDeps) *gin.Engine {
 	// Routes: /v1/:hostId/tournaments (create, edit, start, cancel)
 	// These routes require host admin authorization
 	handlers.RegisterTournamentHostRoutes(api, handlers.TournamentHostDeps{
-		HostRepo:         hostRepo,
-		TournamentRepo:   tournamentPersistenceRepo,
-		RegistrationRepo: registrationPersistenceRepo,
-		ParticipantRepo:  deps.ParticipantRepo,
-		EventPublisher:   deps.EventPublisher,
-		Logger:           deps.Logger,
+		HostRepo:           hostRepo,
+		TournamentRepo:     tournamentPersistenceRepo,
+		RegistrationRepo:   registrationPersistenceRepo,
+		ParticipantRepo:    deps.ParticipantRepo,
+		EventPublisher:     deps.EventPublisher,
+		Logger:             deps.Logger,
+		MatchmakingBaseURL: deps.Config.MatchmakingBaseURL,
 	})
 
 	return router

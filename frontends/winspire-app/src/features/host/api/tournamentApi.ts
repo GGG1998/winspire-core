@@ -114,7 +114,22 @@ export function apiToUiTournament(apiData: TournamentApiData): Tournament {
       endsAt: new Date(apiData.readyWindow.endsAt)
     } : undefined,
     prize: apiData.prize,
-    me: apiData.me,
+    me: apiData.me
+      ? {
+          participationStatus: apiData.me.participationStatus,
+          match: apiData.me.match
+            ? {
+                matchId: apiData.me.match.matchId,
+                tournamentId: apiData.me.match.tournamentId,
+                status: apiData.me.match.status,
+                round: apiData.me.match.round,
+                table: apiData.me.match.table,
+                startedAt: apiData.me.match.startedAt ? new Date(apiData.me.match.startedAt) : undefined,
+                updatedAt: apiData.me.match.updatedAt ? new Date(apiData.me.match.updatedAt) : undefined,
+              }
+            : undefined,
+        }
+      : undefined,
     participants: apiData.participants?.map(p => ({
       ...p,
       registeredAt: new Date(p.registeredAt)

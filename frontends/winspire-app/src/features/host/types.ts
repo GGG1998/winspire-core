@@ -81,6 +81,18 @@ export interface TournamentOrganizer {
 export interface TournamentMeInfo {
   /** Current user's participation status */
   participationStatus?: 'registered' | 'confirmed' | 'checked_in' | null
+  /** Current or latest active match for quick return */
+  match?: TournamentMatchInfo
+}
+
+export interface TournamentMatchInfo {
+  matchId: string
+  tournamentId: string
+  status: string
+  round: number
+  table: number
+  startedAt?: Date
+  updatedAt?: Date
 }
 
 /**
@@ -461,6 +473,15 @@ export interface TournamentApiData {
   /** User-specific tournament information */
   me?: {
     participationStatus?: 'registered' | 'confirmed' | 'checked_in' | null
+    match?: {
+      matchId: string
+      tournamentId: string
+      status: string
+      round: number
+      table: number
+      startedAt?: string
+      updatedAt?: string
+    }
   }
   /** Current user's participation status (deprecated - use me.participationStatus) */
   userParticipationStatus?: 'registered' | 'confirmed' | 'checked_in' | null

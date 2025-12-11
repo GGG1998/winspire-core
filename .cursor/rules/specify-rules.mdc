@@ -1,3 +1,7 @@
+---
+alwaysApply: true
+---
+
 # winspire-core Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2025-11-21
@@ -11,7 +15,6 @@ Auto-generated from all feature plans. Last updated: 2025-11-21
 - Go 1.25 + Gin (HTTP framework), gorilla/websocket (WebSocket), pgx/v5 (PostgreSQL), go-redis/v9 (004-tournament-prelobby-backend)
 - PostgreSQL (grace period state, participant snapshots, activity feed), In-memory (WebSocket connections) (004-tournament-prelobby-backend)
 
-- (002-supabase-auth)
 
 ## Project Structure
 
@@ -19,7 +22,12 @@ Auto-generated from all feature plans. Last updated: 2025-11-21
 
 ## Commands
 
-# Add commands for 
+- `make rebuild` (from `platform/local`)
+- `yarn dev` (from `frontends/winspire-app`)
+- `make migrate` or `make migrate-up` (from `services/<name>`)
+- `sqlc generate`
+- Occasionally start Docker for Supabase Postgres—find the service name and run it
+
 
 ## Code Style
 

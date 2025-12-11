@@ -18,6 +18,7 @@ type MatchRepository interface {
 	GetByRoundID(ctx context.Context, roundID uuid.UUID) ([]domain.Match, error)
 	GetByTournamentAndRound(ctx context.Context, tournamentID uuid.UUID, roundNumber int) ([]domain.Match, error)
 	GetForPlayer(ctx context.Context, playerID uuid.UUID) ([]domain.Match, error)
+	GetCurrentForUser(ctx context.Context, userID uuid.UUID) (*domain.Match, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status domain.MatchStatus) error
 	UpdateReady(ctx context.Context, id uuid.UUID, playerID uuid.UUID, ready bool) error
 	UpdateResult(ctx context.Context, id uuid.UUID, winnerID uuid.UUID, scorePlayer1, scorePlayer2 int, source domain.ResultSource) error
@@ -25,6 +26,8 @@ type MatchRepository interface {
 	UpdateScore(ctx context.Context, id uuid.UUID, scorePlayer1, scorePlayer2 int) error
 	UpdateDisconnectedPlayer(ctx context.Context, id uuid.UUID, playerID uuid.UUID, disconnectedAt time.Time) error
 	ClearDisconnectedPlayer(ctx context.Context, id uuid.UUID) error
+	UpdateGameLoaded(ctx context.Context, id uuid.UUID, playerID uuid.UUID) error
+	FindLoadingMatchesOlderThan(ctx context.Context, duration time.Duration) ([]domain.Match, error)
 }
 
 type matchRepository struct {
@@ -94,6 +97,19 @@ func (r *matchRepository) GetForPlayer(ctx context.Context, playerID uuid.UUID) 
 	}
 
 	return matches, nil
+}
+
+// GetCurrentForUser returns the most recent active/pending match for a user (participant1 or participant2)
+func (r *matchRepository) GetCurrentForUser(ctx context.Context, userID uuid.UUID) (*domain.Match, error) {
+	matches, err := r.GetForPlayer(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("no active match for user %s", userID)
+	}
+	// GetMatchesForPlayer already sorts by created_at DESC (see SQL), so first is latest/active
+	return &matches[0], nil
 }
 
 // UpdateStatus updates a match's status
@@ -179,22 +195,24 @@ func (r *matchRepository) UpdateScore(ctx context.Context, id uuid.UUID, scorePl
 // rowToMatch converts a database row to a domain Match
 func (r *matchRepository) rowToMatch(row sqlc.TournamentMatch) *domain.Match {
 	match := &domain.Match{
-		ID:                pgtypeconv.PgtypeToUUID(row.ID),
-		RoundID:           pgtypeconv.PgtypeToUUID(row.RoundID),
-		MatchNumber:       int(row.MatchNumber), // int32 -> int
-		NextMatchID:       pgtypeconv.PgtypeToUUIDPtr(row.NextMatchID),
-		Participant1ID:    pgtypeconv.PgtypeToUUID(row.Participant1ID),
-		Participant2ID:    pgtypeconv.PgtypeToUUIDPtr(row.Participant2ID),
-		Status:            domain.MatchStatus(row.Status), // string directly
-		Participant1Ready: row.Participant1Ready,          // bool directly
-		Participant2Ready: row.Participant2Ready,          // bool directly
-		WinnerID:          pgtypeconv.PgtypeToUUIDPtr(row.WinnerID),
-		ScorePlayer1:      pgtypeconv.PgtypeToIntPtr(row.ScorePlayer1),
-		ScorePlayer2:      pgtypeconv.PgtypeToIntPtr(row.ScorePlayer2),
-		CreatedAt:         row.CreatedAt, // time.Time directly
-		StartedAt:         pgtypeconv.PgtypeToTimePtr(row.StartedAt),
-		CompletedAt:       pgtypeconv.PgtypeToTimePtr(row.CompletedAt),
-		UpdatedAt:         row.UpdatedAt, // time.Time directly
+		ID:                     pgtypeconv.PgtypeToUUID(row.ID),
+		RoundID:                pgtypeconv.PgtypeToUUID(row.RoundID),
+		MatchNumber:            int(row.MatchNumber), // int32 -> int
+		NextMatchID:            pgtypeconv.PgtypeToUUIDPtr(row.NextMatchID),
+		Participant1ID:         pgtypeconv.PgtypeToUUID(row.Participant1ID),
+		Participant2ID:         pgtypeconv.PgtypeToUUIDPtr(row.Participant2ID),
+		Status:                 domain.MatchStatus(row.Status), // string directly
+		Participant1Ready:      row.Participant1Ready,          // bool directly
+		Participant2Ready:      row.Participant2Ready,          // bool directly
+		Participant1GameLoaded: row.Participant1GameLoaded,     // bool directly
+		Participant2GameLoaded: row.Participant2GameLoaded,     // bool directly
+		WinnerID:               pgtypeconv.PgtypeToUUIDPtr(row.WinnerID),
+		ScorePlayer1:           pgtypeconv.PgtypeToIntPtr(row.ScorePlayer1),
+		ScorePlayer2:           pgtypeconv.PgtypeToIntPtr(row.ScorePlayer2),
+		CreatedAt:              row.CreatedAt, // time.Time directly
+		StartedAt:              pgtypeconv.PgtypeToTimePtr(row.StartedAt),
+		CompletedAt:            pgtypeconv.PgtypeToTimePtr(row.CompletedAt),
+		UpdatedAt:              row.UpdatedAt, // time.Time directly
 	}
 
 	// Handle result source
@@ -239,4 +257,35 @@ func (r *matchRepository) ClearDisconnectedPlayer(ctx context.Context, id uuid.U
 		Bytes: id,
 		Valid: true,
 	})
+}
+
+// UpdateGameLoaded marks a player's game as loaded
+func (r *matchRepository) UpdateGameLoaded(ctx context.Context, id uuid.UUID, playerID uuid.UUID) error {
+	err := r.queries.UpdateGameLoaded(ctx, sqlc.UpdateGameLoadedParams{
+		ID:             pgtypeconv.UUIDToPgtype(id),
+		Participant1ID: pgtypeconv.UUIDToPgtype(playerID),
+	})
+	if err != nil {
+		return fmt.Errorf("update game loaded: %w", err)
+	}
+
+	return nil
+}
+
+// FindLoadingMatchesOlderThan finds matches in loading status older than specified duration
+func (r *matchRepository) FindLoadingMatchesOlderThan(ctx context.Context, duration time.Duration) ([]domain.Match, error) {
+	// Calculate the cutoff timestamp (now - duration)
+	cutoffTime := time.Now().Add(-duration)
+
+	rows, err := r.queries.FindLoadingMatchesOlderThan(ctx, cutoffTime)
+	if err != nil {
+		return nil, fmt.Errorf("find loading matches older than: %w", err)
+	}
+
+	matches := make([]domain.Match, len(rows))
+	for i, row := range rows {
+		matches[i] = *r.rowToMatch(row)
+	}
+
+	return matches, nil
 }

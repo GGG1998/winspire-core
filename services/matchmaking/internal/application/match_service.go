@@ -16,13 +16,14 @@ import (
 
 // MatchService handles match completion and winner advancement logic
 type MatchService struct {
-	matchRepo   repository.MatchRepository
-	roundRepo   repository.RoundRepository
-	bracketRepo repository.BracketRepository
-	publisher   *pubsub.EventPublisher
-	metrics     *observability.MetricsEmitter
-	logger      *observability.Logger
-	hub         Hub // WebSocket hub interface for broadcasting
+	matchRepo         repository.MatchRepository
+	roundRepo         repository.RoundRepository
+	bracketRepo       repository.BracketRepository
+	publisher         *pubsub.EventPublisher
+	metrics           *observability.MetricsEmitter
+	logger            *observability.Logger
+	hub               Hub    // WebSocket hub interface for broadcasting
+	gameManagementURL string // Base URL for game management service
 }
 
 // Hub interface for WebSocket broadcasts (to avoid circular dependency)
@@ -39,20 +40,42 @@ func NewMatchService(
 	publisher *pubsub.EventPublisher,
 	metrics *observability.MetricsEmitter,
 	logger *observability.Logger,
+	gameManagementURL string,
 ) *MatchService {
 	return &MatchService{
-		matchRepo:   matchRepo,
-		roundRepo:   roundRepo,
-		bracketRepo: bracketRepo,
-		publisher:   publisher,
-		metrics:     metrics,
-		logger:      logger,
+		matchRepo:         matchRepo,
+		roundRepo:         roundRepo,
+		bracketRepo:       bracketRepo,
+		publisher:         publisher,
+		metrics:           metrics,
+		logger:            logger,
+		gameManagementURL: gameManagementURL,
 	}
 }
 
 // SetHub sets the WebSocket hub for broadcasting (called after initialization)
 func (s *MatchService) SetHub(hub Hub) {
 	s.hub = hub
+}
+
+// GetCurrentMatchForUser returns the latest active/pending match for a given user with round and tournament context
+func (s *MatchService) GetCurrentMatchForUser(ctx context.Context, userID uuid.UUID) (*domain.Match, *domain.Round, uuid.UUID, error) {
+	match, err := s.matchRepo.GetCurrentForUser(ctx, userID)
+	if err != nil {
+		return nil, nil, uuid.Nil, fmt.Errorf("get current match for user: %w", err)
+	}
+
+	round, err := s.roundRepo.GetByID(ctx, match.RoundID)
+	if err != nil {
+		return nil, nil, uuid.Nil, fmt.Errorf("get round for match: %w", err)
+	}
+
+	bracket, err := s.bracketRepo.GetByID(ctx, round.BracketID)
+	if err != nil {
+		return nil, nil, uuid.Nil, fmt.Errorf("get bracket for round: %w", err)
+	}
+
+	return match, round, bracket.TournamentID, nil
 }
 
 // CompleteMatch marks a match as completed and advances the winner to the next round
@@ -389,9 +412,122 @@ func (s *MatchService) OnPlayerReady(ctx context.Context, matchID, playerID uuid
 		return fmt.Errorf("check ready status: %w", err)
 	}
 
-	// If both players are ready, start countdown sequence
+	// If both players are ready, transition to loading state
 	if bothReady {
-		s.logger.Info("Both players ready, starting countdown", map[string]interface{}{
+		s.logger.Info("Both players ready, transitioning to loading", map[string]interface{}{
+			"match_id": matchID.String(),
+		})
+
+		// Fetch match to get tournament info
+		match, err := s.matchRepo.GetByID(ctx, matchID)
+		if err != nil {
+			return fmt.Errorf("get match: %w", err)
+		}
+
+		// Fetch round to get bracket ID
+		round, err := s.roundRepo.GetByID(ctx, match.RoundID)
+		if err != nil {
+			return fmt.Errorf("get round: %w", err)
+		}
+
+		// Fetch bracket to get game snapshot and tournament ID
+		bracket, err := s.bracketRepo.GetByID(ctx, round.BracketID)
+		if err != nil {
+			return fmt.Errorf("get bracket: %w", err)
+		}
+
+		// Transition to loading state
+		err = s.matchRepo.UpdateStatus(ctx, matchID, domain.MatchStatusLoading)
+		if err != nil {
+			return fmt.Errorf("update status to loading: %w", err)
+		}
+
+		// Construct game URL
+		var gameURL string
+		if bracket.GameSnapshot != nil {
+			gameURL = fmt.Sprintf("%s/v1/g/%s/bundle/", s.getGameManagementURL(), bracket.GameSnapshot.Slug)
+		} else {
+			s.logger.Warn("No game snapshot in bracket", map[string]interface{}{
+				"match_id":      matchID.String(),
+				"tournament_id": bracket.TournamentID.String(),
+			})
+			// For now, continue without game URL - this will be handled better later
+			gameURL = ""
+		}
+
+		// Broadcast match_ready_to_load via WebSocket with game URL
+		if s.hub != nil {
+			msg := map[string]interface{}{
+				"type":      "match_ready_to_load",
+				"timestamp": time.Now(),
+				"payload": map[string]interface{}{
+					"gameUrl":       gameURL,
+					"gameSessionId": matchID.String(),
+				},
+			}
+			s.hub.BroadcastToMatch(matchID, msg)
+
+			s.logger.Info("Broadcasted match_ready_to_load message", map[string]interface{}{
+				"match_id": matchID.String(),
+				"game_url": gameURL,
+			})
+		}
+	}
+
+	return nil
+}
+
+// OnGameLoaded handles when a player's game has loaded
+func (s *MatchService) OnGameLoaded(ctx context.Context, matchID, playerID uuid.UUID) error {
+	s.logger.Info("Player game loaded", map[string]interface{}{
+		"match_id":  matchID.String(),
+		"player_id": playerID.String(),
+	})
+
+	// Fetch match
+	match, err := s.matchRepo.GetByID(ctx, matchID)
+	if err != nil {
+		return fmt.Errorf("get match: %w", err)
+	}
+
+	// Validate match is in loading state
+	if match.Status != domain.MatchStatusLoading {
+		s.logger.Warn("Game loaded callback for non-loading match", map[string]interface{}{
+			"match_id": matchID.String(),
+			"status":   match.Status,
+		})
+		return fmt.Errorf("match is not in loading state, current status: %s", match.Status)
+	}
+
+	// Mark game as loaded for this player
+	err = s.matchRepo.UpdateGameLoaded(ctx, matchID, playerID)
+	if err != nil {
+		return fmt.Errorf("update game loaded: %w", err)
+	}
+
+	// Re-fetch match to get updated game loaded status
+	match, err = s.matchRepo.GetByID(ctx, matchID)
+	if err != nil {
+		return fmt.Errorf("get match after update: %w", err)
+	}
+
+	// Broadcast game_loaded status to all players in match
+	if s.hub != nil {
+		msg := map[string]interface{}{
+			"type":      "game_loaded",
+			"timestamp": time.Now(),
+			"payload": map[string]interface{}{
+				"playerId":               playerID.String(),
+				"participant1GameLoaded": match.Participant1GameLoaded,
+				"participant2GameLoaded": match.Participant2GameLoaded,
+			},
+		}
+		s.hub.BroadcastToMatch(matchID, msg)
+	}
+
+	// Check if both games are loaded
+	if match.BothGamesLoaded() {
+		s.logger.Info("Both games loaded, starting countdown", map[string]interface{}{
 			"match_id": matchID.String(),
 		})
 
@@ -481,10 +617,10 @@ func (s *MatchService) ForceStartMatch(ctx context.Context, matchID uuid.UUID) e
 // GrantWalkover grants a walkover to the present player when opponent no-shows (T083)
 func (s *MatchService) GrantWalkover(ctx context.Context, matchID, winnerID, noShowPlayerID uuid.UUID, reason string) error {
 	s.logger.Info("Granting walkover", map[string]interface{}{
-		"match_id":         matchID.String(),
-		"winner_id":        winnerID.String(),
-		"no_show_player":   noShowPlayerID.String(),
-		"reason":           reason,
+		"match_id":       matchID.String(),
+		"winner_id":      winnerID.String(),
+		"no_show_player": noShowPlayerID.String(),
+		"reason":         reason,
 	})
 
 	// Fetch match
@@ -667,3 +803,7 @@ func (s *MatchService) getCorrelationID(ctx context.Context) string {
 	return ""
 }
 
+// getGameManagementURL returns the base URL for game management service
+func (s *MatchService) getGameManagementURL() string {
+	return s.gameManagementURL
+}

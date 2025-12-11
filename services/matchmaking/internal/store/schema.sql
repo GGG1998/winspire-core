@@ -42,10 +42,12 @@ CREATE TABLE tournament_matches (
     participant1_id UUID NOT NULL,
     participant2_id UUID,
     status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN (
-        'pending', 'ready', 'started', 'paused', 'completed', 'cancelled'
+        'pending', 'ready', 'loading', 'started', 'paused', 'completed', 'cancelled'
     )),
     participant1_ready BOOLEAN NOT NULL DEFAULT false,
     participant2_ready BOOLEAN NOT NULL DEFAULT false,
+    participant1_game_loaded BOOLEAN NOT NULL DEFAULT false,
+    participant2_game_loaded BOOLEAN NOT NULL DEFAULT false,
     winner_id UUID,
     score_player1 INTEGER CHECK (score_player1 >= 0),
     score_player2 INTEGER CHECK (score_player2 >= 0),
@@ -55,6 +57,7 @@ CREATE TABLE tournament_matches (
     game_api_match_id VARCHAR(255),
     game_api_poll_attempts INTEGER DEFAULT 0,
     game_api_last_poll TIMESTAMP,
+    version INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     started_at TIMESTAMP,
     completed_at TIMESTAMP,

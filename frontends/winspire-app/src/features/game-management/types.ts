@@ -30,3 +30,7 @@ export interface Game {
  */
 export type GameSnapshot = Pick<Game, 'id' | 'slug' | 'name' | 'version' | 'logoUrl' | 'description' | 'storagePath'>;
 
+
+
+
+

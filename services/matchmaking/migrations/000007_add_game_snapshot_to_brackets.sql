@@ -17,3 +17,7 @@ ON tournament_brackets ((game_snapshot->>'slug'));
 COMMENT ON INDEX idx_brackets_game_snapshot_slug IS 
 'Index on game slug within snapshot for efficient queries by game slug';
 
+
+
+
+

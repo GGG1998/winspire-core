@@ -50,28 +50,31 @@ type TournamentBracket struct {
 }
 
 type TournamentMatch struct {
-	ID                   pgtype.UUID      `json:"id"`
-	RoundID              pgtype.UUID      `json:"round_id"`
-	MatchNumber          int32            `json:"match_number"`
-	NextMatchID          pgtype.UUID      `json:"next_match_id"`
-	Participant1ID       pgtype.UUID      `json:"participant1_id"`
-	Participant2ID       pgtype.UUID      `json:"participant2_id"`
-	Status               string           `json:"status"`
-	Participant1Ready    bool             `json:"participant1_ready"`
-	Participant2Ready    bool             `json:"participant2_ready"`
-	WinnerID             pgtype.UUID      `json:"winner_id"`
-	ScorePlayer1         pgtype.Int4      `json:"score_player1"`
-	ScorePlayer2         pgtype.Int4      `json:"score_player2"`
-	ResultSource         pgtype.Text      `json:"result_source"`
-	DisconnectedPlayerID pgtype.UUID      `json:"disconnected_player_id"`
-	DisconnectedAt       pgtype.Timestamp `json:"disconnected_at"`
-	GameApiMatchID       pgtype.Text      `json:"game_api_match_id"`
-	GameApiPollAttempts  pgtype.Int4      `json:"game_api_poll_attempts"`
-	GameApiLastPoll      pgtype.Timestamp `json:"game_api_last_poll"`
-	CreatedAt            time.Time        `json:"created_at"`
-	StartedAt            pgtype.Timestamp `json:"started_at"`
-	CompletedAt          pgtype.Timestamp `json:"completed_at"`
-	UpdatedAt            time.Time        `json:"updated_at"`
+	ID                     pgtype.UUID      `json:"id"`
+	RoundID                pgtype.UUID      `json:"round_id"`
+	MatchNumber            int32            `json:"match_number"`
+	NextMatchID            pgtype.UUID      `json:"next_match_id"`
+	Participant1ID         pgtype.UUID      `json:"participant1_id"`
+	Participant2ID         pgtype.UUID      `json:"participant2_id"`
+	Status                 string           `json:"status"`
+	Participant1Ready      bool             `json:"participant1_ready"`
+	Participant2Ready      bool             `json:"participant2_ready"`
+	Participant1GameLoaded bool             `json:"participant1_game_loaded"`
+	Participant2GameLoaded bool             `json:"participant2_game_loaded"`
+	WinnerID               pgtype.UUID      `json:"winner_id"`
+	ScorePlayer1           pgtype.Int4      `json:"score_player1"`
+	ScorePlayer2           pgtype.Int4      `json:"score_player2"`
+	ResultSource           pgtype.Text      `json:"result_source"`
+	DisconnectedPlayerID   pgtype.UUID      `json:"disconnected_player_id"`
+	DisconnectedAt         pgtype.Timestamp `json:"disconnected_at"`
+	GameApiMatchID         pgtype.Text      `json:"game_api_match_id"`
+	GameApiPollAttempts    pgtype.Int4      `json:"game_api_poll_attempts"`
+	GameApiLastPoll        pgtype.Timestamp `json:"game_api_last_poll"`
+	Version                int32            `json:"version"`
+	CreatedAt              time.Time        `json:"created_at"`
+	StartedAt              pgtype.Timestamp `json:"started_at"`
+	CompletedAt            pgtype.Timestamp `json:"completed_at"`
+	UpdatedAt              time.Time        `json:"updated_at"`
 }
 
 type TournamentRound struct {

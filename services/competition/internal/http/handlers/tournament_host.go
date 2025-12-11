@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,12 +22,13 @@ import (
 
 // TournamentHostDeps contains dependencies for tournament host handlers.
 type TournamentHostDeps struct {
-	HostRepo         *repository.HostRepository
-	TournamentRepo   *repository.TournamentRepository
-	RegistrationRepo *repository.RegistrationRepository
-	ParticipantRepo  domain.ParticipantRepository
-	EventPublisher   *pubsub.EventPublisher
-	Logger           *slog.Logger
+	HostRepo           *repository.HostRepository
+	TournamentRepo     *repository.TournamentRepository
+	RegistrationRepo   *repository.RegistrationRepository
+	ParticipantRepo    domain.ParticipantRepository
+	EventPublisher     *pubsub.EventPublisher
+	Logger             *slog.Logger
+	MatchmakingBaseURL string
 }
 
 // RegisterTournamentHostRoutes registers host/admin-facing tournament routes.
@@ -227,6 +229,26 @@ func RegisterTournamentHostRoutes(group *gin.RouterGroup, deps TournamentHostDep
 					detail.Me = &TournamentMeInfo{
 						ParticipationStatus: &status,
 					}
+				}
+			}
+
+			// Fetch current/active match from matchmaking service to enrich me.match
+			authHeader := c.GetHeader("Authorization")
+			matchmakingBaseURL := deps.MatchmakingBaseURL
+			if matchmakingBaseURL == "" {
+				// Fallback to local docker-compose service URL
+				matchmakingBaseURL = "http://matchmaking:8081"
+			}
+
+			if matchmakingBaseURL != "" && authHeader != "" {
+				matchInfo, err := fetchCurrentMatch(c.Request.Context(), matchmakingBaseURL, authHeader, deps.Logger)
+				if err != nil {
+					deps.Logger.Warn("failed to fetch current match from matchmaking", "error", err, "tournamentId", tournamentID)
+				} else if matchInfo != nil {
+					if detail.Me == nil {
+						detail.Me = &TournamentMeInfo{}
+					}
+					detail.Me.Match = matchInfo
 				}
 			}
 
@@ -761,4 +783,44 @@ func newTournamentDetail(t *repository.Tournament) TournamentDetail {
 	}
 
 	return detail
+}
+
+// fetchCurrentMatch calls matchmaking /me endpoint and returns current match info (if any)
+func fetchCurrentMatch(ctx context.Context, baseURL, authHeader string, logger *slog.Logger) (*MatchInfo, error) {
+	base := strings.TrimRight(baseURL, "/")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/v1/matchmaking/me", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", authHeader)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("matchmaking /me returned status %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		Match *MatchInfo `json:"match"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+
+	// If no active match, return nil without error
+	if payload.Match == nil {
+		return nil, nil
+	}
+
+	// ensure required IDs are non-empty
+	if payload.Match.MatchID == "" || payload.Match.TournamentID == "" {
+		logger.Warn("matchmaking /me returned match without IDs")
+		return nil, nil
+	}
+
+	return payload.Match, nil
 }

@@ -2,16 +2,26 @@
 package http
 
 import (
+	"context"
 	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/winspire-core/services/matchmaking/internal/application"
+	"github.com/winspire-core/services/matchmaking/internal/domain"
 	"github.com/winspire-core/services/matchmaking/internal/repository"
 	"github.com/winspire-core/services/matchmaking/internal/websocket"
 	"github.com/winspire/winspire-core/libs/go/httpx"
 )
+
+// matchService defines the subset of match service methods required by HTTP handlers
+type matchService interface {
+	OnPlayerReady(ctx context.Context, matchID, userID uuid.UUID) error
+	OnGameLoaded(ctx context.Context, matchID, userID uuid.UUID) error
+	GrantWalkover(ctx context.Context, matchID, userID, noShowPlayerID uuid.UUID, reason string) error
+	GetCurrentMatchForUser(ctx context.Context, userID uuid.UUID) (*domain.Match, *domain.Round, uuid.UUID, error)
+}
 
 // MatchHandler handles match-related HTTP requests
 type MatchHandler struct {
@@ -19,7 +29,7 @@ type MatchHandler struct {
 	roundRepo       repository.RoundRepository
 	bracketRepo     repository.BracketRepository
 	preLobbyService *application.PreLobbyService
-	matchService    *application.MatchService
+	matchService    matchService
 	hub             *websocket.Hub
 }
 
@@ -29,7 +39,7 @@ func NewMatchHandler(
 	roundRepo repository.RoundRepository,
 	bracketRepo repository.BracketRepository,
 	preLobbyService *application.PreLobbyService,
-	matchService *application.MatchService,
+	matchService matchService,
 	hub *websocket.Hub,
 ) *MatchHandler {
 	return &MatchHandler{
@@ -200,6 +210,55 @@ func (h *MatchHandler) MarkPlayerReady(c *gin.Context) {
 		"match_id":  matchID,
 		"player_id": userID,
 		"ready":     true,
+	})
+}
+
+// MarkGameLoaded marks that the player's game has loaded successfully
+// POST /v1/matches/:id/game-loaded
+func (h *MatchHandler) MarkGameLoaded(c *gin.Context) {
+	// Parse match ID
+	matchID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid match ID", "details": err.Error()})
+		return
+	}
+
+	// Get authenticated user from JWT (set by auth middleware)
+	user := httpx.MustGetUser(c)
+	userID, err := uuid.Parse(string(user.ID))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user ID", "details": err.Error()})
+		return
+	}
+
+	// Fetch match to verify user is a participant
+	match, err := h.matchRepo.GetByID(c.Request.Context(), matchID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "match not found", "details": err.Error()})
+		return
+	}
+
+	// Verify user is a participant
+	isParticipant1 := match.Participant1ID == userID
+	isParticipant2 := match.Participant2ID != nil && *match.Participant2ID == userID
+
+	if !isParticipant1 && !isParticipant2 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied: you are not a participant in this match"})
+		return
+	}
+
+	// Call match service to handle game loaded
+	err = h.matchService.OnGameLoaded(c.Request.Context(), matchID, userID)
+	if err != nil {
+		log.Printf("WARN: Failed to process game loaded: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to mark game loaded", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "game loaded successfully",
+		"match_id":  matchID,
+		"player_id": userID,
 	})
 }
 

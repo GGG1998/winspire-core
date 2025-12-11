@@ -49,6 +49,8 @@ function transformMatch(apiData: MatchApiData): Match {
     status: apiData.status as any,
     participant1Ready: apiData.participant1_ready,
     participant2Ready: apiData.participant2_ready,
+    participant1GameLoaded: apiData.participant1_game_loaded || false,
+    participant2GameLoaded: apiData.participant2_game_loaded || false,
     winnerId: apiData.winner_id,
     scorePlayer1: apiData.score_player1,
     scorePlayer2: apiData.score_player2,
@@ -196,6 +198,24 @@ export async function markReady(
 }
 
 /**
+ * Mark player's game as loaded
+ * Notifies server that the game has finished loading for this player
+ */
+export async function markGameLoaded(
+  matchId: string,
+  playerId: string
+): Promise<ApiResponse<{ message: string; match_id: string; player_id: string }>> {
+  const response = await apiClient.post<{ message: string; match_id: string; player_id: string }>(
+    API_ENDPOINTS.MARK_GAME_LOADED(matchId),
+    {
+      player_id: playerId,
+    }
+  );
+
+  return response;
+}
+
+/**
  * Claim walkover win due to opponent no-show
  * Awards win to present player after timeout period
  */
@@ -283,6 +303,7 @@ export const matchmakingApi = {
   getPreLobbyState,
   getMatch,
   markReady,
+  markGameLoaded,
   claimWalkover,
   getPreLobbyWebSocketUrl,
   getMatchLobbyWebSocketUrl,

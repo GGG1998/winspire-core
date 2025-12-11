@@ -56,6 +56,7 @@ import {
 } from '@heroicons/react/20/solid'
 import { useTournaments } from '../hooks/useTournaments'
 import type { Tournament } from '../types'
+import { useMemo } from 'react'
 
 interface HostLayoutProps {
   children: React.ReactNode
@@ -142,6 +143,9 @@ function HostSidebar({ user, streamerId, onLogout }: HostSidebarProps) {
     .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
     .slice(0, 4)
 
+  const activeMatch = useMemo(() => tournaments.find(t => t.me?.match?.matchId)?.me?.match, [tournaments])
+  const returnMatchHref = activeMatch ? `/host/matches/${activeMatch.matchId}` : undefined
+
   return (
     <Sidebar>
       <SidebarHeader>
@@ -200,6 +204,12 @@ function HostSidebar({ user, streamerId, onLogout }: HostSidebarProps) {
         <SidebarSpacer />
 
         <SidebarSection>
+          {returnMatchHref && (
+            <SidebarItem href={returnMatchHref}>
+              <SparklesIcon />
+              <SidebarLabel>Wróć do meczu</SidebarLabel>
+            </SidebarItem>
+          )}
           {supportLinks.map(link => (
             <SidebarItem key={link.key} href={link.href}>
               <link.icon />

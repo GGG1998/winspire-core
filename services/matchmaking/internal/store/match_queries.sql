@@ -167,3 +167,43 @@ UPDATE tournament_matches
 SET disconnected_player_id = NULL, disconnected_at = NULL, updated_at = NOW()
 WHERE id = $1;
 
+-- name: UpdateGameLoaded :exec
+-- Mark a player's game as loaded
+UPDATE tournament_matches
+SET 
+    participant1_game_loaded = CASE 
+        WHEN participant1_id = $2 THEN true 
+        ELSE participant1_game_loaded 
+    END,
+    participant2_game_loaded = CASE 
+        WHEN participant2_id = $2 THEN true 
+        ELSE participant2_game_loaded 
+    END,
+    updated_at = NOW()
+WHERE id = $1;
+
+-- name: UpdateMatchStatusWithVersion :one
+-- Update match status with optimistic locking
+UPDATE tournament_matches
+SET 
+    status = $2,
+    version = version + 1,
+    updated_at = NOW(),
+    started_at = CASE 
+        WHEN $2::VARCHAR = 'started' AND started_at IS NULL THEN NOW() 
+        ELSE started_at 
+    END,
+    completed_at = CASE 
+        WHEN $2::VARCHAR = 'completed' THEN NOW() 
+        ELSE completed_at 
+    END
+WHERE id = $1 AND version = $3
+RETURNING *;
+
+-- name: FindLoadingMatchesOlderThan :many
+-- Find matches in 'loading' status older than specified timestamp (for timeout monitoring)
+SELECT * FROM tournament_matches
+WHERE status = 'loading'
+  AND updated_at < $1
+ORDER BY updated_at ASC;
+

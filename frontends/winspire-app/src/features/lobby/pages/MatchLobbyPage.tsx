@@ -18,6 +18,7 @@ import { LobbyLayout } from '../layouts';
 import { ERROR_MESSAGES } from '../constants';
 import { competitionApi, type TournamentInfo } from '../../../shared/api/competitionApi';
 import { GAME_MANAGEMENT_URL } from '../../../shared/config/api';
+import { matchmakingApi } from '../api/matchmakingApi';
 
 /**
  * Match Lobby Page
@@ -76,14 +77,16 @@ export function MatchLobbyPage() {
   );
 
   // Sync local ready state with server state
+  // IMPORTANT: Don't sync while isReadyLoading=true to preserve optimistic updates
   useEffect(() => {
-    if (matchState && user) {
+    if (matchState && user && !isReadyLoading) {
       const serverReady = matchState.player1?.id === user.id 
         ? matchState.match.participant1Ready 
         : matchState.match.participant2Ready;
+      
       setReady(serverReady);
     }
-  }, [matchState, user, setReady]);
+  }, [matchState, user, setReady, isReadyLoading]);
 
   // Disconnect state management
   const {
@@ -110,6 +113,12 @@ export function MatchLobbyPage() {
   // Check authorization - verify user is a match participant
   useEffect(() => {
     if (!user || !matchState) return;
+    
+    // Wait for player data to load before checking participation
+    // This prevents race condition where we navigate away before player data arrives
+    if (!matchState.player1?.id && !matchState.player2?.id) {
+      return;
+    }
 
     const isParticipant = 
       matchState.player1?.id === user.id || 
@@ -275,12 +284,14 @@ export function MatchLobbyPage() {
               <h2 className="text-lg font-semibold text-cyan-900 dark:text-cyan-100">
                 Status: {matchState.status === 'pending' ? 'Oczekiwanie na graczy' : 
                          matchState.status === 'ready' ? 'Gotowy do rozpoczęcia' :
+                         matchState.status === 'loading' ? 'Ładowanie gry' :
                          matchState.status === 'started' ? 'W trakcie' :
                          matchState.status === 'completed' ? 'Zakończony' : matchState.status}
               </h2>
               <p className="mt-1 text-sm text-cyan-700 dark:text-cyan-300">
                 {matchState.status === 'pending' && 'Czekamy na dołączenie obu graczy'}
                 {matchState.status === 'ready' && 'Obaj gracze w lobby - przygotuj się!'}
+                {matchState.status === 'loading' && 'Ładowanie gry... Poczekaj aż gra się załaduje.'}
                 {matchState.status === 'started' && 'Mecz w toku'}
                 {matchState.status === 'completed' && 'Mecz zakończony'}
               </p>
@@ -296,14 +307,9 @@ export function MatchLobbyPage() {
           player1Ready={matchState.match.participant1Ready}
           player2Ready={matchState.match.participant2Ready}
         />
-    <ReadyButton
-              isReady={localReadyState}
-              isLoading={isReadyLoading}
-              disabled={!matchState.player2} // Disable if opponent not present
-              onClick={toggleReady}
-            />
-        {/* Ready Button Section */}
-        {matchState.status === 'ready' && matchState.player1 && matchState.player2 && (
+
+        {/* Ready Button Section - Show only in pending status */}
+        {matchState.status === 'pending' && matchState.player1 && matchState.player2 && (
           <div className="mt-8 flex flex-col items-center">
             <ReadyButton
               isReady={localReadyState}
@@ -316,10 +322,32 @@ export function MatchLobbyPage() {
             {matchState.match.participant1Ready && matchState.match.participant2Ready && (
               <div className="mt-4 rounded-lg border-2 border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-4">
                 <p className="text-center text-green-800 dark:text-green-200 font-semibold">
-                  🎉 Obaj gracze gotowi! Mecz rozpocznie się za moment...
+                  🎉 Obaj gracze gotowi! Ładowanie gry...
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Loading Status - Show when match is in loading state */}
+        {matchState.status === 'loading' && (
+          <div className="mt-8">
+            <div className="rounded-lg border-2 border-blue-300 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-6">
+              <div className="flex items-center justify-center gap-4">
+                <div className="animate-spin rounded-full size-8 border-b-2 border-blue-600"></div>
+                <div className="text-center">
+                  <p className="text-lg font-semibold text-blue-900 dark:text-blue-200">
+                    Ładowanie gry...
+                  </p>
+                  <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                    {!matchState.match.participant1GameLoaded && !matchState.match.participant2GameLoaded && 'Oba graczy ładują grę'}
+                    {matchState.match.participant1GameLoaded && !matchState.match.participant2GameLoaded && 'Gracz 1 załadował grę, czekamy na Gracza 2'}
+                    {!matchState.match.participant1GameLoaded && matchState.match.participant2GameLoaded && 'Gracz 2 załadował grę, czekamy na Gracza 1'}
+                    {matchState.match.participant1GameLoaded && matchState.match.participant2GameLoaded && 'Oba graczy załadowali grę!'}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -354,25 +382,39 @@ export function MatchLobbyPage() {
           </div>
         )}
 
-        {/* Game Iframe - Show when match has started and game URL is available */}
-        <div className="mt-8">
-          <GameFrame
-            gameUrl={
-              matchState.gameSnapshot?.slug 
-                ? `${GAME_MANAGEMENT_URL}/v1/g/${matchState.gameSnapshot.slug}/bundle/`
-                : ''
-            }
-            matchId={matchState.match.id}
-            sessionToken={undefined} // TODO: Get session token from auth context
-            onGameComplete={(result) => {
-              console.log('[MatchLobbyPage] Game completed:', result);
-              // The match_completed WebSocket message will update the state
-            }}
-            onGameError={(error) => {
-              console.error('[MatchLobbyPage] Game error:', error);
-            }}
-          />
-        </div>
+        {/* Game Iframe - Show when match is loading or started */}
+        {(matchState.status === 'loading' || matchState.status === 'started') && (
+          <div className="mt-8">
+            <GameFrame
+              gameUrl={
+                matchState.match.gameUrl ||
+                (matchState.gameSnapshot?.slug 
+                  ? `${GAME_MANAGEMENT_URL}/v1/g/${matchState.gameSnapshot.slug}/bundle/`
+                  : '')
+              }
+              matchId={matchState.match.id}
+              sessionToken={undefined} // TODO: Get session token from auth context
+              onGameLoaded={async () => {
+                console.log('[MatchLobbyPage] Game loaded, notifying server');
+                if (user) {
+                  try {
+                    await matchmakingApi.markGameLoaded(matchState.match.id, user.id);
+                    console.log('[MatchLobbyPage] Server notified of game load');
+                  } catch (err) {
+                    console.error('[MatchLobbyPage] Failed to notify server of game load:', err);
+                  }
+                }
+              }}
+              onGameComplete={(result) => {
+                console.log('[MatchLobbyPage] Game completed:', result);
+                // The match_completed WebSocket message will update the state
+              }}
+              onGameError={(error) => {
+                console.error('[MatchLobbyPage] Game error:', error);
+              }}
+            />
+          </div>
+        )}
 
         {/* Match Result - Show when match is completed */}
         {matchState.status === 'completed' && matchState.match.winnerId && (
@@ -399,8 +441,8 @@ export function MatchLobbyPage() {
               <p className="font-medium">Informacje o lobby:</p>
               <ul className="mt-2 space-y-1 list-disc list-inside">
                 <li>Gdy obaj gracze dołączą, będziecie mogli oznaczyć się jako gotowi</li>
-                <li>Po oznaczeniu "Gotowy" przez obu graczy rozpocznie się odliczanie (3, 2, 1)</li>
-                <li>Gra załaduje się automatycznie po zakończeniu odliczania</li>
+                <li>Po oznaczeniu "Gotowy" przez obu graczy rozpocznie się ładowanie gry</li>
+                <li>Gdy gra załaduje się u obu graczy, rozpocznie się odliczanie (3, 2, 1)</li>
                 <li>W razie rozłączenia system automatycznie spróbuje ponownie połączyć</li>
               </ul>
             </div>

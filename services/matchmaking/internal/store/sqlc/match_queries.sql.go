@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -77,7 +78,7 @@ INSERT INTO tournament_matches (
     status
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7
-) RETURNING id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, created_at, started_at, completed_at, updated_at
+) RETURNING id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, participant1_game_loaded, participant2_game_loaded, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, version, created_at, started_at, completed_at, updated_at
 `
 
 type CreateMatchParams struct {
@@ -114,6 +115,8 @@ func (q *Queries) CreateMatch(ctx context.Context, arg CreateMatchParams) (Tourn
 		&i.Status,
 		&i.Participant1Ready,
 		&i.Participant2Ready,
+		&i.Participant1GameLoaded,
+		&i.Participant2GameLoaded,
 		&i.WinnerID,
 		&i.ScorePlayer1,
 		&i.ScorePlayer2,
@@ -123,6 +126,7 @@ func (q *Queries) CreateMatch(ctx context.Context, arg CreateMatchParams) (Tourn
 		&i.GameApiMatchID,
 		&i.GameApiPollAttempts,
 		&i.GameApiLastPoll,
+		&i.Version,
 		&i.CreatedAt,
 		&i.StartedAt,
 		&i.CompletedAt,
@@ -131,8 +135,62 @@ func (q *Queries) CreateMatch(ctx context.Context, arg CreateMatchParams) (Tourn
 	return i, err
 }
 
+const FindLoadingMatchesOlderThan = `-- name: FindLoadingMatchesOlderThan :many
+SELECT id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, participant1_game_loaded, participant2_game_loaded, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, version, created_at, started_at, completed_at, updated_at FROM tournament_matches
+WHERE status = 'loading'
+  AND updated_at < $1
+ORDER BY updated_at ASC
+`
+
+// Find matches in 'loading' status older than specified timestamp (for timeout monitoring)
+func (q *Queries) FindLoadingMatchesOlderThan(ctx context.Context, updatedAt time.Time) ([]TournamentMatch, error) {
+	rows, err := q.db.Query(ctx, FindLoadingMatchesOlderThan, updatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TournamentMatch{}
+	for rows.Next() {
+		var i TournamentMatch
+		if err := rows.Scan(
+			&i.ID,
+			&i.RoundID,
+			&i.MatchNumber,
+			&i.NextMatchID,
+			&i.Participant1ID,
+			&i.Participant2ID,
+			&i.Status,
+			&i.Participant1Ready,
+			&i.Participant2Ready,
+			&i.Participant1GameLoaded,
+			&i.Participant2GameLoaded,
+			&i.WinnerID,
+			&i.ScorePlayer1,
+			&i.ScorePlayer2,
+			&i.ResultSource,
+			&i.DisconnectedPlayerID,
+			&i.DisconnectedAt,
+			&i.GameApiMatchID,
+			&i.GameApiPollAttempts,
+			&i.GameApiLastPoll,
+			&i.Version,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const GetFinalMatch = `-- name: GetFinalMatch :one
-SELECT id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, created_at, started_at, completed_at, updated_at FROM tournament_matches
+SELECT id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, participant1_game_loaded, participant2_game_loaded, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, version, created_at, started_at, completed_at, updated_at FROM tournament_matches
 WHERE round_id IN (
     SELECT id FROM tournament_rounds WHERE bracket_id = (
         SELECT id FROM tournament_brackets WHERE tournament_id = $1
@@ -155,6 +213,8 @@ func (q *Queries) GetFinalMatch(ctx context.Context, tournamentID pgtype.UUID) (
 		&i.Status,
 		&i.Participant1Ready,
 		&i.Participant2Ready,
+		&i.Participant1GameLoaded,
+		&i.Participant2GameLoaded,
 		&i.WinnerID,
 		&i.ScorePlayer1,
 		&i.ScorePlayer2,
@@ -164,6 +224,7 @@ func (q *Queries) GetFinalMatch(ctx context.Context, tournamentID pgtype.UUID) (
 		&i.GameApiMatchID,
 		&i.GameApiPollAttempts,
 		&i.GameApiLastPoll,
+		&i.Version,
 		&i.CreatedAt,
 		&i.StartedAt,
 		&i.CompletedAt,
@@ -173,7 +234,7 @@ func (q *Queries) GetFinalMatch(ctx context.Context, tournamentID pgtype.UUID) (
 }
 
 const GetMatchByID = `-- name: GetMatchByID :one
-SELECT id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, created_at, started_at, completed_at, updated_at FROM tournament_matches
+SELECT id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, participant1_game_loaded, participant2_game_loaded, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, version, created_at, started_at, completed_at, updated_at FROM tournament_matches
 WHERE id = $1
 `
 
@@ -190,6 +251,8 @@ func (q *Queries) GetMatchByID(ctx context.Context, id pgtype.UUID) (TournamentM
 		&i.Status,
 		&i.Participant1Ready,
 		&i.Participant2Ready,
+		&i.Participant1GameLoaded,
+		&i.Participant2GameLoaded,
 		&i.WinnerID,
 		&i.ScorePlayer1,
 		&i.ScorePlayer2,
@@ -199,6 +262,7 @@ func (q *Queries) GetMatchByID(ctx context.Context, id pgtype.UUID) (TournamentM
 		&i.GameApiMatchID,
 		&i.GameApiPollAttempts,
 		&i.GameApiLastPoll,
+		&i.Version,
 		&i.CreatedAt,
 		&i.StartedAt,
 		&i.CompletedAt,
@@ -208,7 +272,7 @@ func (q *Queries) GetMatchByID(ctx context.Context, id pgtype.UUID) (TournamentM
 }
 
 const GetMatchesByRoundID = `-- name: GetMatchesByRoundID :many
-SELECT id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, created_at, started_at, completed_at, updated_at FROM tournament_matches
+SELECT id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, participant1_game_loaded, participant2_game_loaded, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, version, created_at, started_at, completed_at, updated_at FROM tournament_matches
 WHERE round_id = $1
 ORDER BY match_number ASC
 `
@@ -232,6 +296,8 @@ func (q *Queries) GetMatchesByRoundID(ctx context.Context, roundID pgtype.UUID) 
 			&i.Status,
 			&i.Participant1Ready,
 			&i.Participant2Ready,
+			&i.Participant1GameLoaded,
+			&i.Participant2GameLoaded,
 			&i.WinnerID,
 			&i.ScorePlayer1,
 			&i.ScorePlayer2,
@@ -241,6 +307,7 @@ func (q *Queries) GetMatchesByRoundID(ctx context.Context, roundID pgtype.UUID) 
 			&i.GameApiMatchID,
 			&i.GameApiPollAttempts,
 			&i.GameApiLastPoll,
+			&i.Version,
 			&i.CreatedAt,
 			&i.StartedAt,
 			&i.CompletedAt,
@@ -257,7 +324,7 @@ func (q *Queries) GetMatchesByRoundID(ctx context.Context, roundID pgtype.UUID) 
 }
 
 const GetMatchesByTournamentAndRound = `-- name: GetMatchesByTournamentAndRound :many
-SELECT m.id, m.round_id, m.match_number, m.next_match_id, m.participant1_id, m.participant2_id, m.status, m.participant1_ready, m.participant2_ready, m.winner_id, m.score_player1, m.score_player2, m.result_source, m.disconnected_player_id, m.disconnected_at, m.game_api_match_id, m.game_api_poll_attempts, m.game_api_last_poll, m.created_at, m.started_at, m.completed_at, m.updated_at FROM tournament_matches m
+SELECT m.id, m.round_id, m.match_number, m.next_match_id, m.participant1_id, m.participant2_id, m.status, m.participant1_ready, m.participant2_ready, m.participant1_game_loaded, m.participant2_game_loaded, m.winner_id, m.score_player1, m.score_player2, m.result_source, m.disconnected_player_id, m.disconnected_at, m.game_api_match_id, m.game_api_poll_attempts, m.game_api_last_poll, m.version, m.created_at, m.started_at, m.completed_at, m.updated_at FROM tournament_matches m
 JOIN tournament_rounds r ON m.round_id = r.id
 JOIN tournament_brackets b ON r.bracket_id = b.id
 WHERE b.tournament_id = $1 AND r.round_number = $2
@@ -289,6 +356,8 @@ func (q *Queries) GetMatchesByTournamentAndRound(ctx context.Context, arg GetMat
 			&i.Status,
 			&i.Participant1Ready,
 			&i.Participant2Ready,
+			&i.Participant1GameLoaded,
+			&i.Participant2GameLoaded,
 			&i.WinnerID,
 			&i.ScorePlayer1,
 			&i.ScorePlayer2,
@@ -298,6 +367,7 @@ func (q *Queries) GetMatchesByTournamentAndRound(ctx context.Context, arg GetMat
 			&i.GameApiMatchID,
 			&i.GameApiPollAttempts,
 			&i.GameApiLastPoll,
+			&i.Version,
 			&i.CreatedAt,
 			&i.StartedAt,
 			&i.CompletedAt,
@@ -314,7 +384,7 @@ func (q *Queries) GetMatchesByTournamentAndRound(ctx context.Context, arg GetMat
 }
 
 const GetMatchesForGameAPIPolling = `-- name: GetMatchesForGameAPIPolling :many
-SELECT id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, created_at, started_at, completed_at, updated_at FROM tournament_matches
+SELECT id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, participant1_game_loaded, participant2_game_loaded, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, version, created_at, started_at, completed_at, updated_at FROM tournament_matches
 WHERE status = 'started'
   AND game_api_match_id IS NOT NULL
   AND result_source IS NULL
@@ -343,6 +413,8 @@ func (q *Queries) GetMatchesForGameAPIPolling(ctx context.Context, limit int32) 
 			&i.Status,
 			&i.Participant1Ready,
 			&i.Participant2Ready,
+			&i.Participant1GameLoaded,
+			&i.Participant2GameLoaded,
 			&i.WinnerID,
 			&i.ScorePlayer1,
 			&i.ScorePlayer2,
@@ -352,6 +424,7 @@ func (q *Queries) GetMatchesForGameAPIPolling(ctx context.Context, limit int32) 
 			&i.GameApiMatchID,
 			&i.GameApiPollAttempts,
 			&i.GameApiLastPoll,
+			&i.Version,
 			&i.CreatedAt,
 			&i.StartedAt,
 			&i.CompletedAt,
@@ -368,7 +441,7 @@ func (q *Queries) GetMatchesForGameAPIPolling(ctx context.Context, limit int32) 
 }
 
 const GetMatchesForPlayer = `-- name: GetMatchesForPlayer :many
-SELECT id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, created_at, started_at, completed_at, updated_at FROM tournament_matches
+SELECT id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, participant1_game_loaded, participant2_game_loaded, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, version, created_at, started_at, completed_at, updated_at FROM tournament_matches
 WHERE (participant1_id = $1 OR participant2_id = $1)
   AND status IN ('pending', 'ready', 'started', 'paused')
 ORDER BY created_at DESC
@@ -394,6 +467,8 @@ func (q *Queries) GetMatchesForPlayer(ctx context.Context, participant1ID pgtype
 			&i.Status,
 			&i.Participant1Ready,
 			&i.Participant2Ready,
+			&i.Participant1GameLoaded,
+			&i.Participant2GameLoaded,
 			&i.WinnerID,
 			&i.ScorePlayer1,
 			&i.ScorePlayer2,
@@ -403,6 +478,7 @@ func (q *Queries) GetMatchesForPlayer(ctx context.Context, participant1ID pgtype
 			&i.GameApiMatchID,
 			&i.GameApiPollAttempts,
 			&i.GameApiLastPoll,
+			&i.Version,
 			&i.CreatedAt,
 			&i.StartedAt,
 			&i.CompletedAt,
@@ -433,6 +509,32 @@ type UpdateDisconnectedPlayerOnlyParams struct {
 // Update disconnected player info without changing status
 func (q *Queries) UpdateDisconnectedPlayerOnly(ctx context.Context, arg UpdateDisconnectedPlayerOnlyParams) error {
 	_, err := q.db.Exec(ctx, UpdateDisconnectedPlayerOnly, arg.ID, arg.DisconnectedPlayerID, arg.DisconnectedAt)
+	return err
+}
+
+const UpdateGameLoaded = `-- name: UpdateGameLoaded :exec
+UPDATE tournament_matches
+SET 
+    participant1_game_loaded = CASE 
+        WHEN participant1_id = $2 THEN true 
+        ELSE participant1_game_loaded 
+    END,
+    participant2_game_loaded = CASE 
+        WHEN participant2_id = $2 THEN true 
+        ELSE participant2_game_loaded 
+    END,
+    updated_at = NOW()
+WHERE id = $1
+`
+
+type UpdateGameLoadedParams struct {
+	ID             pgtype.UUID `json:"id"`
+	Participant1ID pgtype.UUID `json:"participant1_id"`
+}
+
+// Mark a player's game as loaded
+func (q *Queries) UpdateGameLoaded(ctx context.Context, arg UpdateGameLoadedParams) error {
+	_, err := q.db.Exec(ctx, UpdateGameLoaded, arg.ID, arg.Participant1ID)
 	return err
 }
 
@@ -590,4 +692,62 @@ type UpdateMatchStatusParams struct {
 func (q *Queries) UpdateMatchStatus(ctx context.Context, arg UpdateMatchStatusParams) error {
 	_, err := q.db.Exec(ctx, UpdateMatchStatus, arg.ID, arg.Status)
 	return err
+}
+
+const UpdateMatchStatusWithVersion = `-- name: UpdateMatchStatusWithVersion :one
+UPDATE tournament_matches
+SET 
+    status = $2,
+    version = version + 1,
+    updated_at = NOW(),
+    started_at = CASE 
+        WHEN $2::VARCHAR = 'started' AND started_at IS NULL THEN NOW() 
+        ELSE started_at 
+    END,
+    completed_at = CASE 
+        WHEN $2::VARCHAR = 'completed' THEN NOW() 
+        ELSE completed_at 
+    END
+WHERE id = $1 AND version = $3
+RETURNING id, round_id, match_number, next_match_id, participant1_id, participant2_id, status, participant1_ready, participant2_ready, participant1_game_loaded, participant2_game_loaded, winner_id, score_player1, score_player2, result_source, disconnected_player_id, disconnected_at, game_api_match_id, game_api_poll_attempts, game_api_last_poll, version, created_at, started_at, completed_at, updated_at
+`
+
+type UpdateMatchStatusWithVersionParams struct {
+	ID      pgtype.UUID `json:"id"`
+	Status  string      `json:"status"`
+	Version int32       `json:"version"`
+}
+
+// Update match status with optimistic locking
+func (q *Queries) UpdateMatchStatusWithVersion(ctx context.Context, arg UpdateMatchStatusWithVersionParams) (TournamentMatch, error) {
+	row := q.db.QueryRow(ctx, UpdateMatchStatusWithVersion, arg.ID, arg.Status, arg.Version)
+	var i TournamentMatch
+	err := row.Scan(
+		&i.ID,
+		&i.RoundID,
+		&i.MatchNumber,
+		&i.NextMatchID,
+		&i.Participant1ID,
+		&i.Participant2ID,
+		&i.Status,
+		&i.Participant1Ready,
+		&i.Participant2Ready,
+		&i.Participant1GameLoaded,
+		&i.Participant2GameLoaded,
+		&i.WinnerID,
+		&i.ScorePlayer1,
+		&i.ScorePlayer2,
+		&i.ResultSource,
+		&i.DisconnectedPlayerID,
+		&i.DisconnectedAt,
+		&i.GameApiMatchID,
+		&i.GameApiPollAttempts,
+		&i.GameApiLastPoll,
+		&i.Version,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
