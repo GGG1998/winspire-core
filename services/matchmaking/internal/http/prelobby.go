@@ -416,10 +416,11 @@ func (h *PreLobbyWebSocketHandler) UpgradePreLobbyConnection(c *gin.Context) {
 	}
 
 	// Check if pre-lobby can accept participants
-	canAccept, err := h.preLobbyService.CanAcceptParticipants(c.Request.Context(), tournamentID)
+	canAccept, reason, err := h.preLobbyService.CanAcceptParticipants(c.Request.Context(), tournamentID, &userID)
 	if err != nil {
 		h.logger.Error("failed to check pre-lobby status", map[string]interface{}{
 			"tournament_id": tournamentID.String(),
+			"user_id":       userID.String(),
 			"error":         err.Error(),
 		})
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -430,9 +431,13 @@ func (h *PreLobbyWebSocketHandler) UpgradePreLobbyConnection(c *gin.Context) {
 	}
 
 	if !canAccept {
+		message := reason
+		if message == "" {
+			message = "Pre-lobby is no longer accepting participants"
+		}
 		c.JSON(http.StatusConflict, gin.H{
 			"error":   "prelobby_closed",
-			"message": "Pre-lobby is no longer accepting participants",
+			"message": message,
 		})
 		return
 	}

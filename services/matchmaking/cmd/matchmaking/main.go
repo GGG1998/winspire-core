@@ -177,6 +177,7 @@ func main() {
 	// Initialize pre-lobby service
 	preLobbyService := application.NewPreLobbyService(
 		preLobbyRepo,
+		matchRepo,
 		nil, // Hub will be set after initialization
 		publisher,
 		metrics,

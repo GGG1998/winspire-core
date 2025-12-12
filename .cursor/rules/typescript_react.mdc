@@ -1,11 +1,7 @@
 ---
-description: TypeScript React frontend development guidelines
-globs:
-  - "frontends/**/*.tsx"
-  - "frontends/**/*.ts"
+globs: frontends/**/*.tsx,frontends/**/*.ts
 alwaysApply: false
 ---
-
 # TypeScript React Guidelines
 
 ## Struktura Folderów

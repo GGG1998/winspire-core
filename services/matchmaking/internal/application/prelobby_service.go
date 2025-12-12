@@ -56,6 +56,7 @@ type TournamentInfo struct {
 // PreLobbyService handles pre-lobby operations
 type PreLobbyService struct {
 	repo      repository.PreLobbyRepository
+	matchRepo repository.MatchRepository
 	hub       *websocket.Hub
 	publisher *pubsub.EventPublisher
 	metrics   *observability.MetricsEmitter
@@ -73,6 +74,7 @@ type PreLobbyService struct {
 // NewPreLobbyService creates a new pre-lobby service
 func NewPreLobbyService(
 	repo repository.PreLobbyRepository,
+	matchRepo repository.MatchRepository,
 	hub *websocket.Hub,
 	publisher *pubsub.EventPublisher,
 	metrics *observability.MetricsEmitter,
@@ -80,6 +82,7 @@ func NewPreLobbyService(
 ) *PreLobbyService {
 	return &PreLobbyService{
 		repo:              repo,
+		matchRepo:         matchRepo,
 		hub:               hub,
 		publisher:         publisher,
 		metrics:           metrics,
@@ -291,16 +294,35 @@ func (s *PreLobbyService) GetPreLobbyStatus(ctx context.Context, tournamentID uu
 }
 
 // CanAcceptParticipants checks if the pre-lobby can accept new participants
-func (s *PreLobbyService) CanAcceptParticipants(ctx context.Context, tournamentID uuid.UUID) (bool, error) {
+// Also checks if the specific participant (if provided) is eligible to join
+func (s *PreLobbyService) CanAcceptParticipants(ctx context.Context, tournamentID uuid.UUID, participantID *uuid.UUID) (bool, string, error) {
 	preLobby, err := s.repo.GetByTournamentID(ctx, tournamentID)
 	if err != nil {
-		return false, fmt.Errorf("get pre-lobby: %w", err)
+		return false, "", fmt.Errorf("get pre-lobby: %w", err)
 	}
+
 	if preLobby == nil {
 		// No pre-lobby exists yet, so we can accept participants
-		return true, nil
+		return true, "", nil
 	}
-	return preLobby.CanAcceptParticipants(), nil
+
+	// Check if pre-lobby status allows new participants
+	if !preLobby.CanAcceptParticipants() {
+		return false, "Pre-lobby is not accepting new participants", nil
+	}
+
+	// If participant ID is provided and tournament has started, check if they've been eliminated
+	if participantID != nil && (preLobby.Status == domain.PreLobbyStatusGeneratingBracket || preLobby.Status == domain.PreLobbyStatusStarted) {
+		hasLost, err := s.matchRepo.HasParticipantLostInTournament(ctx, tournamentID, *participantID)
+		if err != nil {
+			return false, "", fmt.Errorf("check participant elimination status: %w", err)
+		}
+		if hasLost {
+			return false, "You have been eliminated from this tournament and cannot rejoin", nil
+		}
+	}
+
+	return true, "", nil
 }
 
 // SetHub sets the WebSocket hub (called after hub initialization)

@@ -28,6 +28,7 @@ type MatchRepository interface {
 	ClearDisconnectedPlayer(ctx context.Context, id uuid.UUID) error
 	UpdateGameLoadedAtomic(ctx context.Context, id uuid.UUID, playerID uuid.UUID) (*domain.Match, error)
 	FindLoadingMatchesOlderThan(ctx context.Context, duration time.Duration) ([]domain.Match, error)
+	HasParticipantLostInTournament(ctx context.Context, tournamentID, participantID uuid.UUID) (bool, error)
 }
 
 type matchRepository struct {
@@ -289,4 +290,16 @@ func (r *matchRepository) FindLoadingMatchesOlderThan(ctx context.Context, durat
 	}
 
 	return matches, nil
+}
+
+// HasParticipantLostInTournament checks if a participant has lost any match in the specified tournament
+func (r *matchRepository) HasParticipantLostInTournament(ctx context.Context, tournamentID, participantID uuid.UUID) (bool, error) {
+	result, err := r.queries.HasParticipantLostInTournament(ctx, sqlc.HasParticipantLostInTournamentParams{
+		TournamentID:   pgtypeconv.UUIDToPgtype(tournamentID),
+		Participant1ID: pgtypeconv.UUIDToPgtype(participantID),
+	})
+	if err != nil {
+		return false, fmt.Errorf("check participant elimination: %w", err)
+	}
+	return result, nil
 }

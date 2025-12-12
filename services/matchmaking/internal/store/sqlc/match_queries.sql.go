@@ -494,6 +494,33 @@ func (q *Queries) GetMatchesForPlayer(ctx context.Context, participant1ID pgtype
 	return items, nil
 }
 
+const HasParticipantLostInTournament = `-- name: HasParticipantLostInTournament :one
+SELECT EXISTS(
+    SELECT 1 FROM tournament_matches m
+    JOIN tournament_rounds r ON m.round_id = r.id
+    JOIN tournament_brackets b ON r.bracket_id = b.id
+    WHERE b.tournament_id = $1
+      AND m.status = 'completed'
+      AND (
+        (m.participant1_id = $2 AND m.winner_id != $2) OR
+        (m.participant2_id = $2 AND m.winner_id != $2)
+      )
+) AS has_lost
+`
+
+type HasParticipantLostInTournamentParams struct {
+	TournamentID   pgtype.UUID `json:"tournament_id"`
+	Participant1ID pgtype.UUID `json:"participant1_id"`
+}
+
+// Check if a participant has lost any match in the specified tournament
+func (q *Queries) HasParticipantLostInTournament(ctx context.Context, arg HasParticipantLostInTournamentParams) (bool, error) {
+	row := q.db.QueryRow(ctx, HasParticipantLostInTournament, arg.TournamentID, arg.Participant1ID)
+	var has_lost bool
+	err := row.Scan(&has_lost)
+	return has_lost, err
+}
+
 const MarkGameLoadedAndCheckBoth = `-- name: MarkGameLoadedAndCheckBoth :one
 UPDATE tournament_matches
 SET 

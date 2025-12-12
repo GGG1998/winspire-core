@@ -87,6 +87,8 @@ type Querier interface {
 	GetRoundByBracketAndNumber(ctx context.Context, arg GetRoundByBracketAndNumberParams) (TournamentRound, error)
 	GetRoundByID(ctx context.Context, id pgtype.UUID) (TournamentRound, error)
 	GetRoundsByBracketID(ctx context.Context, bracketID pgtype.UUID) ([]TournamentRound, error)
+	// Check if a participant has lost any match in the specified tournament
+	HasParticipantLostInTournament(ctx context.Context, arg HasParticipantLostInTournamentParams) (bool, error)
 	// Atomically mark game loaded and return if both are now loaded
 	// Uses idempotency check - only updates if player not already marked as loaded
 	MarkGameLoadedAndCheckBoth(ctx context.Context, arg MarkGameLoadedAndCheckBothParams) (TournamentMatch, error)

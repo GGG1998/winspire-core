@@ -19,3 +19,5 @@ COMMENT ON COLUMN tournaments.prize IS 'JSONB configuration for tournament prize
 
 
 
+
+

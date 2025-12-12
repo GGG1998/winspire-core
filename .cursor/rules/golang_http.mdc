@@ -1,11 +1,7 @@
 ---
-description: Golang REST HTTP API development guidelines
-globs:
-  - "services/*/internal/http/**/*.go"
-  - "services/*/cmd/**/*.go"
+globs: services/*/internal/http/**/*.go,services/*/cmd/**/*.go
 alwaysApply: false
 ---
-
 # Golang REST HTTP API Guidelines
 
 ## Project Structure

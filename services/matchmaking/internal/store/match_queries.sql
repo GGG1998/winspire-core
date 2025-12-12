@@ -240,3 +240,17 @@ WHERE status = 'loading'
   AND updated_at < $1
 ORDER BY updated_at ASC;
 
+-- name: HasParticipantLostInTournament :one
+-- Check if a participant has lost any match in the specified tournament
+SELECT EXISTS(
+    SELECT 1 FROM tournament_matches m
+    JOIN tournament_rounds r ON m.round_id = r.id
+    JOIN tournament_brackets b ON r.bracket_id = b.id
+    WHERE b.tournament_id = $1
+      AND m.status = 'completed'
+      AND (
+        (m.participant1_id = $2 AND m.winner_id != $2) OR
+        (m.participant2_id = $2 AND m.winner_id != $2)
+      )
+) AS has_lost;
+
