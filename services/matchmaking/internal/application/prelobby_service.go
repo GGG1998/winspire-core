@@ -47,6 +47,7 @@ type GracePeriodInfo struct {
 type TournamentInfo struct {
 	ID              uuid.UUID
 	Name            string
+	HostID          uuid.UUID
 	GameID          uuid.UUID
 	StartTime       time.Time
 	MinParticipants int
@@ -55,12 +56,13 @@ type TournamentInfo struct {
 
 // PreLobbyService handles pre-lobby operations
 type PreLobbyService struct {
-	repo      repository.PreLobbyRepository
-	matchRepo repository.MatchRepository
-	hub       *websocket.Hub
-	publisher *pubsub.EventPublisher
-	metrics   *observability.MetricsEmitter
-	logger    *observability.Logger
+	repo         repository.PreLobbyRepository
+	matchRepo    repository.MatchRepository
+	hub          *websocket.Hub
+	publisher    *pubsub.EventPublisher
+	metrics      *observability.MetricsEmitter
+	logger       *observability.Logger
+	roundManager *RoundManager // For notifying round transitions when winners join pre-lobby
 
 	// In-memory participant tracking (keyed by tournament ID)
 	participants   map[uuid.UUID]map[uuid.UUID]*PreLobbyParticipantInfo
@@ -328,6 +330,11 @@ func (s *PreLobbyService) CanAcceptParticipants(ctx context.Context, tournamentI
 // SetHub sets the WebSocket hub (called after hub initialization)
 func (s *PreLobbyService) SetHub(hub *websocket.Hub) {
 	s.hub = hub
+}
+
+// SetRoundManager sets the RoundManager for round transition tracking (called after initialization)
+func (s *PreLobbyService) SetRoundManager(rm *RoundManager) {
+	s.roundManager = rm
 }
 
 // ============================================================================
@@ -761,6 +768,24 @@ func (s *PreLobbyService) cancelTournament(ctx context.Context, tournamentID uui
 	return nil
 }
 
+// PrepareForNextRound resets pre-lobby to waiting status so winners can join for the next round
+func (s *PreLobbyService) PrepareForNextRound(ctx context.Context, tournamentID uuid.UUID) error {
+	s.logger.Info("preparing pre-lobby for next round", map[string]interface{}{
+		"tournament_id": tournamentID.String(),
+	})
+
+	_, err := s.repo.UpdateStatus(ctx, tournamentID, domain.PreLobbyStatusWaiting)
+	if err != nil {
+		s.logger.Error("failed to reset pre-lobby status to waiting", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"error":         err.Error(),
+		})
+		return fmt.Errorf("failed to reset pre-lobby status: %w", err)
+	}
+
+	return nil
+}
+
 // RecoverActiveGracePeriods recovers grace periods that were active when service restarted
 func (s *PreLobbyService) RecoverActiveGracePeriods(ctx context.Context, onComplete GracePeriodCallback) error {
 	activePreLobbies, err := s.repo.GetActiveGracePeriods(ctx)
@@ -959,12 +984,18 @@ func (s *PreLobbyService) GetActivityFeed(ctx context.Context, tournamentID uuid
 }
 
 // HandleParticipantCountChange should be called when participant count changes during grace period
-// It broadcasts roster_updated and checks for edge cases (count drops to 0)
+// It broadcasts roster_updated, checks for edge cases (count drops to 0), and notifies RoundManager
 func (s *PreLobbyService) HandleParticipantCountChange(ctx context.Context, tournamentID uuid.UUID, action string, userID uuid.UUID, displayName string) {
 	participantCount := s.GetParticipantCount(tournamentID)
 
 	// Broadcast roster update
 	s.BroadcastRosterUpdated(tournamentID, action, userID, displayName, participantCount)
+
+	// Notify RoundManager when a participant joins (for round transition tracking)
+	// This is critical for inter-round flow: RoundManager tracks expected winners joining pre-lobby
+	if action == "joined" && s.roundManager != nil {
+		s.roundManager.OnParticipantJoinedPreLobby(ctx, tournamentID, userID)
+	}
 
 	// Edge case: participant count drops to 0 during grace period
 	if participantCount == 0 {

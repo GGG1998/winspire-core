@@ -47,17 +47,19 @@ services:
     container_name: competition
     env_file:
       - .env
+    ports:
+      - "8089:8089"  # Direct access for E2E tests
     environment:
       # App configuration
       - APP_ENV=development
       - SERVICE_PORT=8089
-      
+
       # Database (Supabase local)
       - POSTGRES_DSN=${POSTGRES_DSN:-postgresql://postgres:postgres@host.docker.internal:54322/postgres?sslmode=disable}
       - MATCHMAKING_BASE_URL=http://matchmaking:8081
       # Redis
       - REDIS_ADDR=redis:6379
-      
+
       # JWT Auth (Supabase config)
       - HOST_JWT_SECRET=${HOST_JWT_SECRET:-your-jwt-secret-here}
       - HOST_JWT_ISSUER=${HOST_JWT_ISSUER:-https://your-project.supabase.co/auth/v1}
@@ -129,10 +131,12 @@ services:
     container_name: matchmaking
     env_file:
       - .env
+    ports:
+      - "8088:8081"  # Direct access for E2E tests (8088 externally -> 8081 internally)
     environment:
       - APP_ENV=development
       - SERVICE_PORT=8081
-      
+
       # Database
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres?sslmode=disable}
       

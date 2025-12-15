@@ -426,7 +426,7 @@ export const tournamentApi = {
     try {
       const hostId = await getCurrentHostId()
       const response = await apiClient.get<{ bracket: Bracket }>(
-        `/v1/matchmaking/tournaments/${tournamentId}/bracket`
+        `:8088/v1/matchmaking/tournaments/${tournamentId}/bracket`
       )
 
       if (response.error) {
@@ -459,7 +459,7 @@ export const tournamentApi = {
           roundNumber: number
           roundName: string
         }>
-      }>(`/v1/matchmaking/tournaments/${tournamentId}/matches`)
+      }>(`:8088/v1/matchmaking/tournaments/${tournamentId}/matches`)
 
       if (response.error) {
         throw new Error(response.error.message)

@@ -274,7 +274,8 @@ func (h *Hub) broadcastToMatch(matchID uuid.UUID, message []byte) {
 }
 
 // SendToPlayer sends a message to a specific player
-func (h *Hub) SendToPlayer(matchID, playerID uuid.UUID, message *Message) {
+// Accepts interface{} to allow both *Message and map[string]interface{} messages
+func (h *Hub) SendToPlayer(matchID, playerID uuid.UUID, message interface{}) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 

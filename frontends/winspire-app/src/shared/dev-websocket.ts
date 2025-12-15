@@ -10,6 +10,13 @@ type DevCommandHandler = (
   metadata?: Record<string, string>
 ) => Promise<unknown>;
 
+interface WinMatchOptions {
+  matchId?: string;
+  loserId?: string;
+  scoreWinner?: number;
+  scoreLoser?: number;
+}
+
 interface DevConsole {
   endpoint: string;
   commands: Record<string, DevCommandHandler>;
@@ -21,6 +28,11 @@ interface DevConsole {
   listCommands: () => DevEventDefinition[];
   getAccessToken: () => string | null;
   refreshToken: () => string | null;
+  getUserId: () => string | null;
+  /** Complete current match with yourself as winner. Extracts matchId from URL if not provided. */
+  winMatch: (options?: WinMatchOptions) => Promise<unknown>;
+  /** Get the current match ID from URL */
+  getMatchIdFromUrl: () => string | null;
 }
 
 declare global {
@@ -87,10 +99,10 @@ const EVENT_DEFINITIONS: DevEventDefinition[] = [
   },
 ];
 
-const eventEndpoint = (() => {
+const eventEndpoint: string = (() => {
   const env = import.meta.env as Record<string, string | boolean | undefined>;
   const explicit = env.VITE_MATCHMAKING_DEV_EVENTS_ENDPOINT;
-  if (explicit) {
+  if (typeof explicit === 'string' && explicit) {
     return explicit;
   }
 
@@ -106,6 +118,50 @@ const eventEndpoint = (() => {
 const defaultMetadata = {
   correlation_id: 'dev-console',
 };
+
+function getUserIdFromToken(token: string | null): string | null {
+  if (!token) return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    return payload.sub || payload.user_id || null;
+  } catch {
+    return null;
+  }
+}
+
+function getMatchIdFromUrl(): string | null {
+  const url = window.location.pathname;
+  // Match patterns like /lobby/match/:matchId or /match/:matchId
+  const patterns = [
+    /\/lobby\/match\/([a-f0-9-]{36})/i,
+    /\/match\/([a-f0-9-]{36})/i,
+    /\/matches\/([a-f0-9-]{36})/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+
+  // Also check URL search params
+  const params = new URLSearchParams(window.location.search);
+  const matchId = params.get('matchId') || params.get('match_id');
+  if (matchId && /^[a-f0-9-]{36}$/i.test(matchId)) {
+    return matchId;
+  }
+
+  return null;
+}
+
+function getApiBaseUrl(): string {
+  const env = import.meta.env as Record<string, string | boolean | undefined>;
+  const base = (env.VITE_API_BASE_URL as string | undefined) || '';
+  return base.endsWith('/') ? base.slice(0, -1) : base;
+}
 
 function getAccessTokenFromStorage(): string | null {
   try {
@@ -202,16 +258,72 @@ function createDevConsole(): DevConsole {
     return responseBody;
   };
 
+  const getToken = () => cachedToken ?? getAccessTokenFromStorage();
+
+  const winMatch = async (options: WinMatchOptions = {}): Promise<unknown> => {
+    const token = getToken();
+    if (!token) {
+      throw new Error('[WinspireDev] No auth token found. Please log in first.');
+    }
+
+    const userId = getUserIdFromToken(token);
+    if (!userId) {
+      throw new Error('[WinspireDev] Cannot extract user ID from token.');
+    }
+
+    const matchId = options.matchId || getMatchIdFromUrl();
+    if (!matchId) {
+      throw new Error('[WinspireDev] No matchId provided and could not extract from URL. Provide matchId option or navigate to a match page.');
+    }
+
+    const apiBase = getApiBaseUrl();
+    const endpoint = `${apiBase}/v1/matchmaking/matches/${matchId}/complete`;
+
+    console.info(`[WinspireDev] Completing match ${matchId} with winner ${userId}`);
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        winner_id: userId,
+        loser_id: options.loserId || '00000000-0000-0000-0000-000000000000', // Placeholder if not provided
+        score_winner: options.scoreWinner ?? 3,
+        score_loser: options.scoreLoser ?? 0,
+        result_source: 'manual_host',
+      }),
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+    const parser = contentType.includes('application/json')
+      ? () => response.json()
+      : () => response.text();
+
+    const responseBody = await parser().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(`[WinspireDev] Failed to complete match (${response.status}): ${JSON.stringify(responseBody)}`);
+    }
+
+    console.info('[WinspireDev] Match completed successfully!', responseBody);
+    return responseBody;
+  };
+
   return {
     endpoint: eventEndpoint,
     commands: createCommandHandlers(sendEvent),
     sendEvent,
     listCommands: () => EVENT_DEFINITIONS,
-    getAccessToken: () => cachedToken ?? getAccessTokenFromStorage(),
+    getAccessToken: getToken,
     refreshToken: () => {
       cachedToken = getAccessTokenFromStorage();
       return cachedToken;
     },
+    getUserId: () => getUserIdFromToken(getToken()),
+    winMatch,
+    getMatchIdFromUrl,
   };
 }
 
@@ -227,6 +339,12 @@ export function setupDevConsole(): void {
   window.WinspireDev = createDevConsole();
 
   console.info('[WinspireDev] Dev console ready.');
+  console.info('[WinspireDev] Quick actions:');
+  console.info('  WinspireDev.winMatch()         - Complete current match as winner (extracts matchId from URL)');
+  console.info('  WinspireDev.getUserId()        - Get your user ID from token');
+  console.info('  WinspireDev.getMatchIdFromUrl() - Get match ID from current URL');
+  console.info('');
+  console.info('[WinspireDev] Event commands:');
   console.table(
     EVENT_DEFINITIONS.map(({ name, eventType, description }) => ({
       command: `WinspireDev.commands.${name}(payload?)`,

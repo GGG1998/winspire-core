@@ -78,10 +78,6 @@ function TournamentHeaderComponent({
     secondsUntilStart <= JOIN_BUTTON_MINUTES_BEFORE_START * 60 &&
     secondsUntilStart > -30  // Hide 30s after 00:00
   )
-  
-  const match = tournament.me?.match
-  const canJoinMatch = Boolean(match?.matchId)
-  const matchLink = match ? `/host/matches/${match.matchId}` : undefined
 
   return (
     <div className="relative">
@@ -202,11 +198,6 @@ function TournamentHeaderComponent({
                 </span>
                 {labels.tournamentInProgress}
               </Badge>
-            )}
-            {canJoinMatch && matchLink && (
-              <Button color="cyan" href={matchLink}>
-                Wróć do meczu
-              </Button>
             )}
             {status === 'completed' && (
               <Badge color="zinc">

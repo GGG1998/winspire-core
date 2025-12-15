@@ -54,7 +54,7 @@ func (s PreLobbyStatus) CanTransitionTo(target PreLobbyStatus) bool {
 		PreLobbyStatusWaiting:           {PreLobbyStatusGracePeriod, PreLobbyStatusCancelled},
 		PreLobbyStatusGracePeriod:       {PreLobbyStatusGeneratingBracket, PreLobbyStatusCancelled},
 		PreLobbyStatusGeneratingBracket: {PreLobbyStatusStarted, PreLobbyStatusCancelled},
-		PreLobbyStatusStarted:           {}, // Terminal state
+		PreLobbyStatusStarted:           {PreLobbyStatusWaiting}, // Allow reset for next round
 		PreLobbyStatusCancelled:         {}, // Terminal state
 	}
 

@@ -266,7 +266,7 @@ func (s *BracketService) generateMatches(bracket *domain.Bracket, rounds []domai
 			roundMatches = append(roundMatches, match)
 		}
 
-		allMatches = append(roundMatches, allMatches...)
+		allMatches = append(allMatches, roundMatches...)
 	}
 
 	return allMatches, nil

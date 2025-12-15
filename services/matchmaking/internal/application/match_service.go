@@ -25,14 +25,16 @@ type MatchService struct {
 	publisher         *pubsub.EventPublisher
 	metrics           *observability.MetricsEmitter
 	logger            *observability.Logger
-	hub               Hub    // WebSocket hub interface for broadcasting
-	gameManagementURL string // Base URL for game management service
+	hub               Hub           // WebSocket hub interface for broadcasting
+	roundManager      *RoundManager // RoundManager for tracking round transitions
+	gameManagementURL string        // Base URL for game management service
 }
 
 // Hub interface for WebSocket broadcasts (to avoid circular dependency)
 // This matches the signature in websocket.Hub
 type Hub interface {
 	BroadcastToMatch(matchID uuid.UUID, message interface{}) // accepts any type, will be marshaled
+	SendToPlayer(matchID, playerID uuid.UUID, message interface{})
 }
 
 // NewMatchService creates a new match service
@@ -59,6 +61,11 @@ func NewMatchService(
 // SetHub sets the WebSocket hub for broadcasting (called after initialization)
 func (s *MatchService) SetHub(hub Hub) {
 	s.hub = hub
+}
+
+// SetRoundManager sets the RoundManager for round transition tracking (called after initialization)
+func (s *MatchService) SetRoundManager(rm *RoundManager) {
+	s.roundManager = rm
 }
 
 // GetCurrentMatchForUser returns the latest active/pending match for a given user with round and tournament context
@@ -194,6 +201,101 @@ func (s *MatchService) CompleteMatch(ctx context.Context, matchID, winnerID uuid
 		}
 	}
 
+	// Fetch round and bracket for post-match WebSocket messages
+	round, err := s.roundRepo.GetByID(ctx, match.RoundID)
+	if err != nil {
+		s.logger.Warn("Failed to get round for post-match messages", map[string]interface{}{
+			"match_id": matchID.String(),
+			"error":    err.Error(),
+		})
+		// Continue - this is not critical
+	}
+
+	var tournamentID uuid.UUID
+	var nextRoundNum int
+	if round != nil {
+		bracket, err := s.bracketRepo.GetByID(ctx, round.BracketID)
+		if err == nil {
+			tournamentID = bracket.TournamentID
+			nextRoundNum = round.RoundNumber + 1
+		}
+	}
+
+	// Send post-match WebSocket messages to winner and loser
+	if s.hub != nil && tournamentID != uuid.Nil {
+		// Send message to winner
+		if match.NextMatchID == nil {
+			// Tournament champion message
+			championPayload := domain.TournamentChampionPayload{
+				TournamentID: tournamentID,
+				ChampionID:   winnerID,
+				Message:      "Congratulations! You are the tournament champion!",
+			}
+			msg := map[string]interface{}{
+				"type":      domain.MsgTypeTournamentChampion,
+				"timestamp": time.Now(),
+				"payload":   championPayload,
+			}
+			s.hub.SendToPlayer(matchID, winnerID, msg)
+			s.logger.Info("Sent tournament_champion message", map[string]interface{}{
+				"match_id":  matchID.String(),
+				"winner_id": winnerID.String(),
+			})
+		} else {
+			// Return to pre-lobby message for winner
+			returnPayload := domain.ReturnToPreLobbyPayload{
+				TournamentID: tournamentID,
+				MatchID:      matchID,
+				NextRoundNum: nextRoundNum,
+				Message:      "You won! Please return to the pre-lobby for the next round.",
+				PreLobbyURL:  fmt.Sprintf("/tournaments/%s/lobby", tournamentID.String()),
+			}
+			msg := map[string]interface{}{
+				"type":      domain.MsgTypeReturnToPreLobby,
+				"timestamp": time.Now(),
+				"payload":   returnPayload,
+			}
+			s.hub.SendToPlayer(matchID, winnerID, msg)
+			s.logger.Info("Sent return_to_prelobby message", map[string]interface{}{
+				"match_id":       matchID.String(),
+				"winner_id":      winnerID.String(),
+				"next_round_num": nextRoundNum,
+			})
+		}
+
+		// Send eliminated message to loser
+		if loserID != uuid.Nil {
+			eliminatedPayload := domain.PlayerEliminatedNotificationPayload{
+				TournamentID:  tournamentID,
+				MatchID:       matchID,
+				FinalPosition: 0, // TODO: Calculate actual position based on round
+				Message:       "You have been eliminated from the tournament. Thank you for playing!",
+			}
+			msg := map[string]interface{}{
+				"type":      domain.MsgTypePlayerEliminatedNotify,
+				"timestamp": time.Now(),
+				"payload":   eliminatedPayload,
+			}
+			s.hub.SendToPlayer(matchID, loserID, msg)
+			s.logger.Info("Sent player_eliminated_notify message", map[string]interface{}{
+				"match_id": matchID.String(),
+				"loser_id": loserID.String(),
+			})
+		}
+	}
+
+	// Notify RoundManager to track round progression
+	if s.roundManager != nil {
+		if err := s.roundManager.OnMatchCompleted(ctx, matchID, winnerID); err != nil {
+			s.logger.Warn("RoundManager.OnMatchCompleted failed", map[string]interface{}{
+				"match_id":  matchID.String(),
+				"winner_id": winnerID.String(),
+				"error":     err.Error(),
+			})
+			// Non-critical - continue
+		}
+	}
+
 	return nil
 }
 
@@ -215,15 +317,21 @@ func (s *MatchService) AdvanceWinner(ctx context.Context, winnerID, fromMatchID,
 	// In a single-elimination bracket, the winner of match N goes to:
 	// - participant1 slot if it's the first feeder match
 	// - participant2 slot if it's the second feeder match
-	// For simplicity, we'll fill the first available slot (NULL slot)
+	// We fill the first available slot (NULL/zero slot) or overwrite if winner matches placeholder
 
 	var slotToFill int
-	if nextMatch.Participant2ID == nil {
-		// Fill participant2 slot if it's empty
+	p1Empty := nextMatch.Participant1ID == uuid.Nil
+	p2Empty := nextMatch.Participant2ID == nil || *nextMatch.Participant2ID == uuid.Nil
+	// Also allow overwriting if winner is already in that slot (placeholder scenario)
+	p1IsWinner := nextMatch.Participant1ID == winnerID
+	p2IsWinner := nextMatch.Participant2ID != nil && *nextMatch.Participant2ID == winnerID
+
+	if p2Empty || p2IsWinner {
+		// Fill participant2 slot if empty or winner matches placeholder
 		slotToFill = 2
 		nextMatch.Participant2ID = &winnerID
-	} else if nextMatch.Participant1ID == uuid.Nil {
-		// Fill participant1 slot if it's empty
+	} else if p1Empty || p1IsWinner {
+		// Fill participant1 slot if empty or winner matches placeholder
 		slotToFill = 1
 		nextMatch.Participant1ID = winnerID
 	} else {
@@ -576,15 +684,7 @@ func (s *MatchService) OnGameLoaded(ctx context.Context, matchID, playerID uuid.
 			},
 		}
 		s.hub.BroadcastToMatch(matchID, msg)
-		// #region agent log
-		func() {
-			f, _ := os.OpenFile("/Users/gabrieldomanowski/programming/winspire-core/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if f != nil {
-				defer f.Close()
-				json.NewEncoder(f).Encode(map[string]interface{}{"location": "match_service.go:528", "message": "broadcast game_loaded", "data": map[string]interface{}{"matchId": matchID.String()}, "timestamp": time.Now().UnixMilli(), "sessionId": "debug-session", "hypothesisId": "H4"})
-			}
-		}()
-		// #endregion
+
 	}
 
 	// Check if both games are loaded AFTER atomic update

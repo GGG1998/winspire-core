@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth';
 import { LoadingSpinner } from '../../../shared/components/common/LoadingSpinner';
@@ -11,12 +11,12 @@ import { GameFrame } from '../components/GameFrame';
 import { MatchResult } from '../components/MatchResult';
 import { DisconnectOverlay } from '../components/DisconnectOverlay';
 import { WalkoverButton } from '../components/WalkoverButton';
+import { PostMatchModal } from '../components/PostMatchModal';
 import { useMatchLobby } from '../hooks/useMatchLobby';
 import { useReadyState } from '../hooks/useReadyState';
 import { useDisconnect } from '../hooks/useDisconnect';
 import { LobbyLayout } from '../layouts';
 import { ERROR_MESSAGES } from '../constants';
-import { competitionApi, type TournamentInfo } from '../../../shared/api/competitionApi';
 import { GAME_MANAGEMENT_URL } from '../../../shared/config/api';
 import { matchmakingApi } from '../api/matchmakingApi';
 
@@ -43,26 +43,13 @@ export function MatchLobbyPage() {
     connectionStatus,
     serverRestarting,
     claimWalkover,
+    clearPostMatchOutcome,
   } = useMatchLobby(matchId || null);
   console.log('[MatchLobbyPage] matchState:', matchState);
-  
-  // #region agent log
-  const pageIdentifier = user?.id || 'unknown';
-  // #endregion
 
-  // Fetch tournament info for display and navigation
-  const [tournamentInfo, setTournamentInfo] = useState<TournamentInfo | null>(null);
+  // Tournament info is now included in matchState (from matchmaking service)
+  // No need for separate API call to competition service (which was blocked by CORS)
 
-  useEffect(() => {
-    if (!tournamentId) return;
-    
-    competitionApi.getTournamentInfo(tournamentId)
-      .then(setTournamentInfo)
-      .catch(err => {
-        console.error('[MatchLobbyPage] Failed to fetch tournament info:', err);
-        // Don't fail the whole page, just log the error
-      });
-  }, [tournamentId]);
   // Determine current player's ready status
   const currentPlayerReady = user && matchState
     ? (matchState.player1?.id === user.id ? matchState.match.participant1Ready : matchState.match.participant2Ready)
@@ -144,7 +131,7 @@ export function MatchLobbyPage() {
   // Loading state
   if (isLoading) {
     return (
-      <LobbyLayout tournamentId={tournamentId} streamerId={tournamentInfo?.hostId}>
+      <LobbyLayout tournamentId={tournamentId} streamerId={matchState?.tournamentInfo?.host_id}>
         <div className="flex items-center justify-center min-h-screen">
           <LoadingSpinner size="lg" />
         </div>
@@ -155,7 +142,7 @@ export function MatchLobbyPage() {
   // Error state
   if (error) {
     return (
-      <LobbyLayout tournamentId={tournamentId} streamerId={tournamentInfo?.hostId}>
+      <LobbyLayout tournamentId={tournamentId} streamerId={matchState?.tournamentInfo?.host_id}>
         <div className="max-w-4xl px-4 py-8">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
@@ -197,9 +184,9 @@ export function MatchLobbyPage() {
   }
 
   return (
-    <LobbyLayout 
-      tournamentId={tournamentId} 
-      streamerId={tournamentInfo?.hostId}
+    <LobbyLayout
+      tournamentId={tournamentId}
+      streamerId={matchState.tournamentInfo?.host_id}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* WebSocket Connection Status Banner */}
@@ -271,7 +258,7 @@ export function MatchLobbyPage() {
                 Lobby Meczu
               </h1>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {tournamentInfo?.name || 'Turniej'} · Runda {matchState.roundNumber}
+                {matchState.tournamentInfo?.name || 'Turniej'} · Runda {matchState.roundNumber}
               </p>
             </div>
 
@@ -435,7 +422,7 @@ export function MatchLobbyPage() {
               scoreLoser={matchState.match.winnerId === matchState.player1?.id ? matchState.match.scorePlayer2 : matchState.match.scorePlayer1}
               resultSource={matchState.match.resultSource || undefined}
               onContinue={() => {
-                navigate(`/h/${tournamentInfo?.hostId}/tournaments/${tournamentId}`);
+                navigate(`/h/${matchState.tournamentInfo?.host_id}/tournaments/${tournamentId}`);
               }}
             />
           </div>
@@ -462,7 +449,7 @@ export function MatchLobbyPage() {
       {isDisconnected && disconnectedPlayerId && (
         <DisconnectOverlay
           disconnectedPlayerName={
-            disconnectedPlayerId === matchState.player1?.id 
+            disconnectedPlayerId === matchState.player1?.id
               ? matchState.player1?.displayName || 'Gracz 1'
               : matchState.player2?.displayName || 'Gracz 2'
           }
@@ -474,6 +461,12 @@ export function MatchLobbyPage() {
           }}
         />
       )}
+
+      {/* Post-Match Modal (Winner/Eliminated/Champion) */}
+      <PostMatchModal
+        outcome={matchState.postMatchOutcome}
+        onClose={clearPostMatchOutcome}
+      />
     </LobbyLayout>
   );
 }

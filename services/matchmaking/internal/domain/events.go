@@ -663,3 +663,45 @@ func NewBracketGenerationFailed(tournamentID uuid.UUID, err error, reason string
 		BaseEvent: newBaseEvent("BracketGenerationFailed", tournamentID.String(), "Bracket", payload, metadata),
 	}
 }
+
+// ============================================================================
+// Post-Match Navigation Events (WebSocket Messages)
+// ============================================================================
+
+// WebSocket message types for post-match navigation
+const (
+	// MsgTypeReturnToPreLobby - sent to winner, instructs them to go to pre-lobby for next round
+	MsgTypeReturnToPreLobby = "return_to_prelobby"
+	// MsgTypePlayerEliminatedNotify - sent to loser, informs them they are eliminated
+	MsgTypePlayerEliminatedNotify = "player_eliminated_notify"
+	// MsgTypeTournamentChampion - sent to tournament winner
+	MsgTypeTournamentChampion = "tournament_champion"
+)
+
+// ReturnToPreLobbyPayload - sent to winner after match completion
+// Instructs them to navigate to pre-lobby for the next round
+type ReturnToPreLobbyPayload struct {
+	TournamentID uuid.UUID `json:"tournament_id"`
+	MatchID      uuid.UUID `json:"match_id"`
+	NextRoundNum int       `json:"next_round_number"`
+	Message      string    `json:"message"`
+	PreLobbyURL  string    `json:"prelobby_url"`
+}
+
+// PlayerEliminatedNotificationPayload - sent to loser after match completion
+// Informs them they have been eliminated from the tournament
+type PlayerEliminatedNotificationPayload struct {
+	TournamentID  uuid.UUID `json:"tournament_id"`
+	MatchID       uuid.UUID `json:"match_id"`
+	FinalPosition int       `json:"final_position"` // e.g., 5-8th place
+	Message       string    `json:"message"`
+}
+
+// TournamentChampionPayload - sent to the tournament winner
+// Congratulates them on winning the tournament
+type TournamentChampionPayload struct {
+	TournamentID uuid.UUID `json:"tournament_id"`
+	ChampionID   uuid.UUID `json:"champion_id"`
+	PrizeSummary string    `json:"prize_summary,omitempty"`
+	Message      string    `json:"message"`
+}

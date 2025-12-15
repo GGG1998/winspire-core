@@ -34,7 +34,7 @@ func NewCompetitionClient(baseURL string, logger *observability.Logger) *Competi
 	return &CompetitionClient{
 		baseURL: baseURL,
 		httpClient: &http.Client{
-			Timeout: 500 * time.Millisecond, // 500ms timeout per spec
+			Timeout: 5 * time.Second, // 5s timeout for service-to-service calls
 		},
 		logger:            logger,
 		registrationCache: make(map[string]registrationCacheEntry),
@@ -46,6 +46,7 @@ func (c *CompetitionClient) GetTournamentInfo(ctx context.Context, tournamentID 
 	url := fmt.Sprintf("%s/internal/tournaments/%s", c.baseURL, tournamentID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	fmt.Println(req)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -61,6 +62,7 @@ func (c *CompetitionClient) GetTournamentInfo(ctx context.Context, tournamentID 
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
+		fmt.Println("tournament not found")
 		return nil, nil
 	}
 
@@ -71,6 +73,7 @@ func (c *CompetitionClient) GetTournamentInfo(ctx context.Context, tournamentID 
 	var tournamentResp struct {
 		ID              string    `json:"id"`
 		Name            string    `json:"name"`
+		HostID          string    `json:"hostId"`
 		GameID          string    `json:"gameId"`
 		StartTime       time.Time `json:"scheduledStartTimeAt"`
 		MinParticipants int       `json:"minParticipants"`
@@ -84,6 +87,15 @@ func (c *CompetitionClient) GetTournamentInfo(ctx context.Context, tournamentID 
 	parsedID, err := uuid.Parse(tournamentResp.ID)
 	if err != nil {
 		return nil, fmt.Errorf("parse tournament ID: %w", err)
+	}
+
+	// Parse host ID
+	var parsedHostID uuid.UUID
+	if tournamentResp.HostID != "" {
+		parsedHostID, err = uuid.Parse(tournamentResp.HostID)
+		if err != nil {
+			return nil, fmt.Errorf("parse host ID: %w", err)
+		}
 	}
 
 	// Parse game ID only if it's provided (optional field)
@@ -104,6 +116,7 @@ func (c *CompetitionClient) GetTournamentInfo(ctx context.Context, tournamentID 
 	return &TournamentInfo{
 		ID:              parsedID,
 		Name:            tournamentResp.Name,
+		HostID:          parsedHostID,
 		GameID:          parsedGameID,
 		StartTime:       tournamentResp.StartTime,
 		MinParticipants: minParticipants,

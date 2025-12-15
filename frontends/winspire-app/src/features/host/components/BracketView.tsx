@@ -32,7 +32,7 @@ export function BracketView({ tournament }: BracketViewProps) {
   const [playerCache, setPlayerCache] = useState<Map<string, MatchPlayer>>(new Map());
 
   // WebSocket connection for real-time bracket updates
-  const wsUrl = `/v1/matchmaking/tournaments/${tournament.id}/bracket/ws`;
+  const wsUrl = `:8088/v1/matchmaking/tournaments/${tournament.id}/bracket/ws`;
   
   const handleWebSocketMessage = useCallback((event: MessageEvent) => {
     try {

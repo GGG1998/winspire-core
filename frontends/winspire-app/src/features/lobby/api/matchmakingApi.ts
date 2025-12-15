@@ -129,6 +129,11 @@ export interface GetMatchApiResponse {
     description?: string;
     storagePath: string;
   } | null;
+  tournament_info?: {
+    id: string;
+    name: string;
+    host_id?: string;
+  } | null;
 }
 
 // Transformed response for frontend
@@ -138,6 +143,7 @@ export interface GetMatchResponse {
   participant2: import('../types').PlayerInfo | null;
   roundNumber: number;
   gameSnapshot?: GameSnapshot | null;
+  tournamentInfo?: import('../types').MatchTournamentInfo | null;
 }
 
 /**
@@ -174,6 +180,11 @@ export async function getMatch(matchId: string): Promise<GetMatchResponse> {
       logoUrl: data.game_snapshot.logoUrl,
       description: data.game_snapshot.description,
       storagePath: data.game_snapshot.storagePath,
+    } : undefined,
+    tournamentInfo: data.tournament_info ? {
+      id: data.tournament_info.id,
+      name: data.tournament_info.name,
+      host_id: data.tournament_info.host_id,
     } : undefined,
   };
 

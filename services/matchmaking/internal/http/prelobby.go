@@ -3,6 +3,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -417,6 +418,7 @@ func (h *PreLobbyWebSocketHandler) UpgradePreLobbyConnection(c *gin.Context) {
 
 	// Check if pre-lobby can accept participants
 	canAccept, reason, err := h.preLobbyService.CanAcceptParticipants(c.Request.Context(), tournamentID, &userID)
+	fmt.Println(canAccept, reason, err)
 	if err != nil {
 		h.logger.Error("failed to check pre-lobby status", map[string]interface{}{
 			"tournament_id": tournamentID.String(),

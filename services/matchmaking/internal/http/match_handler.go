@@ -24,19 +24,25 @@ type matchService interface {
 	OnGameLoaded(ctx context.Context, matchID, userID uuid.UUID) error
 	GrantWalkover(ctx context.Context, matchID, userID, noShowPlayerID uuid.UUID, reason string) error
 	GetCurrentMatchForUser(ctx context.Context, userID uuid.UUID) (*domain.Match, *domain.Round, uuid.UUID, error)
-	// TODO CompleteMatch(ctx context.Context, matchID, winnerID uuid.UUID, scorePlayer1, scorePlayer2 int, source domain.ResultSource) error
+	CompleteMatch(ctx context.Context, matchID, winnerID uuid.UUID, scorePlayer1, scorePlayer2 int, source domain.ResultSource) error
 	// TODO AdvanceWinner(ctx context.Context, winnerID, fromMatchID, toMatchID uuid.UUID) error
 	// TODO HandleByeMatch(ctx context.Context, matchID uuid.UUID) error
 }
 
+// competitionClientInterface defines methods needed from CompetitionClient
+type competitionClientInterface interface {
+	GetTournamentInfo(ctx context.Context, tournamentID uuid.UUID) (*application.TournamentInfo, error)
+}
+
 // MatchHandler handles match-related HTTP requests
 type MatchHandler struct {
-	matchRepo       repository.MatchRepository
-	roundRepo       repository.RoundRepository
-	bracketRepo     repository.BracketRepository
-	preLobbyService *application.PreLobbyService
-	matchService    matchService
-	hub             *websocket.Hub
+	matchRepo         repository.MatchRepository
+	roundRepo         repository.RoundRepository
+	bracketRepo       repository.BracketRepository
+	preLobbyService   *application.PreLobbyService
+	matchService      matchService
+	hub               *websocket.Hub
+	competitionClient competitionClientInterface
 }
 
 // NewMatchHandler creates a new match handler
@@ -47,14 +53,16 @@ func NewMatchHandler(
 	preLobbyService *application.PreLobbyService,
 	matchService matchService,
 	hub *websocket.Hub,
+	competitionClient competitionClientInterface,
 ) *MatchHandler {
 	return &MatchHandler{
-		matchRepo:       matchRepo,
-		roundRepo:       roundRepo,
-		bracketRepo:     bracketRepo,
-		preLobbyService: preLobbyService,
-		matchService:    matchService,
-		hub:             hub,
+		matchRepo:         matchRepo,
+		roundRepo:         roundRepo,
+		bracketRepo:       bracketRepo,
+		preLobbyService:   preLobbyService,
+		matchService:      matchService,
+		hub:               hub,
+		competitionClient: competitionClient,
 	}
 }
 
@@ -87,6 +95,20 @@ func (h *MatchHandler) GetMatch(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch bracket", "details": err.Error()})
 		return
+	}
+
+	// Fetch tournament info from competition service
+	var tournamentName string
+	var hostID uuid.UUID
+	if h.competitionClient != nil {
+		tournamentInfo, err := h.competitionClient.GetTournamentInfo(c.Request.Context(), bracket.TournamentID)
+		if err != nil {
+			log.Printf("WARN: Failed to fetch tournament info: %v", err)
+			// Don't fail the request, continue with empty tournament info
+		} else if tournamentInfo != nil {
+			tournamentName = tournamentInfo.Name
+			hostID = tournamentInfo.HostID
+		}
 	}
 
 	// Get participant details from pre-lobby service
@@ -134,13 +156,23 @@ func (h *MatchHandler) GetMatch(c *gin.Context) {
 		}
 	}
 
+	// Build tournament info (for display in lobby without separate API call)
+	tournamentInfo := map[string]interface{}{
+		"id":   bracket.TournamentID,
+		"name": tournamentName,
+	}
+	if hostID != uuid.Nil {
+		tournamentInfo["host_id"] = hostID
+	}
+
 	// Build response with nested structure
 	response := map[string]interface{}{
-		"match":         matchData,
-		"participant1":  participant1Data,
-		"participant2":  participant2Data,
-		"round_number":  round.RoundNumber,
-		"game_snapshot": bracket.GameSnapshot,
+		"match":           matchData,
+		"participant1":    participant1Data,
+		"participant2":    participant2Data,
+		"round_number":    round.RoundNumber,
+		"game_snapshot":   bracket.GameSnapshot,
+		"tournament_info": tournamentInfo,
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -334,6 +366,86 @@ func (h *MatchHandler) ClaimWalkover(c *gin.Context) {
 		"match_id":       matchID,
 		"winner_id":      userID,
 		"no_show_player": noShowPlayerID,
+	})
+}
+
+// CompleteMatchRequest represents the request body for completing a match
+type CompleteMatchRequest struct {
+	WinnerID     string `json:"winner_id" binding:"required"`
+	LoserID      string `json:"loser_id" binding:"required"`
+	ScoreWinner  int    `json:"score_winner"`
+	ScoreLoser   int    `json:"score_loser"`
+	ResultSource string `json:"result_source" binding:"required,oneof=game_api manual_host walkover"`
+}
+
+// CompleteMatch marks a match as completed with results
+// POST /v1/matches/:id/complete
+func (h *MatchHandler) CompleteMatch(c *gin.Context) {
+	// Parse match ID
+	matchID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid match ID", "details": err.Error()})
+		return
+	}
+
+	// Parse request body
+	var req CompleteMatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body", "details": err.Error()})
+		return
+	}
+
+	// Parse winner ID
+	winnerID, err := uuid.Parse(req.WinnerID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid winner_id", "details": err.Error()})
+		return
+	}
+
+	// Determine result source
+	var source domain.ResultSource
+	switch req.ResultSource {
+	case "game_api":
+		source = domain.ResultSourceGameAPI
+	case "manual_host":
+		source = domain.ResultSourceHostManual
+	case "walkover":
+		source = domain.ResultSourceWalkover
+	default:
+		source = domain.ResultSourceHostManual
+	}
+
+	// Fetch match to determine scores (winner is participant1 or participant2)
+	match, err := h.matchRepo.GetByID(c.Request.Context(), matchID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "match not found", "details": err.Error()})
+		return
+	}
+
+	// Determine score order (score_player1, score_player2) based on who won
+	var scorePlayer1, scorePlayer2 int
+	if match.Participant1ID == winnerID {
+		scorePlayer1 = req.ScoreWinner
+		scorePlayer2 = req.ScoreLoser
+	} else {
+		scorePlayer1 = req.ScoreLoser
+		scorePlayer2 = req.ScoreWinner
+	}
+
+	// Complete the match
+	err = h.matchService.CompleteMatch(c.Request.Context(), matchID, winnerID, scorePlayer1, scorePlayer2, source)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to complete match", "details": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "match completed successfully",
+		"match_id":      matchID,
+		"winner_id":     winnerID,
+		"score_player1": scorePlayer1,
+		"score_player2": scorePlayer2,
+		"result_source": req.ResultSource,
 	})
 }
 

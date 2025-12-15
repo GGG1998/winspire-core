@@ -15,3 +15,5 @@ COMMENT ON COLUMN tournament_brackets.completed_at IS 'Timestamp when the tourna
 
 
 
+
+

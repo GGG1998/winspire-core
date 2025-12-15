@@ -49,7 +49,7 @@ interface UseTournamentPreLobbyReturn {
  */
 export function useTournamentPreLobby(tournamentId: string | null): UseTournamentPreLobbyReturn {
   const navigate = useNavigate();
-  
+
   // State
   const [preLobbyState, setPreLobbyState] = useState<TournamentPreLobbyState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,20 +72,37 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
    * T031: Handle prelobby_state message (initial state on connect)
    */
   const handlePreLobbyState = useCallback((payload: PreLobbyStatePayload) => {
+    // Transform participants from backend snake_case to frontend camelCase
+    const participants: PreLobbyParticipant[] = payload.participants.map((p) => ({
+      id: p.user_id,
+      displayName: p.display_name,
+      avatarUrl: p.avatar_url || null,
+      joinedAt: p.joined_at,
+    }));
+
+    // Transform activity feed from backend format
+    const activityFeed: ActivityFeedItem[] = (payload.activity_feed || []).map((item) => ({
+      id: item.id,
+      type: item.type as ActivityFeedItem['type'],
+      message: item.message,
+      timestamp: item.timestamp,
+      participantName: item.participant_name,
+    }));
+
     setPreLobbyState({
-      tournamentId: payload.tournament.id,
-      tournamentName: payload.tournament.name,
+      tournamentId: payload.tournament_id,
+      tournamentName: payload.tournament_name,
       creatorId: '', // Will be set from REST API
-      startTime: payload.tournament.startTime,
-      status: 'waiting',
-      participants: payload.participants,
-      participantCount: payload.participants.length,
-      minimumParticipants: 2, // Default, should come from backend
-      gracePeriodEndsAt: payload.gracePeriodEndsAt,
-      activityFeed: [],
+      startTime: payload.start_time,
+      status: payload.status as TournamentPreLobbyState['status'],
+      participants,
+      participantCount: payload.participant_count,
+      minimumParticipants: payload.min_participants,
+      gracePeriodEndsAt: payload.grace_period?.ends_at || null,
+      activityFeed,
     });
 
-    setIsGracePeriodActive(payload.gracePeriodActive);
+    setIsGracePeriodActive(payload.grace_period?.is_active || false);
     setIsLoading(false);
   }, []);
 
@@ -419,6 +436,7 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
     (event: MessageEvent) => {
       try {
         const message: WebSocketMessage = JSON.parse(event.data);
+        console.log('[PreLobby] WebSocket message received:', message.type, message.payload);
 
         switch (message.type) {
           case 'prelobby_state':
@@ -456,14 +474,14 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
       }
     },
     [
-      handlePreLobbyState,
-      handleParticipantJoined,
-      handleParticipantLeft,
-      handleGracePeriodStarted,
-      handleGracePeriodEnded,
-      handleRosterUpdated,
-      handleMatchAssigned,
-      handleTournamentCancelled,
+      // handlePreLobbyState,
+      // handleParticipantJoined,
+      // handleParticipantLeft,
+      // handleGracePeriodStarted,
+      // handleGracePeriodEnded,
+      // handleRosterUpdated,
+      // handleMatchAssigned,
+      // handleTournamentCancelled,
     ]
   );
 
@@ -487,9 +505,6 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
     url: wsUrl,
     getToken,
     onMessage: handleWebSocketMessage,
-    onOpen: () => console.log('[PreLobby] WebSocket connected'),
-    onClose: () => console.log('[PreLobby] WebSocket disconnected'),
-    onError: (err) => console.error('[PreLobby] WebSocket error:', err),
     reconnect: true,
     heartbeatInterval: 15000,
   });
@@ -498,69 +513,69 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
   // Initial Data Loading
   // ========================================================================
 
-  useEffect(() => {
-    if (!tournamentId) {
-      setIsLoading(false);
-      return;
-    }
+  // useEffect(() => {
+  //   if (!tournamentId) {
+  //     setIsLoading(false);
+  //     return;
+  //   }
 
-    // Load initial state from REST API
-    const loadInitialState = async () => {
-      setIsLoading(true);
-      setError(null);
+  //   // Load initial state from REST API
+  //   const loadInitialState = async () => {
+  //     setIsLoading(true);
+  //     setError(null);
 
-      const result = await getPreLobbyState(tournamentId);
+  //     const result = await getPreLobbyState(tournamentId);
 
-      if (result.error) {
-        setError(result.error.message);
-        setIsLoading(false);
-        return;
-      }
+  //     if (result.error) {
+  //       setError(result.error.message);
+  //       setIsLoading(false);
+  //       return;
+  //     }
 
-      if (result.data) {
-        setPreLobbyState(result.data);
-        setIsGracePeriodActive(result.data.gracePeriodEndsAt !== null);
-      }
+  //     if (result.data) {
+  //       setPreLobbyState(result.data);
+  //       setIsGracePeriodActive(result.data.gracePeriodEndsAt !== null);
+  //     }
 
-      setIsLoading(false);
-    };
+  //     setIsLoading(false);
+  //   };
 
-    loadInitialState();
-  }, [tournamentId]);
+  //   loadInitialState();
+  // }, [tournamentId]);
 
   // ========================================================================
   // Connection Error Handling
   // ========================================================================
 
-  useEffect(() => {
-    if (wsError) {
-      setError(wsError);
-    }
-  }, [wsError]);
+  // useEffect(() => {
+  //   if (wsError) {
+  //     setError(wsError);
+  //   }
+  // }, [wsError]);
 
-  useEffect(() => {
-    if (!lastCloseEvent) return;
-    const { code, reason, wasClean } = lastCloseEvent;
-    if (code === 1000 && wasClean) return;
+  // useEffect(() => {
+  //   if (!lastCloseEvent) return;
+  //   const { code, reason, wasClean } = lastCloseEvent;
+  //   if (code === 1000 && wasClean) return;
 
-    const details = reason?.trim() || 'brak powodu (1005 – no status)';
-    setError(`WebSocket zamknięty (kod ${code}${wasClean ? ', clean' : ''}): ${details}`);
-  }, [lastCloseEvent]);
+  //   const details = reason?.trim() || 'brak powodu (1005 – no status)';
+  //   setError(`WebSocket zamknięty (kod ${code}${wasClean ? ', clean' : ''}): ${details}`);
+  // }, [lastCloseEvent]);
 
   // ========================================================================
   // Cleanup
   // ========================================================================
 
-  useEffect(() => {
-    return () => {
-      if (gracePeriodTimerRef.current) {
-        clearInterval(gracePeriodTimerRef.current);
-      }
-      if (participantUpdateTimerRef.current) {
-        clearTimeout(participantUpdateTimerRef.current);
-      }
-    };
-  }, []);
+  // useEffect(() => {
+  //   return () => {
+  //     if (gracePeriodTimerRef.current) {
+  //       clearInterval(gracePeriodTimerRef.current);
+  //     }
+  //     if (participantUpdateTimerRef.current) {
+  //       clearTimeout(participantUpdateTimerRef.current);
+  //     }
+  //   };
+  // }, []);
 
   // ========================================================================
   // Return API

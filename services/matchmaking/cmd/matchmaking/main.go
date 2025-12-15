@@ -230,7 +230,7 @@ func main() {
 
 	// Initialize HTTP handlers
 	bracketHandler := httphandlers.NewBracketHandler(bracketRepo, roundRepo, matchRepo)
-	matchHandler := httphandlers.NewMatchHandler(matchRepo, roundRepo, bracketRepo, preLobbyService, matchService, hub)
+	matchHandler := httphandlers.NewMatchHandler(matchRepo, roundRepo, bracketRepo, preLobbyService, matchService, hub, competitionClient)
 	websocketHandler := httphandlers.NewWebSocketHandler(hub, matchRepo, publisher, sessionStore, disconnectService)
 	preLobbyHandler := httphandlers.NewPreLobbyHandler(preLobbyService, competitionClient, logger)
 	preLobbyWSHandler := httphandlers.NewPreLobbyWebSocketHandler(preLobbyService, competitionClient, hub, logger)
@@ -258,6 +258,7 @@ func main() {
 		matchmaking.POST("/matches/:id/ready", matchHandler.MarkPlayerReady)
 		matchmaking.POST("/matches/:id/game-loaded", matchHandler.MarkGameLoaded)
 		matchmaking.POST("/matches/:id/claim-walkover", matchHandler.ClaimWalkover)
+		matchmaking.POST("/matches/:id/complete", matchHandler.CompleteMatch)
 		matchmaking.GET("/tournaments/:id/matches", matchHandler.GetMatchesForTournament)
 
 		// WebSocket lobby endpoint

@@ -155,6 +155,13 @@ export interface Participant {
 // Lobby Types
 // ============================================================================
 
+// Tournament info included in match response (to avoid separate CORS-blocked calls)
+export interface MatchTournamentInfo {
+  id: string;
+  name: string;
+  host_id?: string;
+}
+
 // Lobby state (local + server combined)
 export interface LobbyState {
   match: Match;
@@ -215,6 +222,9 @@ export type ServerMessageType =
   | 'match_completed' // Match has result
   | 'match_cancelled' // Match cancelled
   | 'server_restarting' // Server is restarting, prepare for reconnect
+  | 'return_to_prelobby' // Winner should return to pre-lobby for next round
+  | 'player_eliminated_notify' // Loser notification - eliminated from tournament
+  | 'tournament_champion' // Tournament winner notification
   | 'error'; // Error message
 
 // Base WebSocket message structure
@@ -229,15 +239,32 @@ export interface WebSocketMessage<T = unknown> {
 // WebSocket Payload Types
 // ============================================================================
 
+// WebSocket payload from backend (snake_case)
 export interface PreLobbyStatePayload {
-  tournament: {
+  tournament_id: string;
+  tournament_name: string;
+  status: string;
+  participants: Array<{
+    user_id: string;
+    display_name: string;
+    avatar_url?: string | null;
+    joined_at: string;
+  }>;
+  participant_count: number;
+  min_participants: number;
+  start_time: string;
+  grace_period?: {
+    is_active: boolean;
+    ends_at: string | null;
+    remaining_seconds: number;
+  } | null;
+  activity_feed: Array<{
     id: string;
-    name: string;
-    startTime: string;
-  };
-  participants: PreLobbyParticipant[];
-  gracePeriodActive: boolean;
-  gracePeriodEndsAt: string | null;
+    type: string;
+    message: string;
+    timestamp: string;
+    participant_name?: string;
+  }>;
 }
 
 export interface ParticipantJoinedPayload {
@@ -339,6 +366,35 @@ export interface MatchCompletedPayload {
   scorePlayer2: number;
   resultSource: ResultSource;
 }
+
+// Post-match navigation messages (sent after match completion)
+export interface ReturnToPreLobbyPayload {
+  tournament_id: string;
+  match_id: string;
+  next_round_number: number;
+  message: string;
+  prelobby_url: string;
+}
+
+export interface PlayerEliminatedNotifyPayload {
+  tournament_id: string;
+  match_id: string;
+  final_position: number; // e.g., 5-8th place
+  message: string;
+}
+
+export interface TournamentChampionPayload {
+  tournament_id: string;
+  champion_id: string;
+  prize_summary?: string;
+  message: string;
+}
+
+// Union type for all post-match outcomes
+export type PostMatchOutcome =
+  | { type: 'winner'; payload: ReturnToPreLobbyPayload }
+  | { type: 'eliminated'; payload: PlayerEliminatedNotifyPayload }
+  | { type: 'champion'; payload: TournamentChampionPayload };
 
 // ============================================================================
 // API Response Types

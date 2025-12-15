@@ -19,6 +19,11 @@ import type {
   MatchCompletedPayload,
   PlayerDisconnectedPayload,
   PlayerReconnectedPayload,
+  PostMatchOutcome,
+  ReturnToPreLobbyPayload,
+  PlayerEliminatedNotifyPayload,
+  TournamentChampionPayload,
+  MatchTournamentInfo,
 } from '../types';
 
 // Player joined/left payloads (for match lobby)
@@ -38,6 +43,7 @@ export interface MatchLobbyState {
   player2: PlayerInfo | null;
   roundNumber: number;
   gameSnapshot?: GameSnapshot | null;
+  tournamentInfo?: MatchTournamentInfo | null; // Tournament info (from match response, no separate API call)
   status: Match['status'];
   matchStarting: boolean; // Countdown active
   countdownSeconds: number | null; // 3, 2, 1, null
@@ -45,6 +51,7 @@ export interface MatchLobbyState {
   disconnectedAt: string | null; // Timestamp of disconnect
   canClaimWalkover: boolean; // 2 minutes elapsed, opponent not present
   walkoverClaimableAt: string | null; // Timestamp when walkover becomes available
+  postMatchOutcome: PostMatchOutcome | null; // Post-match navigation (winner/loser/champion)
 }
 
 interface UseMatchLobbyReturn {
@@ -54,6 +61,7 @@ interface UseMatchLobbyReturn {
   connectionStatus: ConnectionState;
   serverRestarting: boolean;
   claimWalkover: () => Promise<void>;
+  clearPostMatchOutcome: () => void;
 }
 
 /**
@@ -123,6 +131,7 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
             player2: matchData.participant2,
             roundNumber: matchData.roundNumber || 1,
             gameSnapshot: matchData.gameSnapshot,
+            tournamentInfo: matchData.tournamentInfo || null,
             status: matchData.match.status,
             matchStarting: prev?.matchStarting || false,
             countdownSeconds: prev?.countdownSeconds || null,
@@ -130,6 +139,7 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
             disconnectedAt: matchData.match.disconnectedAt || null,
             canClaimWalkover: false,
             walkoverClaimableAt: null,
+            postMatchOutcome: prev?.postMatchOutcome || null,
           };
           
           return newState;
@@ -177,6 +187,7 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
         disconnectedAt: payload.match.disconnectedAt || null,
         canClaimWalkover: prev?.canClaimWalkover || false,
         walkoverClaimableAt: prev?.walkoverClaimableAt || null,
+        postMatchOutcome: prev?.postMatchOutcome || null,
       };
       
       return newState;
@@ -373,7 +384,7 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
   // Handle player_reconnected message
   const handlePlayerReconnected = useCallback((payload: PlayerReconnectedPayload) => {
     console.log('[useMatchLobby] Player reconnected:', payload);
-    
+
     setMatchState((prev) => {
       if (!prev) return null;
 
@@ -388,6 +399,57 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
         match: updatedMatch,
         disconnectedPlayerId: null,
         disconnectedAt: null,
+      };
+    });
+  }, []);
+
+  // Handle return_to_prelobby message (winner should return to pre-lobby for next round)
+  const handleReturnToPreLobby = useCallback((payload: ReturnToPreLobbyPayload) => {
+    console.log('[useMatchLobby] Return to pre-lobby:', payload);
+
+    setMatchState((prev) => {
+      if (!prev) return null;
+
+      return {
+        ...prev,
+        postMatchOutcome: {
+          type: 'winner',
+          payload,
+        },
+      };
+    });
+  }, []);
+
+  // Handle player_eliminated_notify message (loser notification)
+  const handlePlayerEliminatedNotify = useCallback((payload: PlayerEliminatedNotifyPayload) => {
+    console.log('[useMatchLobby] Player eliminated:', payload);
+
+    setMatchState((prev) => {
+      if (!prev) return null;
+
+      return {
+        ...prev,
+        postMatchOutcome: {
+          type: 'eliminated',
+          payload,
+        },
+      };
+    });
+  }, []);
+
+  // Handle tournament_champion message (tournament winner)
+  const handleTournamentChampion = useCallback((payload: TournamentChampionPayload) => {
+    console.log('[useMatchLobby] Tournament champion:', payload);
+
+    setMatchState((prev) => {
+      if (!prev) return null;
+
+      return {
+        ...prev,
+        postMatchOutcome: {
+          type: 'champion',
+          payload,
+        },
       };
     });
   }, []);
@@ -434,6 +496,15 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
         case 'player_reconnected':
           handlePlayerReconnected(message.payload as PlayerReconnectedPayload);
           break;
+        case 'return_to_prelobby':
+          handleReturnToPreLobby(message.payload as ReturnToPreLobbyPayload);
+          break;
+        case 'player_eliminated_notify':
+          handlePlayerEliminatedNotify(message.payload as PlayerEliminatedNotifyPayload);
+          break;
+        case 'tournament_champion':
+          handleTournamentChampion(message.payload as TournamentChampionPayload);
+          break;
         case 'server_restarting':
           console.log('[useMatchLobby] Server is restarting, preparing for reconnect...');
           setServerRestarting(true);
@@ -458,6 +529,9 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
     handleMatchCompleted,
     handlePlayerDisconnected,
     handlePlayerReconnected,
+    handleReturnToPreLobby,
+    handlePlayerEliminatedNotify,
+    handleTournamentChampion,
   ]);
 
   // Initialize WebSocket connection using our custom hook
@@ -497,6 +571,7 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
                 player2: matchData.participant2,
                 roundNumber: matchData.roundNumber || 1,
                 gameSnapshot: matchData.gameSnapshot,
+                tournamentInfo: matchData.tournamentInfo || prev?.tournamentInfo || null,
                 status: matchData.match.status,
                 matchStarting: false,
                 countdownSeconds: null,
@@ -504,6 +579,7 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
                 disconnectedAt: matchData.match.disconnectedAt || null,
                 canClaimWalkover: false,
                 walkoverClaimableAt: null,
+                postMatchOutcome: prev?.postMatchOutcome || null,
               };
             });
           })
@@ -593,6 +669,17 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
     }
   }, [matchState]);
 
+  // Clear post-match outcome (e.g., when modal is closed)
+  const clearPostMatchOutcome = useCallback(() => {
+    setMatchState((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        postMatchOutcome: null,
+      };
+    });
+  }, []);
+
   // Claim walkover function
   const claimWalkover = useCallback(async () => {
     if (!matchState || !matchId || !user) {
@@ -624,6 +711,7 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
     connectionStatus: wsStatus,
     serverRestarting,
     claimWalkover,
+    clearPostMatchOutcome,
   };
 }
 

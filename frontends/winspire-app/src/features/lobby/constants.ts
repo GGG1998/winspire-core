@@ -112,8 +112,8 @@ export const ERROR_MESSAGES = {
 
 export const API_ENDPOINTS = {
   // Tournament Pre-Lobby (Matchmaking Service)
-  GET_PRE_LOBBY_STATE: (tournamentId: string) => `/v1/matchmaking/tournaments/${tournamentId}/lobby`,
-  WS_PRE_LOBBY: (tournamentId: string) => `/v1/matchmaking/tournaments/${tournamentId}/lobby/ws`,
+  GET_PRE_LOBBY_STATE: (tournamentId: string) => `:8088/v1/matchmaking/tournaments/${tournamentId}/lobby`,
+  WS_PRE_LOBBY: (tournamentId: string) => `:8088/v1/matchmaking/tournaments/${tournamentId}/lobby/ws`,
 
   // Match Lobby (Matchmaking Service)
   GET_MATCH: (matchId: string) => `:8088/v1/matchmaking/matches/${matchId}`,
