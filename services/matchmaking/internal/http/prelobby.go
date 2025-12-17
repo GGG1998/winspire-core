@@ -3,7 +3,6 @@ package http
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -418,7 +417,6 @@ func (h *PreLobbyWebSocketHandler) UpgradePreLobbyConnection(c *gin.Context) {
 
 	// Check if pre-lobby can accept participants
 	canAccept, reason, err := h.preLobbyService.CanAcceptParticipants(c.Request.Context(), tournamentID, &userID)
-	fmt.Println(canAccept, reason, err)
 	if err != nil {
 		h.logger.Error("failed to check pre-lobby status", map[string]interface{}{
 			"tournament_id": tournamentID.String(),
@@ -467,7 +465,14 @@ func (h *PreLobbyWebSocketHandler) UpgradePreLobbyConnection(c *gin.Context) {
 		AvatarURL:   nil, // TODO: Get from user profile
 		JoinedAt:    time.Now(),
 	}
-	h.preLobbyService.AddParticipant(tournamentID, participantInfo)
+	if err := h.preLobbyService.AddParticipant(c.Request.Context(), tournamentID, participantInfo); err != nil {
+		h.logger.Error("failed to add participant to pre-lobby", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"user_id":       userID.String(),
+			"error":         err.Error(),
+		})
+		// Continue anyway - WebSocket connection is already upgraded
+	}
 
 	// Register in hub for tournament room
 	h.hub.RegisterTournamentClient(tournamentID, userID, displayName, nil, client)
@@ -480,6 +485,7 @@ func (h *PreLobbyWebSocketHandler) UpgradePreLobbyConnection(c *gin.Context) {
 
 	// Record activity feed event
 	go h.preLobbyService.RecordParticipantJoined(context.Background(), tournamentID, displayName)
+	go h.preLobbyService.AutoRunWhenAllWinnersJoined(context.Background(), tournamentID, userID)
 
 	// Send initial pre-lobby state
 	// Use context.Background() instead of c.Request.Context() because:
@@ -579,7 +585,7 @@ func (h *PreLobbyWebSocketHandler) sendInitialState(ctx context.Context, tournam
 // HandleTournamentDisconnect handles participant disconnection from pre-lobby
 func (h *PreLobbyWebSocketHandler) HandleTournamentDisconnect(tournamentID, userID uuid.UUID, disconnectedAt time.Time) {
 	// Remove from pre-lobby service
-	participantInfo := h.preLobbyService.RemoveParticipant(tournamentID, userID)
+	participantInfo := h.preLobbyService.RemoveParticipant(context.Background(), tournamentID, userID)
 	if participantInfo == nil {
 		return
 	}
@@ -596,7 +602,7 @@ func (h *PreLobbyWebSocketHandler) HandleTournamentDisconnect(tournamentID, user
 		time.Sleep(5 * time.Second)
 
 		// Check if participant reconnected
-		if h.preLobbyService.IsParticipantConnected(tournamentID, userID) {
+		if h.preLobbyService.IsParticipantConnected(context.Background(), tournamentID, userID) {
 			return // Reconnected, don't broadcast leave
 		}
 

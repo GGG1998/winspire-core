@@ -57,6 +57,9 @@ var (
 	ChannelPreLobbyGracePeriodEnded    = ChannelName(ContextMatchmaking, "PreLobbyGracePeriodEnded")
 	ChannelPreLobbyParticipantSnapshot = ChannelName(ContextMatchmaking, "PreLobbyParticipantSnapshot")
 	ChannelPreLobbyCancelled           = ChannelName(ContextMatchmaking, "PreLobbyCancelled")
+
+	// Round transition event channels
+	ChannelNextRoundStartRequest = ChannelName(ContextMatchmaking, "NextRoundStartRequest")
 )
 
 // Tournament Management event channels (consumed by matchmaking)
@@ -94,6 +97,8 @@ func GetMatchmakingChannels() []string {
 		ChannelPreLobbyGracePeriodEnded,
 		ChannelPreLobbyParticipantSnapshot,
 		ChannelPreLobbyCancelled,
+		// Round transition channels
+		ChannelNextRoundStartRequest,
 		// Saga coordination channels
 		ChannelGracePeriodStarted,
 		ChannelBracketGenerationCompleted,
@@ -107,5 +112,6 @@ func GetSubscriptionChannels() []string {
 		ChannelTournamentStartRequested, // Changed from TournamentStarted to TournamentStartRequested
 		ChannelBracketGenerated,         // Subscribe to own events for WebSocket routing
 		ChannelMatchCreated,             // Subscribe to own events for match assignment notifications
+		ChannelNextRoundStartRequest,    // Subscribe to round transition events
 	}
 }

@@ -16,19 +16,21 @@ import (
 
 // EventHandler handles incoming domain events
 type EventHandler struct {
-	bracketService    *BracketService
-	preLobbyService   *PreLobbyService
-	publisher         *pubsub.EventPublisher
-	logger            *observability.Logger
-	competitionClient *CompetitionClient
-	gameManagementURL string
-	hub               *websocket.Hub
+	bracketService         *BracketService
+	preLobbyService        *PreLobbyService
+	matchAssignmentService *MatchAssignmentService
+	publisher              *pubsub.EventPublisher
+	logger                 *observability.Logger
+	competitionClient      *CompetitionClient
+	gameManagementURL      string
+	hub                    *websocket.Hub
 }
 
 // NewEventHandler creates a new event handler
 func NewEventHandler(
 	bracketService *BracketService,
 	preLobbyService *PreLobbyService,
+	matchAssignmentService *MatchAssignmentService,
 	publisher *pubsub.EventPublisher,
 	logger *observability.Logger,
 	competitionClient *CompetitionClient,
@@ -36,13 +38,14 @@ func NewEventHandler(
 	hub *websocket.Hub,
 ) *EventHandler {
 	return &EventHandler{
-		bracketService:    bracketService,
-		preLobbyService:   preLobbyService,
-		publisher:         publisher,
-		logger:            logger,
-		competitionClient: competitionClient,
-		gameManagementURL: gameManagementURL,
-		hub:               hub,
+		bracketService:         bracketService,
+		preLobbyService:        preLobbyService,
+		matchAssignmentService: matchAssignmentService,
+		publisher:              publisher,
+		logger:                 logger,
+		competitionClient:      competitionClient,
+		gameManagementURL:      gameManagementURL,
+		hub:                    hub,
 	}
 }
 
@@ -301,64 +304,10 @@ func (h *EventHandler) HandleBracketGenerated(ctx context.Context, eventType str
 		return fmt.Errorf("parse tournament_id: %w", err)
 	}
 
-	// Get all matches from round 1
-	matches, err := h.bracketService.GetMatchesByRound(ctx, tournamentID, 1)
-	if err != nil {
-		h.logger.Error("Failed to get round 1 matches", map[string]interface{}{
-			"tournament_id": tournamentID.String(),
-			"error":         err.Error(),
-		})
-		return fmt.Errorf("get round 1 matches: %w", err)
+	// Broadcast match assignments for round 1 using the centralized service
+	if err := h.matchAssignmentService.BroadcastMatchAssignmentsForRound(ctx, tournamentID, 1); err != nil {
+		return fmt.Errorf("broadcast match assignments for round 1: %w", err)
 	}
-
-	// Round 1 by definition has round_number = 1
-	roundNumber := 1
-
-	// Send match_assigned to each participant
-	for _, match := range matches {
-		// Send to participant 1
-		if match.Participant1ID != uuid.Nil {
-			var opponent *PreLobbyParticipantInfo
-			if match.Participant2ID != nil && *match.Participant2ID != uuid.Nil {
-				// Create opponent info (using placeholder for display name)
-				opponent = &PreLobbyParticipantInfo{
-					UserID:      *match.Participant2ID,
-					DisplayName: "Opponent",
-				}
-			}
-
-			h.preLobbyService.BroadcastMatchAssigned(
-				tournamentID,
-				match.Participant1ID,
-				match.ID,
-				roundNumber,
-				match.MatchNumber,
-				opponent,
-			)
-		}
-
-		// Send to participant 2 (if not BYE)
-		if match.Participant2ID != nil && *match.Participant2ID != uuid.Nil {
-			opponent := &PreLobbyParticipantInfo{
-				UserID:      match.Participant1ID,
-				DisplayName: "Opponent",
-			}
-
-			h.preLobbyService.BroadcastMatchAssigned(
-				tournamentID,
-				*match.Participant2ID,
-				match.ID,
-				roundNumber,
-				match.MatchNumber,
-				opponent,
-			)
-		}
-	}
-
-	h.logger.Info("Sent match assignments", map[string]interface{}{
-		"tournament_id": tournamentID.String(),
-		"match_count":   len(matches),
-	})
 
 	return nil
 }
@@ -593,11 +542,103 @@ func (h *EventHandler) HandleMatchStarted(ctx context.Context, eventType string,
 	return nil
 }
 
+// HandleNextRoundStartRequest processes NextRoundStartRequest events
+// This is triggered when all winners from the previous round should be ready for the next round
+// It starts a grace period and then broadcasts match assignments for the next round
+func (h *EventHandler) HandleNextRoundStartRequest(ctx context.Context, eventType string, payload map[string]interface{}, metadata map[string]string) error {
+	h.logger.Info("Received NextRoundStartRequest event", map[string]interface{}{
+		"event_type":     eventType,
+		"correlation_id": metadata["correlation_id"],
+	})
+
+	fmt.Println("[EventHandle] HandleNextRoundStart", payload)
+
+	// Parse tournament ID from payload
+	tournamentIDStr, ok := payload["tournament_id"].(string)
+	if !ok {
+		return fmt.Errorf("missing or invalid tournament_id in payload")
+	}
+
+	tournamentID, err := uuid.Parse(tournamentIDStr)
+	if err != nil {
+		return fmt.Errorf("parse tournament_id: %w", err)
+	}
+
+	// Parse round number from payload
+	roundNumberFloat, ok := payload["round_number"].(float64)
+	if !ok {
+		return fmt.Errorf("missing or invalid round_number in payload")
+	}
+	roundNumber := int(roundNumberFloat)
+
+	h.logger.Info("Processing NextRoundStartRequest", map[string]interface{}{
+		"tournament_id": tournamentID.String(),
+		"round_number":  roundNumber,
+	})
+	fmt.Println("[EventHandler] HandleNextRoundStartRequest Pre Get")
+	// 1. Ensure pre-lobby exists for the next round
+	_, err = h.preLobbyService.GetOrCreatePreLobby(ctx, tournamentID, 2)
+	if err != nil {
+		h.logger.Error("Failed to get or create pre-lobby for next round", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"round_number":  roundNumber,
+			"error":         err.Error(),
+		})
+		return fmt.Errorf("get or create pre-lobby: %w", err)
+	}
+
+	// 2. Reset pre-lobby status to 'waiting' before starting grace period
+	// This ensures the pre-lobby is in correct state regardless of race conditions
+	if err := h.preLobbyService.PrepareForNextRound(ctx, tournamentID, 2); err != nil {
+		h.logger.Warn("Failed to prepare pre-lobby for next round (continuing anyway)", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"round_number":  roundNumber,
+			"error":         err.Error(),
+		})
+	}
+
+	fmt.Println("[EventHandler] HandleNextRoundStartRequest Pre Start Grace")
+	// 3. Start grace period with callback to assign matches after it ends
+	err = h.preLobbyService.StartGracePeriod(ctx, tournamentID, func(tID uuid.UUID, participantIDs []uuid.UUID) {
+		h.logger.Info("Grace period ended for next round, assigning matches", map[string]interface{}{
+			"tournament_id":     tID.String(),
+			"round_number":      roundNumber,
+			"participant_count": len(participantIDs),
+		})
+
+		// Broadcast match assignments using the centralized service
+		if err := h.matchAssignmentService.BroadcastMatchAssignmentsForRound(context.Background(), tID, roundNumber); err != nil {
+			h.logger.Error("Failed to broadcast match assignments for round", map[string]interface{}{
+				"tournament_id": tID.String(),
+				"round_number":  roundNumber,
+				"error":         err.Error(),
+			})
+		}
+	})
+
+	if err != nil {
+		h.logger.Error("Failed to start grace period for next round", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"round_number":  roundNumber,
+			"error":         err.Error(),
+		})
+		return fmt.Errorf("start grace period: %w", err)
+	}
+
+	h.logger.Info("Grace period started for next round", map[string]interface{}{
+		"tournament_id": tournamentID.String(),
+		"round_number":  roundNumber,
+	})
+
+	return nil
+}
+
 // RegisterHandlers registers all event handlers with the subscriber
 func (h *EventHandler) RegisterHandlers(subscriber *pubsub.EventSubscriber) {
 	subscriber.Subscribe("TournamentStartRequested", h.HandleTournamentStartRequested)
 	subscriber.Subscribe("BracketGenerated", h.HandleBracketGenerated)
 	subscriber.Subscribe("MatchCreated", h.HandleMatchCreated)
 	subscriber.Subscribe("MatchStarted", h.HandleMatchStarted)
+	subscriber.Subscribe("NextRoundStartRequest", h.HandleNextRoundStartRequest)
 	log.Println("[EventHandler] Registered handlers for TournamentStartRequested, BracketGenerated, MatchCreated, MatchStarted")
 }

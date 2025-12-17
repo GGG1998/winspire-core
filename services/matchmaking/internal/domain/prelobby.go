@@ -53,9 +53,9 @@ func (s PreLobbyStatus) CanTransitionTo(target PreLobbyStatus) bool {
 	transitions := map[PreLobbyStatus][]PreLobbyStatus{
 		PreLobbyStatusWaiting:           {PreLobbyStatusGracePeriod, PreLobbyStatusCancelled},
 		PreLobbyStatusGracePeriod:       {PreLobbyStatusGeneratingBracket, PreLobbyStatusCancelled},
-		PreLobbyStatusGeneratingBracket: {PreLobbyStatusStarted, PreLobbyStatusCancelled},
+		PreLobbyStatusGeneratingBracket: {PreLobbyStatusStarted, PreLobbyStatusCancelled, PreLobbyStatusWaiting},
 		PreLobbyStatusStarted:           {PreLobbyStatusWaiting}, // Allow reset for next round
-		PreLobbyStatusCancelled:         {}, // Terminal state
+		PreLobbyStatusCancelled:         {},                      // Terminal state
 	}
 
 	allowedTransitions, exists := transitions[s]

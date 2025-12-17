@@ -18,6 +18,8 @@ type Querier interface {
 	// Adds an event to the activity feed
 	AddActivityFeedEvent(ctx context.Context, arg AddActivityFeedEventParams) (PrelobbyActivityFeed, error)
 	// Assign winner to next match's participant slot
+	// Handles both NULL and uuid.Nil (00000000-0000-0000-0000-000000000000) as empty slots
+	// Later round matches are created with participant1_id = uuid.Nil (not NULL) as placeholder
 	AssignWinnerToNextMatch(ctx context.Context, arg AssignWinnerToNextMatchParams) error
 	// Clear disconnected player info
 	ClearDisconnectedPlayerInfo(ctx context.Context, id pgtype.UUID) error
@@ -34,7 +36,7 @@ type Querier interface {
 	// ============================================================================
 	// PARTICIPANT SNAPSHOT QUERIES
 	// ============================================================================
-	// Creates immutable participant snapshot when grace period ends
+	// Creates or updates participant snapshot when grace period ends
 	CreateParticipantSnapshot(ctx context.Context, arg CreateParticipantSnapshotParams) (PrelobbyParticipantSnapshot, error)
 	// SQLC queries for pre-lobby operations
 	// Feature: Tournament Pre-Lobby Backend
@@ -66,6 +68,8 @@ type Querier interface {
 	GetBracketWithRoundsAndMatches(ctx context.Context, tournamentID pgtype.UUID) ([]GetBracketWithRoundsAndMatchesRow, error)
 	// Get the final match (next_match_id IS NULL)
 	GetFinalMatch(ctx context.Context, tournamentID pgtype.UUID) (TournamentMatch, error)
+	// Get the latest (highest round_number) round for a tournament
+	GetLatestRoundByTournamentID(ctx context.Context, tournamentID pgtype.UUID) (GetLatestRoundByTournamentIDRow, error)
 	GetMatchByID(ctx context.Context, id pgtype.UUID) (TournamentMatch, error)
 	GetMatchesByRoundID(ctx context.Context, roundID pgtype.UUID) ([]TournamentMatch, error)
 	// Get all matches for a specific tournament and round number
@@ -113,6 +117,8 @@ type Querier interface {
 	UpdateMatchStatusWithVersion(ctx context.Context, arg UpdateMatchStatusWithVersionParams) (TournamentMatch, error)
 	// Updates pre-lobby status
 	UpdatePreLobbyStatus(ctx context.Context, arg UpdatePreLobbyStatusParams) (Prelobby, error)
+	// Flexible update - only updates provided (non-null) fields
+	UpdatePreLobbyWithParams(ctx context.Context, arg UpdatePreLobbyWithParamsParams) (Prelobby, error)
 	UpdateRoundStatus(ctx context.Context, arg UpdateRoundStatusParams) error
 }
 

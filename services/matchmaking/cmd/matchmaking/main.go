@@ -174,14 +174,19 @@ func main() {
 		}
 	})
 
+	// Initialize pre-lobby participant store (Redis-backed)
+	preLobbyParticipantStore := application.NewRedisPreLobbyParticipantStore(redisClient)
+
 	// Initialize pre-lobby service
 	preLobbyService := application.NewPreLobbyService(
 		preLobbyRepo,
 		matchRepo,
+		roundRepo,
 		nil, // Hub will be set after initialization
 		publisher,
 		metrics,
 		logger,
+		preLobbyParticipantStore,
 	)
 
 	// Initialize HTTP router
@@ -217,10 +222,42 @@ func main() {
 	// Set hub on pre-lobby service (after hub is created)
 	preLobbyService.SetHub(hub)
 
+	// Initialize match assignment service (centralizes match assignment broadcasting)
+	matchAssignmentService := application.NewMatchAssignmentService(
+		bracketService,
+		preLobbyService,
+		logger,
+	)
+
+	// Initialize round transition store (Redis + DB projection for state persistence)
+	roundTransitionStore := application.NewRoundTransitionStore(
+		redisClient,
+		matchRepo,
+		roundRepo,
+		bracketRepo,
+		logger,
+	)
+
+	// Initialize round manager (orchestrates round transitions)
+	roundManager := application.NewRoundManager(
+		matchRepo,
+		roundRepo,
+		bracketRepo,
+		preLobbyService,
+		matchAssignmentService,
+		roundTransitionStore,
+		logger,
+	)
+
+	// Wire up round manager to match service and pre-lobby service
+	matchService.SetRoundManager(roundManager)
+	preLobbyService.SetRoundManager(roundManager)
+
 	// Initialize event handler with pre-lobby service for grace period support
 	eventHandler := application.NewEventHandler(
 		bracketService,
 		preLobbyService,
+		matchAssignmentService,
 		publisher,
 		logger,
 		competitionClient,

@@ -52,6 +52,9 @@ const CreateParticipantSnapshot = `-- name: CreateParticipantSnapshot :one
 
 INSERT INTO prelobby_participant_snapshots (tournament_id, participants, participant_count)
 VALUES ($1, $2, $3)
+ON CONFLICT (tournament_id) DO UPDATE SET
+    participants = EXCLUDED.participants,
+    participant_count = EXCLUDED.participant_count
 RETURNING id, tournament_id, participants, participant_count, created_at
 `
 
@@ -64,7 +67,7 @@ type CreateParticipantSnapshotParams struct {
 // ============================================================================
 // PARTICIPANT SNAPSHOT QUERIES
 // ============================================================================
-// Creates immutable participant snapshot when grace period ends
+// Creates or updates participant snapshot when grace period ends
 func (q *Queries) CreateParticipantSnapshot(ctx context.Context, arg CreateParticipantSnapshotParams) (PrelobbyParticipantSnapshot, error) {
 	row := q.db.QueryRow(ctx, CreateParticipantSnapshot, arg.TournamentID, arg.Participants, arg.ParticipantCount)
 	var i PrelobbyParticipantSnapshot
@@ -351,7 +354,7 @@ func (q *Queries) StartGracePeriod(ctx context.Context, tournamentID pgtype.UUID
 }
 
 const UpdatePreLobbyStatus = `-- name: UpdatePreLobbyStatus :one
-UPDATE prelobbies 
+UPDATE prelobbies
 SET status = $2, updated_at = NOW()
 WHERE tournament_id = $1
 RETURNING id, tournament_id, status, grace_period_start, grace_period_end, min_participants, created_at, updated_at
@@ -365,6 +368,49 @@ type UpdatePreLobbyStatusParams struct {
 // Updates pre-lobby status
 func (q *Queries) UpdatePreLobbyStatus(ctx context.Context, arg UpdatePreLobbyStatusParams) (Prelobby, error) {
 	row := q.db.QueryRow(ctx, UpdatePreLobbyStatus, arg.TournamentID, arg.Status)
+	var i Prelobby
+	err := row.Scan(
+		&i.ID,
+		&i.TournamentID,
+		&i.Status,
+		&i.GracePeriodStart,
+		&i.GracePeriodEnd,
+		&i.MinParticipants,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const UpdatePreLobbyWithParams = `-- name: UpdatePreLobbyWithParams :one
+UPDATE prelobbies
+SET
+    status = COALESCE($1, status),
+    grace_period_start = COALESCE($2, grace_period_start),
+    grace_period_end = COALESCE($3, grace_period_end),
+    min_participants = COALESCE($4, min_participants),
+    updated_at = NOW()
+WHERE tournament_id = $5
+RETURNING id, tournament_id, status, grace_period_start, grace_period_end, min_participants, created_at, updated_at
+`
+
+type UpdatePreLobbyWithParamsParams struct {
+	Status           pgtype.Text      `json:"status"`
+	GracePeriodStart pgtype.Timestamp `json:"grace_period_start"`
+	GracePeriodEnd   pgtype.Timestamp `json:"grace_period_end"`
+	MinParticipants  pgtype.Int4      `json:"min_participants"`
+	TournamentID     pgtype.UUID      `json:"tournament_id"`
+}
+
+// Flexible update - only updates provided (non-null) fields
+func (q *Queries) UpdatePreLobbyWithParams(ctx context.Context, arg UpdatePreLobbyWithParamsParams) (Prelobby, error) {
+	row := q.db.QueryRow(ctx, UpdatePreLobbyWithParams,
+		arg.Status,
+		arg.GracePeriodStart,
+		arg.GracePeriodEnd,
+		arg.MinParticipants,
+		arg.TournamentID,
+	)
 	var i Prelobby
 	err := row.Scan(
 		&i.ID,

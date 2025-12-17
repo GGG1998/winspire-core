@@ -14,14 +14,18 @@ import (
 
 const AssignWinnerToNextMatch = `-- name: AssignWinnerToNextMatch :exec
 UPDATE tournament_matches
-SET 
-    participant1_id = CASE 
-        WHEN participant1_id IS NULL THEN $2 
-        ELSE participant1_id 
+SET
+    participant1_id = CASE
+        WHEN participant1_id IS NULL
+             OR participant1_id = '00000000-0000-0000-0000-000000000000' THEN $2
+        ELSE participant1_id
     END,
-    participant2_id = CASE 
-        WHEN participant1_id IS NOT NULL AND participant2_id IS NULL THEN $2 
-        ELSE participant2_id 
+    participant2_id = CASE
+        WHEN participant1_id IS NOT NULL
+             AND participant1_id != '00000000-0000-0000-0000-000000000000'
+             AND (participant2_id IS NULL OR participant2_id = '00000000-0000-0000-0000-000000000000')
+             AND participant1_id != $2 THEN $2
+        ELSE participant2_id
     END,
     updated_at = NOW()
 WHERE id = $1
@@ -33,6 +37,8 @@ type AssignWinnerToNextMatchParams struct {
 }
 
 // Assign winner to next match's participant slot
+// Handles both NULL and uuid.Nil (00000000-0000-0000-0000-000000000000) as empty slots
+// Later round matches are created with participant1_id = uuid.Nil (not NULL) as placeholder
 func (q *Queries) AssignWinnerToNextMatch(ctx context.Context, arg AssignWinnerToNextMatchParams) error {
 	_, err := q.db.Exec(ctx, AssignWinnerToNextMatch, arg.ID, arg.Participant1ID)
 	return err

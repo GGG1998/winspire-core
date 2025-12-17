@@ -109,7 +109,7 @@ export function PostMatchModal({ outcome, onClose }: PostMatchModalProps) {
   };
 
   return (
-    <Dialog open={!!outcome} onClose={onClose} size="lg">
+    <Dialog open={!!outcome} onClose={onClose} size="lg" data-testid="post-match-modal">
       <div className="text-center">
         <div className="text-7xl mb-4">{config.emoji}</div>
         <DialogTitle className={`text-3xl font-bold mb-2 ${config.titleColor}`}>

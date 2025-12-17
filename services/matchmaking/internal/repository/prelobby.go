@@ -4,14 +4,24 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/winspire-core/services/matchmaking/internal/domain"
 	"github.com/winspire-core/services/matchmaking/internal/store/sqlc"
 	pgtypeconv "github.com/winspire/winspire-core/libs/go/pgtype"
 )
+
+// UpdatePreLobbyParams contains optional fields for flexible pre-lobby updates
+type UpdatePreLobbyParams struct {
+	Status           *domain.PreLobbyStatus
+	GracePeriodStart *time.Time
+	GracePeriodEnd   *time.Time
+	MinParticipants  *int
+}
 
 // PreLobbyRepository handles pre-lobby persistence
 type PreLobbyRepository interface {
@@ -19,6 +29,7 @@ type PreLobbyRepository interface {
 	Create(ctx context.Context, preLobby *domain.PreLobby) error
 	GetByTournamentID(ctx context.Context, tournamentID uuid.UUID) (*domain.PreLobby, error)
 	UpdateStatus(ctx context.Context, tournamentID uuid.UUID, status domain.PreLobbyStatus) (*domain.PreLobby, error)
+	UpdateWithParams(ctx context.Context, tournamentID uuid.UUID, params UpdatePreLobbyParams) (*domain.PreLobby, error)
 	StartGracePeriod(ctx context.Context, tournamentID uuid.UUID) (*domain.PreLobby, error)
 	GetActiveGracePeriods(ctx context.Context) ([]*domain.PreLobby, error)
 	Delete(ctx context.Context, tournamentID uuid.UUID) error
@@ -87,6 +98,33 @@ func (r *preLobbyRepository) UpdateStatus(ctx context.Context, tournamentID uuid
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update pre-lobby status: %w", err)
+	}
+
+	return r.toDomain(result), nil
+}
+
+// UpdateWithParams updates the pre-lobby with flexible optional parameters
+func (r *preLobbyRepository) UpdateWithParams(ctx context.Context, tournamentID uuid.UUID, params UpdatePreLobbyParams) (*domain.PreLobby, error) {
+	sqlcParams := sqlc.UpdatePreLobbyWithParamsParams{
+		TournamentID: pgtypeconv.UUIDToPgtype(tournamentID),
+	}
+
+	if params.Status != nil {
+		sqlcParams.Status = pgtype.Text{String: string(*params.Status), Valid: true}
+	}
+	if params.GracePeriodStart != nil {
+		sqlcParams.GracePeriodStart = pgtype.Timestamp{Time: *params.GracePeriodStart, Valid: true}
+	}
+	if params.GracePeriodEnd != nil {
+		sqlcParams.GracePeriodEnd = pgtype.Timestamp{Time: *params.GracePeriodEnd, Valid: true}
+	}
+	if params.MinParticipants != nil {
+		sqlcParams.MinParticipants = pgtype.Int4{Int32: int32(*params.MinParticipants), Valid: true}
+	}
+
+	result, err := r.queries.UpdatePreLobbyWithParams(ctx, sqlcParams)
+	if err != nil {
+		return nil, fmt.Errorf("update pre-lobby with params: %w", err)
 	}
 
 	return r.toDomain(result), nil
@@ -246,4 +284,3 @@ func (r *preLobbyRepository) toDomain(m sqlc.Prelobby) *domain.PreLobby {
 
 	return preLobby
 }
-

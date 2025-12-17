@@ -120,6 +120,25 @@ func NewRoundCreated(roundID, bracketID, tournamentID uuid.UUID, roundNumber int
 	}
 }
 
+type NextRoundStartPayload struct {
+	TournamentID uuid.UUID `json:"tournament_id"`
+	RoundNumber  int       `json:"round_number"`
+}
+
+type NextRoundStart struct {
+	BaseEvent
+}
+
+func NewNextRoundStart(roundNumber int, tournamentID uuid.UUID) NextRoundStart {
+	payload := NextRoundStartPayload{
+		TournamentID: tournamentID,
+		RoundNumber:  roundNumber,
+	}
+	return NextRoundStart{
+		BaseEvent: newBaseEvent("NextRoundStartRequest", tournamentID.String(), "Tournament", payload, make(map[string]string, 0)),
+	}
+}
+
 // ============================================================================
 // Match Events
 // ============================================================================

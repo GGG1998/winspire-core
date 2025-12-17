@@ -104,8 +104,3 @@ func (r *Round) Validate() error {
 
 	return nil
 }
-
-
-
-
-

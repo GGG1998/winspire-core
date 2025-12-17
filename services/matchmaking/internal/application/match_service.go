@@ -3,10 +3,8 @@ package application
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
@@ -265,6 +263,7 @@ func (s *MatchService) CompleteMatch(ctx context.Context, matchID, winnerID uuid
 
 		// Send eliminated message to loser
 		if loserID != uuid.Nil {
+			s.roundManager.preLobbyService.RemoveParticipant(ctx, tournamentID, loserID)
 			eliminatedPayload := domain.PlayerEliminatedNotificationPayload{
 				TournamentID:  tournamentID,
 				MatchID:       matchID,
@@ -327,20 +326,23 @@ func (s *MatchService) AdvanceWinner(ctx context.Context, winnerID, fromMatchID,
 	p2IsWinner := nextMatch.Participant2ID != nil && *nextMatch.Participant2ID == winnerID
 
 	if p2Empty || p2IsWinner {
-		// Fill participant2 slot if empty or winner matches placeholder
 		slotToFill = 2
-		nextMatch.Participant2ID = &winnerID
 	} else if p1Empty || p1IsWinner {
-		// Fill participant1 slot if empty or winner matches placeholder
 		slotToFill = 1
-		nextMatch.Participant1ID = winnerID
 	} else {
 		return fmt.Errorf("next match %s already has both participants assigned", toMatchID)
 	}
 
-	// Update the next match with the winner
-	// This would require a new repository method to update participant assignments
-	// For now, we'll log the advancement
+	// Persist winner to the next match in the database
+	if err := s.matchRepo.AssignWinnerToNextMatch(ctx, toMatchID, winnerID); err != nil {
+		s.logger.Error("Failed to assign winner to next match", map[string]interface{}{
+			"winner_id":     winnerID.String(),
+			"next_match_id": toMatchID.String(),
+			"error":         err.Error(),
+		})
+		return fmt.Errorf("assign winner to next match: %w", err)
+	}
+
 	s.logger.Info("Winner assigned to next match", map[string]interface{}{
 		"winner_id":  winnerID.String(),
 		"next_match": toMatchID.String(),
@@ -603,15 +605,6 @@ func (s *MatchService) OnGameLoaded(ctx context.Context, matchID, playerID uuid.
 
 	// Validate match is in loading state
 	if match.Status != domain.MatchStatusLoading {
-		// #region agent log
-		func() {
-			f, _ := os.OpenFile("/Users/gabrieldomanowski/programming/winspire-core/.cursor/debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if f != nil {
-				defer f.Close()
-				json.NewEncoder(f).Encode(map[string]interface{}{"location": "match_service.go:495", "message": "match not in loading state", "data": map[string]interface{}{"matchId": matchID.String(), "status": string(match.Status)}, "timestamp": time.Now().UnixMilli(), "sessionId": "debug-session", "hypothesisId": "H6"})
-			}
-		}()
-		// #endregion
 		s.logger.Warn("Game loaded callback for non-loading match", map[string]interface{}{
 			"match_id": matchID.String(),
 			"status":   match.Status,

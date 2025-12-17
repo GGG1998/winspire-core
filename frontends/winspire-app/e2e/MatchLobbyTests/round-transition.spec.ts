@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { getStreamer, getUser, type SeededAccount } from '../fixtures/auth.fixture';
 import {
   seedTournamentBracket,
+  seedSixPlayerBracket,
   completeMatchViaApi,
   verifyTournamentExists,
   verifyMatchExists,
@@ -471,6 +472,8 @@ test.describe('Round Transition - Pre-lobby Wait', () => {
   });
 });
 
+
+
 test.describe('Round Transition - Champion Flow', () => {
 
   test.skip('final winner sees champion modal', async () => {
@@ -481,5 +484,219 @@ test.describe('Round Transition - Champion Flow', () => {
     // 1. Seed a 2-player bracket (final match only)
     // 2. Complete the final match
     // 3. Verify winner sees champion modal with tournament winner message
+  });
+});
+
+test.describe('Full Tournament Simulation - 6 Players', () => {
+
+  test('6-player tournament: full flow from Round 1 to champion', async ({ browser, request }) => {
+    test.setTimeout(300000); // 5 minutes - full tournament simulation
+
+    // === Setup: Get 6 players ===
+    // Note: Streamers are 1-5, Users are 1-20 based on seed data
+    const players = await Promise.all([
+      getStreamer(5),   // player1 (index 0) - use streamer for host permissions
+      getUser(15),      // player2 (index 1)
+      getUser(16),      // player3 - bye (index 2)
+      getUser(17),      // player4 - bye (index 3)
+      getUser(18),      // player5 (index 4)
+      getUser(19),      // player6 (index 5)
+    ]);
+
+    console.log('[E2E] Players created:', players.map(p => ({ id: p.id, type: p.type })));
+
+    // === Seed the 6-player bracket ===
+    const seed = await seedSixPlayerBracket({ players });
+
+    console.log('[E2E] Bracket seeded:', {
+      tournamentId: seed.tournamentId,
+      matches: {
+        round1: [seed.matches.match1.matchId, seed.matches.match2.matchId],
+        round2: [seed.matches.match3.matchId, seed.matches.match4.matchId],
+        final: seed.matches.finalMatch.matchId,
+      },
+      byePlayers: seed.byePlayers,
+    });
+
+    // Verify tournament exists
+    const tournamentCheck = await verifyTournamentExists(request, seed.tournamentId);
+    expect(tournamentCheck.exists, `Tournament verification failed: ${tournamentCheck.error}`).toBe(true);
+
+    // Verify Round 1 matches exist
+    const match1Check = await verifyMatchExists(request, seed.matches.match1.matchId, players[0].session.access_token);
+    expect(match1Check.exists, `Match 1 verification failed: ${match1Check.error}`).toBe(true);
+
+    const match2Check = await verifyMatchExists(request, seed.matches.match2.matchId, players[0].session.access_token);
+    expect(match2Check.exists, `Match 2 verification failed: ${match2Check.error}`).toBe(true);
+
+    // === ROUND 1: Complete both matches ===
+    console.log('[E2E] === ROUND 1 ===');
+
+    // Match 1: player1 (index 0) beats player2 (index 1)
+    console.log('[E2E] Completing Match 1: player1 vs player2');
+    await completeMatchViaApi(request, {
+      matchId: seed.matches.match1.matchId,
+      winnerId: players[0].id,
+      loserId: players[1].id,
+      scoreWinner: 10,
+      scoreLoser: 5,
+      token: players[0].session.access_token,
+    });
+    console.log('[E2E] Match 1 completed: player1 wins');
+
+    // Match 2: player5 (index 4) beats player6 (index 5)
+    console.log('[E2E] Completing Match 2: player5 vs player6');
+    await completeMatchViaApi(request, {
+      matchId: seed.matches.match2.matchId,
+      winnerId: players[4].id,
+      loserId: players[5].id,
+      scoreWinner: 10,
+      scoreLoser: 3,
+      token: players[4].session.access_token,
+    });
+    console.log('[E2E] Match 2 completed: player5 wins');
+
+    // Small delay for backend to process round completion
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // === ROUND 2: Complete both matches (winners vs bye players) ===
+    console.log('[E2E] === ROUND 2 ===');
+
+    // Verify Round 2 matches exist
+    const match3Check = await verifyMatchExists(request, seed.matches.match3.matchId, players[0].session.access_token);
+    expect(match3Check.exists, `Match 3 verification failed: ${match3Check.error}`).toBe(true);
+
+    const match4Check = await verifyMatchExists(request, seed.matches.match4.matchId, players[0].session.access_token);
+    expect(match4Check.exists, `Match 4 verification failed: ${match4Check.error}`).toBe(true);
+
+    // Match 3: player1 (R1 winner) beats player3 (bye)
+    console.log('[E2E] Completing Match 3: player1 vs player3 (bye)');
+    await completeMatchViaApi(request, {
+      matchId: seed.matches.match3.matchId,
+      winnerId: players[0].id,
+      loserId: players[2].id,
+      scoreWinner: 10,
+      scoreLoser: 4,
+      token: players[0].session.access_token,
+    });
+    console.log('[E2E] Match 3 completed: player1 wins');
+
+    // Match 4: player5 (R1 winner) beats player4 (bye)
+    console.log('[E2E] Completing Match 4: player5 vs player4 (bye)');
+    await completeMatchViaApi(request, {
+      matchId: seed.matches.match4.matchId,
+      winnerId: players[4].id,
+      loserId: players[3].id,
+      scoreWinner: 10,
+      scoreLoser: 2,
+      token: players[4].session.access_token,
+    });
+    console.log('[E2E] Match 4 completed: player5 wins');
+
+    // Small delay for backend to process round completion
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // === FINAL: player1 vs player5 ===
+    console.log('[E2E] === FINAL ===');
+
+    // Verify final match exists
+    const finalCheck = await verifyMatchExists(request, seed.matches.finalMatch.matchId, players[0].session.access_token);
+    expect(finalCheck.exists, `Final match verification failed: ${finalCheck.error}`).toBe(true);
+
+    // Setup browser for player1 to see champion modal
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await setupAuth(page, players[0]);
+
+    // Navigate to final match lobby
+    const finalMatchUrl = `/lobby/${seed.tournamentId}/match/${seed.matches.finalMatch.matchId}`;
+    await page.goto(finalMatchUrl, { waitUntil: 'networkidle' });
+
+    // Wait for lobby to load
+    await expect(page.getByText('VS')).toBeVisible({ timeout: 10000 });
+
+    // Complete final: player1 beats player5
+    console.log('[E2E] Completing Final: player1 vs player5');
+    await completeMatchViaApi(request, {
+      matchId: seed.matches.finalMatch.matchId,
+      winnerId: players[0].id,
+      loserId: players[4].id,
+      scoreWinner: 10,
+      scoreLoser: 7,
+      token: players[0].session.access_token,
+    });
+    console.log('[E2E] Final completed: player1 is CHAMPION!');
+
+    // Verify champion/winner modal appears
+    // The modal should show "Wygrałeś" (You won) or "Mistrz" (Champion)
+    const modal = page.getByRole('dialog');
+    await expect(modal.getByRole('heading', { name: /Wygrałeś|Mistrz|Champion|Gratulacje/i })).toBeVisible({ timeout: 15000 });
+
+    console.log('[E2E] Champion modal verified!');
+
+    // Log final state
+    console.log('[E2E] === TOURNAMENT COMPLETE ===');
+    console.log('[E2E] Champion: player1');
+    console.log('[E2E] All 5 matches completed successfully');
+
+    await ctx.close();
+  });
+});
+
+test.describe('Screenshots - Player Perspective', () => {
+  test('capture pre-lobby and match lobby screenshots', async ({ browser, request }) => {
+    test.setTimeout(120000);
+
+    // Setup players
+    const player1 = await getStreamer(5);
+    const player2 = await getUser(15);
+    const player3 = await getUser(16);
+    const player4 = await getUser(17);
+
+    const seed = await seedTournamentBracket({
+      players: [player1, player2, player3, player4],
+    });
+
+    // Verify tournament exists
+    const tournamentCheck = await verifyTournamentExists(request, seed.tournamentId);
+    expect(tournamentCheck.exists, `Tournament verification failed: ${tournamentCheck.error}`).toBe(true);
+
+    // Setup browser for player1
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await setupAuth(page, player1);
+
+    // === Screenshot 1: Pre-lobby ===
+    const prelobbyUrl = `tournaments/${seed.tournamentId}/lobby/`;
+    await page.goto(prelobbyUrl, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(2000);
+
+    // Retry with refresh up to 3 times if there's a fetch error
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const hasError = await page.locator('text=Failed to fetch').isVisible().catch(() => false);
+      if (!hasError) break;
+      console.log(`[Screenshots] Pre-lobby fetch error detected, refreshing (attempt ${attempt}/3)...`);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForTimeout(2000);
+    }
+
+    await page.screenshot({
+      path: 'e2e/screenshots/pre-lobby.png',
+      fullPage: true
+    });
+    console.log('[Screenshots] Pre-lobby captured: e2e/screenshots/pre-lobby.png');
+
+    // === Screenshot 2: Match Lobby ===
+    const matchLobbyUrl = `/lobby/${seed.tournamentId}/match/${seed.round1Matches[0].matchId}`;
+    await page.goto(matchLobbyUrl, { waitUntil: 'networkidle' });
+    await expect(page.getByText('VS')).toBeVisible({ timeout: 10000 });
+    await page.waitForTimeout(1000); // Wait for UI to stabilize
+    await page.screenshot({
+      path: 'e2e/screenshots/match-lobby.png',
+      fullPage: true
+    });
+    console.log('[Screenshots] Match lobby captured: e2e/screenshots/match-lobby.png');
+
+    await ctx.close();
   });
 });

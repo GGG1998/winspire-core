@@ -29,6 +29,7 @@ type MatchRepository interface {
 	UpdateGameLoadedAtomic(ctx context.Context, id uuid.UUID, playerID uuid.UUID) (*domain.Match, error)
 	FindLoadingMatchesOlderThan(ctx context.Context, duration time.Duration) ([]domain.Match, error)
 	HasParticipantLostInTournament(ctx context.Context, tournamentID, participantID uuid.UUID) (bool, error)
+	AssignWinnerToNextMatch(ctx context.Context, nextMatchID uuid.UUID, winnerID uuid.UUID) error
 }
 
 type matchRepository struct {
@@ -302,4 +303,16 @@ func (r *matchRepository) HasParticipantLostInTournament(ctx context.Context, to
 		return false, fmt.Errorf("check participant elimination: %w", err)
 	}
 	return result, nil
+}
+
+// AssignWinnerToNextMatch assigns a winner to the next match's available participant slot
+func (r *matchRepository) AssignWinnerToNextMatch(ctx context.Context, nextMatchID uuid.UUID, winnerID uuid.UUID) error {
+	err := r.queries.AssignWinnerToNextMatch(ctx, sqlc.AssignWinnerToNextMatchParams{
+		ID:             pgtypeconv.UUIDToPgtype(nextMatchID),
+		Participant1ID: pgtypeconv.UUIDToPgtype(winnerID),
+	})
+	if err != nil {
+		return fmt.Errorf("assign winner to next match: %w", err)
+	}
+	return nil
 }

@@ -17,7 +17,6 @@ const ProfileCompletionPage = lazy(() => import('./features/auth/pages/ProfileCo
 const LoginPage = lazy(() => import('./features/auth/pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('./features/auth/pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
 const ProfilePage = lazy(() => import('./features/auth/pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
-const LobbyPage = lazy(() => import('./features/lobby/pages/LobbyPage').then(m => ({ default: m.LobbyPage })));
 const MatchPage = lazy(() => import('./features/lobby/pages/MatchPage').then(m => ({ default: m.MatchPage })));
 const TournamentPreLobbyPage = lazy(() => import('./features/lobby/pages/TournamentPreLobbyPage').then(m => ({ default: m.TournamentPreLobbyPage })));
 const MatchLobbyPage = lazy(() => import('./features/lobby/pages/MatchLobbyPage').then(m => ({ default: m.MatchLobbyPage })));
@@ -73,15 +72,6 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <MatchLobbyPage />
-                  </ProtectedRoute>
-                }
-              />
-              {/* Legacy lobby route */}
-              <Route
-                path="/lobby/:tournamentId"
-                element={
-                  <ProtectedRoute>
-                    <LobbyPage />
                   </ProtectedRoute>
                 }
               />

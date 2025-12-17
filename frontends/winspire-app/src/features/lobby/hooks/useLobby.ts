@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../../shared/api/client';
+import { API_ENDPOINTS } from '../constants';
 import type { Lobby } from '../types';
 
 export function useLobby(tournamentId: string) {
@@ -10,11 +11,11 @@ export function useLobby(tournamentId: string) {
   useEffect(() => {
     const fetchLobby = async () => {
       setIsLoading(true);
-      const response = await apiClient.get<Lobby>(`/lobby/${tournamentId}`);
+      const response = await apiClient.get<Lobby>(API_ENDPOINTS.GET_PRE_LOBBY_STATE(tournamentId));
       if (response.data) {
         setLobby(response.data);
       } else {
-        setError(response.error?.message || 'Failed to load lobby');
+        setError(response.error?.message || 'Failed to fetch');
       }
       setIsLoading(false);
     };

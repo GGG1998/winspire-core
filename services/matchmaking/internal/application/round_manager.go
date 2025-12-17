@@ -4,7 +4,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/google/uuid"
 	"github.com/winspire-core/services/matchmaking/internal/domain"
@@ -12,30 +11,18 @@ import (
 	"github.com/winspire-core/services/matchmaking/internal/repository"
 )
 
-// RoundTransitionState tracks winners joining pre-lobby after round completes
-type RoundTransitionState struct {
-	mu              sync.Mutex
-	TournamentID    uuid.UUID
-	CompletedRound  int                    // Round N that just finished
-	NextRound       int                    // Round N+1 to start
-	ExpectedWinners map[uuid.UUID]struct{} // Winners who should join pre-lobby
-	JoinedWinners   map[uuid.UUID]struct{} // Winners who have connected
-	GraceStarted    bool                   // Prevent double-start
-}
-
 // RoundManager orchestrates tournament progression between rounds.
 // It tracks which round is "pending" (waiting for winners to join pre-lobby)
 // and triggers grace period when ALL expected winners have connected.
+// State is persisted in Redis and can be recovered from database.
 type RoundManager struct {
-	matchRepo       repository.MatchRepository
-	roundRepo       repository.RoundRepository
-	bracketRepo     repository.BracketRepository
-	preLobbyService *PreLobbyService
-	logger          *observability.Logger
-
-	// In-memory state: pending round transitions
-	// Key: tournamentID, Value: *RoundTransitionState
-	pendingTransitions sync.Map
+	matchRepo              repository.MatchRepository
+	roundRepo              repository.RoundRepository
+	bracketRepo            repository.BracketRepository
+	preLobbyService        *PreLobbyService
+	matchAssignmentService *MatchAssignmentService
+	transitionStore        *RoundTransitionStore
+	logger                 *observability.Logger
 }
 
 // NewRoundManager creates a new RoundManager instance
@@ -44,14 +31,18 @@ func NewRoundManager(
 	roundRepo repository.RoundRepository,
 	bracketRepo repository.BracketRepository,
 	preLobbyService *PreLobbyService,
+	matchAssignmentService *MatchAssignmentService,
+	transitionStore *RoundTransitionStore,
 	logger *observability.Logger,
 ) *RoundManager {
 	return &RoundManager{
-		matchRepo:       matchRepo,
-		roundRepo:       roundRepo,
-		bracketRepo:     bracketRepo,
-		preLobbyService: preLobbyService,
-		logger:          logger,
+		matchRepo:              matchRepo,
+		roundRepo:              roundRepo,
+		bracketRepo:            bracketRepo,
+		preLobbyService:        preLobbyService,
+		matchAssignmentService: matchAssignmentService,
+		transitionStore:        transitionStore,
+		logger:                 logger,
 	}
 }
 
@@ -101,19 +92,19 @@ func (rm *RoundManager) OnMatchCompleted(ctx context.Context, matchID, winnerID 
 		"winner_id":     winnerID.String(),
 	})
 
-	// Get or create transition state for this tournament
-	state := rm.getOrCreateTransitionState(bracket.TournamentID, round.RoundNumber)
+	// Add winner to expected winners in Redis
+	if err := rm.transitionStore.AddExpectedWinner(ctx, bracket.TournamentID, round.RoundNumber, winnerID); err != nil {
+		rm.logger.Error("[RoundManager] Failed to add expected winner", map[string]interface{}{
+			"tournament_id": bracket.TournamentID.String(),
+			"winner_id":     winnerID.String(),
+			"error":         err.Error(),
+		})
+		return fmt.Errorf("add expected winner: %w", err)
+	}
 
-	state.mu.Lock()
-	defer state.mu.Unlock()
-
-	// Add this winner to expected list
-	state.ExpectedWinners[winnerID] = struct{}{}
-
-	rm.logger.Info("[RoundManager] Winner added to expected list", map[string]interface{}{
-		"tournament_id":    bracket.TournamentID.String(),
-		"winner_id":        winnerID.String(),
-		"expected_winners": len(state.ExpectedWinners),
+	rm.logger.Info("[RoundManager] Winner added to expected list (Redis)", map[string]interface{}{
+		"tournament_id": bracket.TournamentID.String(),
+		"winner_id":     winnerID.String(),
 	})
 
 	// Check if ALL matches in round are done
@@ -130,10 +121,13 @@ func (rm *RoundManager) OnMatchCompleted(ctx context.Context, matchID, winnerID 
 	}
 
 	// Reset pre-lobby to waiting so winners can join for next round
-	if err := rm.preLobbyService.PrepareForNextRound(ctx, bracket.TournamentID); err != nil {
+	// Expected participants = number of matches (each match produces 1 winner)
+	expectedWinners := len(allMatches)
+	if err := rm.preLobbyService.PrepareForNextRound(ctx, bracket.TournamentID, expectedWinners); err != nil {
 		rm.logger.Error("Failed to prepare pre-lobby for next round", map[string]interface{}{
-			"tournament_id": bracket.TournamentID.String(),
-			"error":         err.Error(),
+			"tournament_id":      bracket.TournamentID.String(),
+			"expected_winners":   expectedWinners,
+			"error":              err.Error(),
 		})
 	}
 
@@ -145,10 +139,19 @@ func (rm *RoundManager) OnMatchCompleted(ctx context.Context, matchID, winnerID 
 		return nil
 	}
 
+	// Get current state to log expected winners count
+	state, _ := rm.transitionStore.Get(ctx, bracket.TournamentID)
+	expectedCount := 0
+	if state != nil {
+		expectedCount = len(state.ExpectedWinners)
+	}
+
+	// TODO: Update current round status if all player finish match
+
 	rm.logger.Info("Round complete! Waiting for winners to join pre-lobby", map[string]interface{}{
 		"tournament_id":    bracket.TournamentID.String(),
 		"completed_round":  round.RoundNumber,
-		"expected_winners": len(state.ExpectedWinners),
+		"expected_winners": expectedCount,
 	})
 
 	return nil
@@ -157,46 +160,32 @@ func (rm *RoundManager) OnMatchCompleted(ctx context.Context, matchID, winnerID 
 // OnParticipantJoinedPreLobby is called by PreLobbyService when participant connects.
 // It checks if this was an expected winner and if all winners are now present.
 // When all winners have joined, it triggers the grace period.
-func (rm *RoundManager) OnParticipantJoinedPreLobby(ctx context.Context, tournamentID, participantID uuid.UUID) {
+func (rm *RoundManager) OnParticipantJoinedPreLobby(ctx context.Context, tournamentID, participantID uuid.UUID, execute func()) {
 	rm.logger.Info("[RoundManager] OnParticipantJoinedPreLobby called", map[string]interface{}{
 		"tournament_id":  tournamentID.String(),
 		"participant_id": participantID.String(),
 	})
 
-	val, exists := rm.pendingTransitions.Load(tournamentID)
-	if !exists {
-		// No pending transition for this tournament
-		rm.logger.Warn("[RoundManager] No pending transition for tournament - participant joined but round not tracked", map[string]interface{}{
+	// Try to add as joined winner (returns true if all winners joined)
+	allJoined, err := rm.transitionStore.AddJoinedWinner(ctx, tournamentID, participantID)
+	if err != nil {
+		fmt.Println("[RoundManager] Failed to add joined winner", map[string]interface{}{
+			"tournament_id":  tournamentID.String(),
+			"participant_id": participantID.String(),
+			"error":          err.Error(),
+		})
+		return
+	}
+
+	// Get current state for logging
+	state, _ := rm.transitionStore.Get(ctx, tournamentID)
+	if state == nil {
+		fmt.Println("[RoundManager] No pending transition for tournament", map[string]interface{}{
 			"tournament_id":  tournamentID.String(),
 			"participant_id": participantID.String(),
 		})
 		return
 	}
-
-	state := val.(*RoundTransitionState)
-	state.mu.Lock()
-	defer state.mu.Unlock()
-
-	rm.logger.Info("[RoundManager] Found pending transition state", map[string]interface{}{
-		"tournament_id":    tournamentID.String(),
-		"completed_round":  state.CompletedRound,
-		"next_round":       state.NextRound,
-		"expected_winners": len(state.ExpectedWinners),
-		"joined_winners":   len(state.JoinedWinners),
-		"grace_started":    state.GraceStarted,
-	})
-
-	// Check if this is an expected winner
-	if _, isExpected := state.ExpectedWinners[participantID]; !isExpected {
-		rm.logger.Warn("[RoundManager] Participant is NOT an expected winner", map[string]interface{}{
-			"tournament_id":  tournamentID.String(),
-			"participant_id": participantID.String(),
-		})
-		return // Not a winner we're waiting for
-	}
-
-	// Mark winner as joined
-	state.JoinedWinners[participantID] = struct{}{}
 
 	rm.logger.Info("Winner joined pre-lobby", map[string]interface{}{
 		"tournament_id": tournamentID.String(),
@@ -205,91 +194,44 @@ func (rm *RoundManager) OnParticipantJoinedPreLobby(ctx context.Context, tournam
 		"expected":      len(state.ExpectedWinners),
 	})
 
-	// Check if ALL winners have joined
-	// TAG: REFACTOR, TODO: It should be observated by scheduler or handled in different way. What if player has never join?
-	if len(state.JoinedWinners) >= len(state.ExpectedWinners) {
-		rm.startGracePeriodForNextRound(ctx, state)
+	fmt.Println("[RoundManager] OnParticipantJoinedPreLobby ", allJoined)
+	if allJoined {
+		execute()
 	}
 }
 
 // GetTransitionState returns the current transition state for a tournament (for testing)
-func (rm *RoundManager) GetTransitionState(tournamentID uuid.UUID) *RoundTransitionState {
-	val, exists := rm.pendingTransitions.Load(tournamentID)
-	if !exists {
-		return nil
-	}
-	return val.(*RoundTransitionState)
+func (rm *RoundManager) GetTransitionState(ctx context.Context, tournamentID uuid.UUID) *RoundTransitionData {
+	state, _ := rm.transitionStore.Get(ctx, tournamentID)
+	return state
 }
 
-// getOrCreateTransitionState retrieves or creates a transition state for a tournament
-func (rm *RoundManager) getOrCreateTransitionState(tournamentID uuid.UUID, completedRound int) *RoundTransitionState {
-	val, _ := rm.pendingTransitions.LoadOrStore(tournamentID, &RoundTransitionState{
-		TournamentID:    tournamentID,
-		CompletedRound:  completedRound,
-		NextRound:       completedRound + 1,
-		ExpectedWinners: make(map[uuid.UUID]struct{}),
-		JoinedWinners:   make(map[uuid.UUID]struct{}),
-		GraceStarted:    false,
+// RecoverTransitions recovers pending round transitions from Redis/database on startup
+func (rm *RoundManager) RecoverTransitions(ctx context.Context, tournamentIDs []uuid.UUID) error {
+	rm.logger.Info("[RoundManager] Recovering round transitions", map[string]interface{}{
+		"tournament_count": len(tournamentIDs),
 	})
 
-	return val.(*RoundTransitionState)
-}
-
-// startGracePeriodForNextRound starts the grace period when all winners are present
-func (rm *RoundManager) startGracePeriodForNextRound(ctx context.Context, state *RoundTransitionState) {
-	rm.logger.Info("[RoundManager] startGracePeriodForNextRound called", map[string]interface{}{
-		"tournament_id": state.TournamentID.String(),
-		"next_round":    state.NextRound,
-		"grace_started": state.GraceStarted,
-	})
-
-	if state.GraceStarted {
-		rm.logger.Warn("[RoundManager] Grace period already started, skipping", map[string]interface{}{
-			"tournament_id": state.TournamentID.String(),
-		})
-		return // Prevent double-start
-	}
-	state.GraceStarted = true
-
-	rm.logger.Info("[RoundManager] All winners joined! Triggering grace period", map[string]interface{}{
-		"tournament_id":    state.TournamentID.String(),
-		"next_round":       state.NextRound,
-		"expected_winners": len(state.ExpectedWinners),
-		"joined_winners":   len(state.JoinedWinners),
-	})
-
-	// Callback when grace period ends
-	onComplete := func(tID uuid.UUID, presentParticipantIDs []uuid.UUID) {
-		rm.logger.Info("[RoundManager] Grace period completed, assigning matches", map[string]interface{}{
-			"tournament_id":   tID.String(),
-			"present_players": len(presentParticipantIDs),
-		})
-		rm.assignMatchesForRound(context.Background(), tID, state.NextRound, presentParticipantIDs)
-		rm.pendingTransitions.Delete(tID) // Cleanup
-	}
-
-	// REUSE existing PreLobbyService.StartGracePeriod if available
-	if rm.preLobbyService != nil {
-		rm.logger.Info("[RoundManager] Calling PreLobbyService.StartGracePeriod", map[string]interface{}{
-			"tournament_id": state.TournamentID.String(),
-		})
-		err := rm.preLobbyService.StartGracePeriod(ctx, state.TournamentID, onComplete)
+	for _, tournamentID := range tournamentIDs {
+		state, err := rm.transitionStore.GetOrProject(ctx, tournamentID)
 		if err != nil {
-			rm.logger.Error("[RoundManager] StartGracePeriod failed", map[string]interface{}{
-				"tournament_id": state.TournamentID.String(),
+			rm.logger.Warn("[RoundManager] Failed to recover transition for tournament", map[string]interface{}{
+				"tournament_id": tournamentID.String(),
 				"error":         err.Error(),
 			})
-		} else {
-			rm.logger.Info("[RoundManager] StartGracePeriod called successfully", map[string]interface{}{
-				"tournament_id": state.TournamentID.String(),
+			continue
+		}
+
+		if state != nil {
+			rm.logger.Info("[RoundManager] Recovered transition state", map[string]interface{}{
+				"tournament_id":    tournamentID.String(),
+				"completed_round":  state.CompletedRound,
+				"expected_winners": len(state.ExpectedWinners),
+				"joined_winners":   len(state.JoinedWinners),
+				"grace_started":    state.GraceStarted,
 			})
 		}
-	} else {
-		rm.logger.Warn("[RoundManager] preLobbyService is nil, cannot start grace period", nil)
 	}
-}
 
-// assignMatchesForRound assigns matches after grace period ends
-func (rm *RoundManager) assignMatchesForRound(ctx context.Context, tournamentID uuid.UUID, roundNum int, presentIDs []uuid.UUID) {
-	// TODO: Implement
+	return nil
 }

@@ -60,7 +60,7 @@ export function ActivityFeed({ items, maxItems = 50 }: ActivityFeedProps) {
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-testid="activity-feed">
       <h3 className="text-sm font-semibold text-gray-900">Aktywność</h3>
 
       <div className="rounded-lg border border-gray-200 bg-white">

@@ -129,6 +129,39 @@ async function registerPlayers(
 }
 
 // ============================================================================
+// Pre-lobby Helpers
+// ============================================================================
+
+interface CreatePrelobbyOptions {
+  tournamentId: Id;
+  status?: 'waiting' | 'grace_period' | 'generating_bracket' | 'started' | 'cancelled';
+  minParticipants?: number;
+}
+
+/**
+ * Creates a pre-lobby record in the matchmaking service database.
+ * This is required for the pre-lobby page to load correctly.
+ */
+async function createPrelobby(pool: Pool, options: CreatePrelobbyOptions): Promise<Id> {
+  const { rows } = await pool.query<{ id: Id }>(
+    `INSERT INTO prelobbies (
+      id, tournament_id, status, min_participants
+    ) VALUES ($1, $2, $3, $4)
+    ON CONFLICT (tournament_id) DO UPDATE SET
+      status = EXCLUDED.status,
+      updated_at = NOW()
+    RETURNING id`,
+    [
+      randomUUID(),
+      options.tournamentId,
+      options.status ?? 'started',
+      options.minParticipants ?? 2,
+    ]
+  );
+  return rows[0].id;
+}
+
+// ============================================================================
 // Matchmaking Service Helpers (brackets, rounds, matches)
 // ============================================================================
 
@@ -201,7 +234,7 @@ type MatchStatus = 'pending' | 'ready' | 'loading' | 'started' | 'paused' | 'com
 interface CreateMatchOptions {
   roundId: Id;
   matchNumber: number;
-  participant1Id: Id;
+  participant1Id: Id | null;
   participant2Id: Id | null;
   nextMatchId?: Id | null;
   status?: MatchStatus;
@@ -262,6 +295,35 @@ export interface TournamentBracketSeed {
   prelobbyUrl: string;
 }
 
+/**
+ * Seed result for a 6-player bracket with 2 byes.
+ * Structure:
+ *   Round 1: 2 matches (4 players play, 2 have byes)
+ *   Round 2: 2 matches (R1 winners vs bye players)
+ *   Round 3: 1 final match
+ */
+export interface SixPlayerBracketSeed {
+  tournamentId: Id;
+  bracketId: Id;
+  rounds: {
+    round1Id: Id;
+    round2Id: Id;
+    round3Id: Id;  // Final
+  };
+  matches: {
+    // Round 1
+    match1: MatchSeed;  // player1 vs player2
+    match2: MatchSeed;  // player5 vs player6
+    // Round 2
+    match3: MatchSeed;  // R1M1 winner vs player3 (bye)
+    match4: MatchSeed;  // R1M2 winner vs player4 (bye)
+    // Round 3
+    finalMatch: MatchSeed;
+  };
+  byePlayers: [Id, Id];  // player3, player4
+  prelobbyUrl: string;
+}
+
 export interface MatchLobbySeed {
   tournamentId: Id;
   bracketId: Id;
@@ -304,6 +366,9 @@ export async function seedTournamentBracket(options: SeedBracketOptions): Promis
   // === Competition Service Data ===
   await createTournament(pool, { tournamentId, name: 'E2E 4-Player Bracket', minPlayers: 4 });
   await registerPlayers(pool, tournamentId, players);
+
+  // === Pre-lobby Data ===
+  await createPrelobby(pool, { tournamentId, status: 'started', minParticipants: 4 });
 
   // === Matchmaking Service Data ===
   const bracketId = await createBracket(pool, { tournamentId, totalRounds: 2, totalMatches: 3 });
@@ -375,6 +440,156 @@ export async function seedTournamentBracket(options: SeedBracketOptions): Promis
       { matchId: match1Id, participant1Id: players[0].id, participant2Id: players[1].id },
       { matchId: match2Id, participant1Id: players[2].id, participant2Id: players[3].id },
     ],
+    prelobbyUrl: `/tournaments/${tournamentId}/prelobby`,
+  };
+}
+
+interface SeedSixPlayerBracketOptions {
+  players: SeededAccount[]; // Expects exactly 6 players
+}
+
+/**
+ * Seeds a 6-player single elimination bracket with 2 byes:
+ *
+ * Round 1 (2 matches):
+ *   Match 1: player[0] vs player[1] -> winner goes to Round 2 Match 3
+ *   Match 2: player[4] vs player[5] -> winner goes to Round 2 Match 4
+ *
+ * Round 2 (2 matches):
+ *   Match 3: player[2] (bye) vs R1M1 winner -> winner goes to Final
+ *   Match 4: player[3] (bye) vs R1M2 winner -> winner goes to Final
+ *
+ * Round 3 (Final):
+ *   Match 5: R2M3 winner vs R2M4 winner
+ *
+ * Seeds both competition service data (tournament + registrations)
+ * and matchmaking service data (bracket, rounds, matches).
+ */
+export async function seedSixPlayerBracket(options: SeedSixPlayerBracketOptions): Promise<SixPlayerBracketSeed> {
+  const pool = getPool();
+  const { players } = options;
+
+  if (players.length !== 6) {
+    throw new Error('seedSixPlayerBracket requires exactly 6 players');
+  }
+
+  const tournamentId = randomUUID();
+
+  // === Competition Service Data ===
+  await createTournament(pool, { tournamentId, name: 'E2E 6-Player Bracket', minPlayers: 6 });
+  await registerPlayers(pool, tournamentId, players);
+
+  // === Pre-lobby Data ===
+  await createPrelobby(pool, { tournamentId, status: 'started', minParticipants: 6 });
+
+  // === Matchmaking Service Data ===
+  const bracketId = await createBracket(pool, { tournamentId, totalRounds: 3, totalMatches: 5, byesCount: 2 });
+
+  // Create rounds
+  const round1Id = await createRound(pool, {
+    bracketId,
+    roundNumber: 1,
+    roundName: 'Round 1',
+    matchesCount: 2,
+    status: 'in_progress',
+  });
+
+  const round2Id = await createRound(pool, {
+    bracketId,
+    roundNumber: 2,
+    roundName: 'Semifinals',
+    matchesCount: 2,
+    status: 'pending',
+  });
+
+  const round3Id = await createRound(pool, {
+    bracketId,
+    roundNumber: 3,
+    roundName: 'Final',
+    matchesCount: 1,
+    status: 'pending',
+  });
+
+  // Create matches in reverse order for FK references
+  // Round 3 (Final) - created first
+  // Note: participant1_id has NOT NULL constraint, so we pre-assign expected R2M3 winner
+  // participant2_id is left null for R2M4 winner to be assigned
+  const finalMatchId = await createMatch(pool, {
+    roundId: round3Id,
+    matchNumber: 1,
+    participant1Id: players[0].id, // Pre-assign expected R2M3 winner (player1)
+    participant2Id: null,          // TBD: R2M4 winner will be assigned here
+    nextMatchId: null,
+    status: 'pending',
+  });
+
+  // Round 2 matches - bye players pre-assigned
+  const match3Id = await createMatch(pool, {
+    roundId: round2Id,
+    matchNumber: 1,
+    participant1Id: players[2].id, // Player 3 (bye)
+    participant2Id: null,          // TBD: R1M1 winner
+    nextMatchId: finalMatchId,
+    status: 'pending',
+  });
+
+  const match4Id = await createMatch(pool, {
+    roundId: round2Id,
+    matchNumber: 2,
+    participant1Id: players[3].id, // Player 4 (bye)
+    participant2Id: null,          // TBD: R1M2 winner
+    nextMatchId: finalMatchId,
+    status: 'pending',
+  });
+
+  // Round 1 matches - active players
+  const match1Id = await createMatch(pool, {
+    roundId: round1Id,
+    matchNumber: 1,
+    participant1Id: players[0].id, // Player 1
+    participant2Id: players[1].id, // Player 2
+    nextMatchId: match3Id,         // Winner goes to R2M3
+    status: 'pending',
+  });
+
+  const match2Id = await createMatch(pool, {
+    roundId: round1Id,
+    matchNumber: 2,
+    participant1Id: players[4].id, // Player 5
+    participant2Id: players[5].id, // Player 6
+    nextMatchId: match4Id,         // Winner goes to R2M4
+    status: 'pending',
+  });
+
+  // Ensure all writes are committed before closing the pool
+  await closePool();
+
+  // Small delay to ensure database has processed all writes
+  await new Promise(resolve => setTimeout(resolve, 100));
+
+  console.log(`[seedSixPlayerBracket] Created tournament ${tournamentId} with matches:`, {
+    round1: { match1Id, match2Id },
+    round2: { match3Id, match4Id },
+    final: finalMatchId,
+    byePlayers: [players[2].id, players[3].id],
+  });
+
+  return {
+    tournamentId,
+    bracketId,
+    rounds: {
+      round1Id,
+      round2Id,
+      round3Id,
+    },
+    matches: {
+      match1: { matchId: match1Id, participant1Id: players[0].id, participant2Id: players[1].id },
+      match2: { matchId: match2Id, participant1Id: players[4].id, participant2Id: players[5].id },
+      match3: { matchId: match3Id, participant1Id: players[2].id, participant2Id: '' }, // bye player, R1 winner TBD
+      match4: { matchId: match4Id, participant1Id: players[3].id, participant2Id: '' }, // bye player, R1 winner TBD
+      finalMatch: { matchId: finalMatchId, participant1Id: players[0].id, participant2Id: '' }, // p1 pre-assigned, p2 TBD
+    },
+    byePlayers: [players[2].id, players[3].id],
     prelobbyUrl: `/tournaments/${tournamentId}/prelobby`,
   };
 }
@@ -644,6 +859,7 @@ export async function completeMatchViaApi(
       score_loser: options.scoreLoser,
       result_source: 'manual_host',
     },
+    timeout: 60000, // 60 seconds - match completion can take time due to round management
   });
 
   if (!response.ok()) {

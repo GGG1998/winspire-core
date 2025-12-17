@@ -112,10 +112,10 @@ func (h *MatchHandler) GetMatch(c *gin.Context) {
 	}
 
 	// Get participant details from pre-lobby service
-	participant1Details := h.preLobbyService.GetParticipantDetails(bracket.TournamentID, match.Participant1ID)
+	participant1Details := h.preLobbyService.GetParticipantDetails(c.Request.Context(), bracket.TournamentID, match.Participant1ID)
 	var participant2Details *application.PreLobbyParticipantInfo
 	if match.Participant2ID != nil {
-		details := h.preLobbyService.GetParticipantDetails(bracket.TournamentID, *match.Participant2ID)
+		details := h.preLobbyService.GetParticipantDetails(c.Request.Context(), bracket.TournamentID, *match.Participant2ID)
 		participant2Details = &details
 	}
 
@@ -488,11 +488,11 @@ func (h *MatchHandler) GetMatchesForTournament(c *gin.Context) {
 		roundInfo := roundMap[match.RoundID]
 
 		// Get participant details from pre-lobby service
-		participant1Details := h.preLobbyService.GetParticipantDetails(bracket.TournamentID, match.Participant1ID)
+		participant1Details := h.preLobbyService.GetParticipantDetails(c.Request.Context(), bracket.TournamentID, match.Participant1ID)
 
 		var participant2Details *application.PreLobbyParticipantInfo
 		if match.Participant2ID != nil {
-			details := h.preLobbyService.GetParticipantDetails(bracket.TournamentID, *match.Participant2ID)
+			details := h.preLobbyService.GetParticipantDetails(c.Request.Context(), bracket.TournamentID, *match.Participant2ID)
 			participant2Details = &details
 		}
 

@@ -53,7 +53,7 @@ export function GracePeriodIndicator({
   const isLowTime = remainingSeconds <= 10;
 
   return (
-    <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-4">
+    <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-4" data-testid="grace-period-indicator">
       <div className="flex items-center gap-3">
         <div className={`text-3xl ${isLowTime ? 'animate-pulse' : ''}`}>⏳</div>
         
@@ -66,6 +66,7 @@ export function GracePeriodIndicator({
               className={`text-2xl font-bold ${
                 isLowTime ? 'text-red-600' : 'text-amber-700'
               }`}
+              data-testid="grace-period-countdown"
             >
               {remainingSeconds}s
             </span>

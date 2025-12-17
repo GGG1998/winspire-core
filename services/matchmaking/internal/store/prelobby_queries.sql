@@ -21,9 +21,21 @@ SELECT * FROM prelobbies WHERE id = $1;
 
 -- name: UpdatePreLobbyStatus :one
 -- Updates pre-lobby status
-UPDATE prelobbies 
+UPDATE prelobbies
 SET status = $2, updated_at = NOW()
 WHERE tournament_id = $1
+RETURNING *;
+
+-- name: UpdatePreLobbyWithParams :one
+-- Flexible update - only updates provided (non-null) fields
+UPDATE prelobbies
+SET
+    status = COALESCE(sqlc.narg('status'), status),
+    grace_period_start = COALESCE(sqlc.narg('grace_period_start'), grace_period_start),
+    grace_period_end = COALESCE(sqlc.narg('grace_period_end'), grace_period_end),
+    min_participants = COALESCE(sqlc.narg('min_participants'), min_participants),
+    updated_at = NOW()
+WHERE tournament_id = @tournament_id
 RETURNING *;
 
 -- name: StartGracePeriod :one
@@ -54,9 +66,12 @@ DELETE FROM prelobbies WHERE tournament_id = $1;
 -- ============================================================================
 
 -- name: CreateParticipantSnapshot :one
--- Creates immutable participant snapshot when grace period ends
+-- Creates or updates participant snapshot when grace period ends
 INSERT INTO prelobby_participant_snapshots (tournament_id, participants, participant_count)
 VALUES ($1, $2, $3)
+ON CONFLICT (tournament_id) DO UPDATE SET
+    participants = EXCLUDED.participants,
+    participant_count = EXCLUDED.participant_count
 RETURNING *;
 
 -- name: GetParticipantSnapshot :one

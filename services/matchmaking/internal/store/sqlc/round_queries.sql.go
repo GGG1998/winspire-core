@@ -111,6 +111,45 @@ func (q *Queries) GetActiveRounds(ctx context.Context) ([]GetActiveRoundsRow, er
 	return items, nil
 }
 
+const GetLatestRoundByTournamentID = `-- name: GetLatestRoundByTournamentID :one
+SELECT r.id, r.bracket_id, r.round_number, r.round_name, r.matches_count, r.status, r.started_at, r.completed_at, b.tournament_id
+FROM tournament_rounds r
+JOIN tournament_brackets b ON b.id = r.bracket_id
+WHERE b.tournament_id = $1
+ORDER BY r.round_number DESC
+LIMIT 1
+`
+
+type GetLatestRoundByTournamentIDRow struct {
+	ID           pgtype.UUID      `json:"id"`
+	BracketID    pgtype.UUID      `json:"bracket_id"`
+	RoundNumber  int32            `json:"round_number"`
+	RoundName    string           `json:"round_name"`
+	MatchesCount int32            `json:"matches_count"`
+	Status       string           `json:"status"`
+	StartedAt    pgtype.Timestamp `json:"started_at"`
+	CompletedAt  pgtype.Timestamp `json:"completed_at"`
+	TournamentID pgtype.UUID      `json:"tournament_id"`
+}
+
+// Get the latest (highest round_number) round for a tournament
+func (q *Queries) GetLatestRoundByTournamentID(ctx context.Context, tournamentID pgtype.UUID) (GetLatestRoundByTournamentIDRow, error) {
+	row := q.db.QueryRow(ctx, GetLatestRoundByTournamentID, tournamentID)
+	var i GetLatestRoundByTournamentIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.BracketID,
+		&i.RoundNumber,
+		&i.RoundName,
+		&i.MatchesCount,
+		&i.Status,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.TournamentID,
+	)
+	return i, err
+}
+
 const GetRoundByBracketAndNumber = `-- name: GetRoundByBracketAndNumber :one
 SELECT id, bracket_id, round_number, round_name, matches_count, status, started_at, completed_at FROM tournament_rounds
 WHERE bracket_id = $1 AND round_number = $2

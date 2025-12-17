@@ -23,6 +23,7 @@ export function ReadyButton({ isReady, isLoading = false, disabled = false, onCl
     <button
       onClick={onClick}
       disabled={disabled || isLoading}
+      data-testid="ready-button"
       className={`
         relative px-8 py-4 rounded-lg font-semibold text-lg
         transition-all duration-200 transform

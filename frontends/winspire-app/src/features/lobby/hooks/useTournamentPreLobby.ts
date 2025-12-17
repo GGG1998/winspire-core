@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useWebSocket } from '../../../shared/hooks/useWebSocket';
 import { getPreLobbyState, getPreLobbyWebSocketUrl } from '../api/matchmakingApi';
 import { WS_BASE_URL } from '../../../shared/config/websocket';
@@ -474,14 +474,14 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
       }
     },
     [
-      // handlePreLobbyState,
-      // handleParticipantJoined,
-      // handleParticipantLeft,
-      // handleGracePeriodStarted,
-      // handleGracePeriodEnded,
-      // handleRosterUpdated,
-      // handleMatchAssigned,
-      // handleTournamentCancelled,
+      handlePreLobbyState,
+      handleParticipantJoined,
+      handleParticipantLeft,
+      handleGracePeriodStarted,
+      handleGracePeriodEnded,
+      handleRosterUpdated,
+      handleMatchAssigned,
+      handleTournamentCancelled,
     ]
   );
 
@@ -513,69 +513,69 @@ export function useTournamentPreLobby(tournamentId: string | null): UseTournamen
   // Initial Data Loading
   // ========================================================================
 
-  // useEffect(() => {
-  //   if (!tournamentId) {
-  //     setIsLoading(false);
-  //     return;
-  //   }
+  useEffect(() => {
+    if (!tournamentId) {
+      setIsLoading(false);
+      return;
+    }
 
-  //   // Load initial state from REST API
-  //   const loadInitialState = async () => {
-  //     setIsLoading(true);
-  //     setError(null);
+    // Load initial state from REST API
+    const loadInitialState = async () => {
+      setIsLoading(true);
+      setError(null);
 
-  //     const result = await getPreLobbyState(tournamentId);
+      const result = await getPreLobbyState(tournamentId);
 
-  //     if (result.error) {
-  //       setError(result.error.message);
-  //       setIsLoading(false);
-  //       return;
-  //     }
+      if (result.error) {
+        setError(result.error.message);
+        setIsLoading(false);
+        return;
+      }
 
-  //     if (result.data) {
-  //       setPreLobbyState(result.data);
-  //       setIsGracePeriodActive(result.data.gracePeriodEndsAt !== null);
-  //     }
+      if (result.data) {
+        setPreLobbyState(result.data);
+        setIsGracePeriodActive(result.data.gracePeriodEndsAt !== null);
+      }
 
-  //     setIsLoading(false);
-  //   };
+      setIsLoading(false);
+    };
 
-  //   loadInitialState();
-  // }, [tournamentId]);
+    loadInitialState();
+  }, [tournamentId]);
 
   // ========================================================================
   // Connection Error Handling
   // ========================================================================
 
-  // useEffect(() => {
-  //   if (wsError) {
-  //     setError(wsError);
-  //   }
-  // }, [wsError]);
+  useEffect(() => {
+    if (wsError) {
+      setError(wsError);
+    }
+  }, [wsError]);
 
-  // useEffect(() => {
-  //   if (!lastCloseEvent) return;
-  //   const { code, reason, wasClean } = lastCloseEvent;
-  //   if (code === 1000 && wasClean) return;
+  useEffect(() => {
+    if (!lastCloseEvent) return;
+    const { code, reason, wasClean } = lastCloseEvent;
+    if (code === 1000 && wasClean) return;
 
-  //   const details = reason?.trim() || 'brak powodu (1005 – no status)';
-  //   setError(`WebSocket zamknięty (kod ${code}${wasClean ? ', clean' : ''}): ${details}`);
-  // }, [lastCloseEvent]);
+    const details = reason?.trim() || 'brak powodu (1005 – no status)';
+    setError(`WebSocket zamknięty (kod ${code}${wasClean ? ', clean' : ''}): ${details}`);
+  }, [lastCloseEvent]);
 
   // ========================================================================
   // Cleanup
   // ========================================================================
 
-  // useEffect(() => {
-  //   return () => {
-  //     if (gracePeriodTimerRef.current) {
-  //       clearInterval(gracePeriodTimerRef.current);
-  //     }
-  //     if (participantUpdateTimerRef.current) {
-  //       clearTimeout(participantUpdateTimerRef.current);
-  //     }
-  //   };
-  // }, []);
+  useEffect(() => {
+    return () => {
+      if (gracePeriodTimerRef.current) {
+        clearInterval(gracePeriodTimerRef.current);
+      }
+      if (participantUpdateTimerRef.current) {
+        clearTimeout(participantUpdateTimerRef.current);
+      }
+    };
+  }, []);
 
   // ========================================================================
   // Return API

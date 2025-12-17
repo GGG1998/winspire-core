@@ -58,17 +58,17 @@ type TournamentInfo struct {
 type PreLobbyService struct {
 	repo         repository.PreLobbyRepository
 	matchRepo    repository.MatchRepository
+	roundRepo    repository.RoundRepository
 	hub          *websocket.Hub
 	publisher    *pubsub.EventPublisher
 	metrics      *observability.MetricsEmitter
 	logger       *observability.Logger
 	roundManager *RoundManager // For notifying round transitions when winners join pre-lobby
 
-	// In-memory participant tracking (keyed by tournament ID)
-	participants   map[uuid.UUID]map[uuid.UUID]*PreLobbyParticipantInfo
-	participantsMu sync.RWMutex
+	// Redis-backed participant storage
+	participantStore PreLobbyParticipantStore
 
-	// Grace period timers (keyed by tournament ID)
+	// Grace period timers (keyed by tournament ID) - kept in-memory
 	gracePeriodTimers map[uuid.UUID]*time.Timer
 	timersMu          sync.Mutex
 }
@@ -77,19 +77,22 @@ type PreLobbyService struct {
 func NewPreLobbyService(
 	repo repository.PreLobbyRepository,
 	matchRepo repository.MatchRepository,
+	roundRepo repository.RoundRepository,
 	hub *websocket.Hub,
 	publisher *pubsub.EventPublisher,
 	metrics *observability.MetricsEmitter,
 	logger *observability.Logger,
+	participantStore PreLobbyParticipantStore,
 ) *PreLobbyService {
 	return &PreLobbyService{
 		repo:              repo,
 		matchRepo:         matchRepo,
+		roundRepo:         roundRepo,
 		hub:               hub,
 		publisher:         publisher,
 		metrics:           metrics,
 		logger:            logger,
-		participants:      make(map[uuid.UUID]map[uuid.UUID]*PreLobbyParticipantInfo),
+		participantStore:  participantStore,
 		gracePeriodTimers: make(map[uuid.UUID]*time.Timer),
 	}
 }
@@ -148,8 +151,8 @@ func (s *PreLobbyService) GetState(ctx context.Context, tournamentID uuid.UUID, 
 		return nil, fmt.Errorf("get or create pre-lobby: %w", err)
 	}
 
-	// Get connected participants from in-memory store
-	participants := s.getParticipants(tournamentID)
+	// Get connected participants from Redis store
+	participants := s.getParticipants(ctx, tournamentID)
 
 	// Get activity feed
 	activityFeed, err := s.repo.GetRecentActivityFeed(ctx, tournamentID)
@@ -174,7 +177,7 @@ func (s *PreLobbyService) GetState(ctx context.Context, tournamentID uuid.UUID, 
 	}
 
 	// Add grace period info if active
-	if preLobby.Status == domain.PreLobbyStatusGracePeriod && preLobby.GracePeriodEnd != nil {
+	if preLobby.Status == domain.PreLobbyStatusGracePeriod && preLobby.GracePeriodStart != nil && preLobby.GracePeriodEnd != nil {
 		remaining := int(time.Until(*preLobby.GracePeriodEnd).Seconds())
 		if remaining < 0 {
 			remaining = 0
@@ -191,15 +194,18 @@ func (s *PreLobbyService) GetState(ctx context.Context, tournamentID uuid.UUID, 
 
 // GetParticipantDetails returns participant details for a specific user
 // If participant is not found in pre-lobby, returns a default participant info
-func (s *PreLobbyService) GetParticipantDetails(tournamentID, userID uuid.UUID) PreLobbyParticipantInfo {
-	s.participantsMu.RLock()
-	defer s.participantsMu.RUnlock()
+func (s *PreLobbyService) GetParticipantDetails(ctx context.Context, tournamentID, userID uuid.UUID) PreLobbyParticipantInfo {
+	info, err := s.participantStore.GetParticipantDetails(ctx, tournamentID, userID)
+	if err != nil {
+		s.logger.Warn("failed to get participant details from store", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"user_id":       userID.String(),
+			"error":         err.Error(),
+		})
+	}
 
-	tournamentParticipants, exists := s.participants[tournamentID]
-	if exists {
-		if participant, found := tournamentParticipants[userID]; found {
-			return *participant
-		}
+	if info != nil {
+		return *info
 	}
 
 	// Return default participant info if not found in pre-lobby
@@ -212,75 +218,70 @@ func (s *PreLobbyService) GetParticipantDetails(tournamentID, userID uuid.UUID) 
 }
 
 // getParticipants returns the list of connected participants for a tournament
-func (s *PreLobbyService) getParticipants(tournamentID uuid.UUID) []PreLobbyParticipantInfo {
-	s.participantsMu.RLock()
-	defer s.participantsMu.RUnlock()
-
-	tournamentParticipants, exists := s.participants[tournamentID]
-	if !exists {
+func (s *PreLobbyService) getParticipants(ctx context.Context, tournamentID uuid.UUID) []PreLobbyParticipantInfo {
+	participants, err := s.participantStore.GetParticipants(ctx, tournamentID)
+	if err != nil {
+		s.logger.Error("failed to get participants from store", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"error":         err.Error(),
+		})
 		return []PreLobbyParticipantInfo{}
 	}
-
-	result := make([]PreLobbyParticipantInfo, 0, len(tournamentParticipants))
-	for _, p := range tournamentParticipants {
-		result = append(result, *p)
-	}
-
-	return result
+	return participants
 }
 
 // GetParticipantCount returns the number of connected participants
-func (s *PreLobbyService) GetParticipantCount(tournamentID uuid.UUID) int {
-	s.participantsMu.RLock()
-	defer s.participantsMu.RUnlock()
-
-	if participants, exists := s.participants[tournamentID]; exists {
-		return len(participants)
+func (s *PreLobbyService) GetParticipantCount(ctx context.Context, tournamentID uuid.UUID) int {
+	count, err := s.participantStore.GetParticipantCount(ctx, tournamentID)
+	if err != nil {
+		s.logger.Error("failed to get participant count from store", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"error":         err.Error(),
+		})
+		return 0
 	}
-	return 0
+	return count
 }
 
-// AddParticipant adds a participant to the in-memory tracking
-func (s *PreLobbyService) AddParticipant(tournamentID uuid.UUID, info *PreLobbyParticipantInfo) {
-	s.participantsMu.Lock()
-	defer s.participantsMu.Unlock()
-
-	if s.participants[tournamentID] == nil {
-		s.participants[tournamentID] = make(map[uuid.UUID]*PreLobbyParticipantInfo)
+// AddParticipant adds a participant to Redis-backed tracking
+func (s *PreLobbyService) AddParticipant(ctx context.Context, tournamentID uuid.UUID, info *PreLobbyParticipantInfo) error {
+	if err := s.participantStore.AddParticipant(ctx, tournamentID, info); err != nil {
+		s.logger.Error("failed to add participant to store", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"user_id":       info.UserID.String(),
+			"error":         err.Error(),
+		})
+		return err
 	}
-
-	s.participants[tournamentID][info.UserID] = info
-}
-
-// RemoveParticipant removes a participant from in-memory tracking
-func (s *PreLobbyService) RemoveParticipant(tournamentID, userID uuid.UUID) *PreLobbyParticipantInfo {
-	s.participantsMu.Lock()
-	defer s.participantsMu.Unlock()
-
-	if participants, exists := s.participants[tournamentID]; exists {
-		if info, exists := participants[userID]; exists {
-			delete(participants, userID)
-			// Clean up empty map
-			if len(participants) == 0 {
-				delete(s.participants, tournamentID)
-			}
-			return info
-		}
-	}
-
 	return nil
 }
 
-// IsParticipantConnected checks if a participant is connected
-func (s *PreLobbyService) IsParticipantConnected(tournamentID, userID uuid.UUID) bool {
-	s.participantsMu.RLock()
-	defer s.participantsMu.RUnlock()
-
-	if participants, exists := s.participants[tournamentID]; exists {
-		_, exists := participants[userID]
-		return exists
+// RemoveParticipant removes a participant from Redis-backed tracking
+func (s *PreLobbyService) RemoveParticipant(ctx context.Context, tournamentID, userID uuid.UUID) *PreLobbyParticipantInfo {
+	info, err := s.participantStore.RemoveParticipant(ctx, tournamentID, userID)
+	if err != nil {
+		s.logger.Error("failed to remove participant from store", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"user_id":       userID.String(),
+			"error":         err.Error(),
+		})
+		return nil
 	}
-	return false
+	return info
+}
+
+// IsParticipantConnected checks if a participant is connected
+func (s *PreLobbyService) IsParticipantConnected(ctx context.Context, tournamentID, userID uuid.UUID) bool {
+	connected, err := s.participantStore.IsParticipantConnected(ctx, tournamentID, userID)
+	if err != nil {
+		s.logger.Error("failed to check participant connection in store", map[string]interface{}{
+			"tournament_id": tournamentID.String(),
+			"user_id":       userID.String(),
+			"error":         err.Error(),
+		})
+		return false
+	}
+	return connected
 }
 
 // GetPreLobbyStatus returns just the status of a pre-lobby
@@ -335,6 +336,24 @@ func (s *PreLobbyService) SetHub(hub *websocket.Hub) {
 // SetRoundManager sets the RoundManager for round transition tracking (called after initialization)
 func (s *PreLobbyService) SetRoundManager(rm *RoundManager) {
 	s.roundManager = rm
+}
+
+func (s *PreLobbyService) AutoRunWhenAllWinnersJoined(ctx context.Context, tournamentID, participantID uuid.UUID) {
+	s.roundManager.OnParticipantJoinedPreLobby(ctx, tournamentID, participantID, func() {
+		round, err := s.roundRepo.GetLatestByTournamentID(ctx, tournamentID)
+		if err != nil {
+			fmt.Println("[DEBUG] error get round")
+			return
+		}
+		fmt.Println("[PreLobbyService] Next round: ", round.RoundNumber)
+		event := domain.NewNextRoundStart(round.RoundNumber, tournamentID)
+		if err := s.publisher.Publish(ctx, event); err != nil {
+			s.logger.Warn("failed to publish grace period started event", map[string]interface{}{
+				"tournament_id": tournamentID.String(),
+				"error":         err.Error(),
+			})
+		}
+	})
 }
 
 // ============================================================================
@@ -523,7 +542,7 @@ func (s *PreLobbyService) StartGracePeriod(ctx context.Context, tournamentID uui
 		return fmt.Errorf("start grace period in database: %w", err)
 	}
 
-	participantCount := s.GetParticipantCount(tournamentID)
+	participantCount := s.GetParticipantCount(ctx, tournamentID)
 
 	s.logger.Info("starting grace period", map[string]interface{}{
 		"tournament_id":     tournamentID.String(),
@@ -625,7 +644,7 @@ func (s *PreLobbyService) finalizeGracePeriod(ctx context.Context, tournamentID 
 	}
 
 	// Get connected participants
-	participants := s.getParticipants(tournamentID)
+	participants := s.getParticipants(ctx, tournamentID)
 	participantCount := len(participants)
 
 	s.logger.Info("grace period finalization", map[string]interface{}{
@@ -746,7 +765,7 @@ func (s *PreLobbyService) cancelTournament(ctx context.Context, tournamentID uui
 
 	// Broadcast cancellation
 	s.BroadcastTournamentCancelled(tournamentID, reason)
-	s.BroadcastGracePeriodEnded(tournamentID, s.GetParticipantCount(tournamentID), "cancelled")
+	s.BroadcastGracePeriodEnded(tournamentID, s.GetParticipantCount(ctx, tournamentID), "cancelled")
 
 	// Publish event
 	event := domain.NewPreLobbyCancelled(tournamentID, reason, time.Now(), nil)
@@ -768,19 +787,24 @@ func (s *PreLobbyService) cancelTournament(ctx context.Context, tournamentID uui
 	return nil
 }
 
-// PrepareForNextRound resets pre-lobby to waiting status so winners can join for the next round
-func (s *PreLobbyService) PrepareForNextRound(ctx context.Context, tournamentID uuid.UUID) error {
+// PrepareForNextRound resets pre-lobby to waiting status and updates min_participants for the next round
+func (s *PreLobbyService) PrepareForNextRound(ctx context.Context, tournamentID uuid.UUID, expectedParticipants int) error {
 	s.logger.Info("preparing pre-lobby for next round", map[string]interface{}{
-		"tournament_id": tournamentID.String(),
+		"tournament_id":         tournamentID.String(),
+		"expected_participants": expectedParticipants,
 	})
 
-	_, err := s.repo.UpdateStatus(ctx, tournamentID, domain.PreLobbyStatusWaiting)
+	status := domain.PreLobbyStatusWaiting
+	_, err := s.repo.UpdateWithParams(ctx, tournamentID, repository.UpdatePreLobbyParams{
+		Status:          &status,
+		MinParticipants: &expectedParticipants,
+	})
 	if err != nil {
-		s.logger.Error("failed to reset pre-lobby status to waiting", map[string]interface{}{
+		s.logger.Error("failed to prepare pre-lobby for next round", map[string]interface{}{
 			"tournament_id": tournamentID.String(),
 			"error":         err.Error(),
 		})
-		return fmt.Errorf("failed to reset pre-lobby status: %w", err)
+		return fmt.Errorf("failed to prepare pre-lobby for next round: %w", err)
 	}
 
 	return nil
@@ -981,46 +1005,6 @@ func (s *PreLobbyService) RecordBracketGeneration(ctx context.Context, tournamen
 // GetActivityFeed returns the recent activity feed for a tournament
 func (s *PreLobbyService) GetActivityFeed(ctx context.Context, tournamentID uuid.UUID) ([]*domain.ActivityFeedItem, error) {
 	return s.repo.GetRecentActivityFeed(ctx, tournamentID)
-}
-
-// HandleParticipantCountChange should be called when participant count changes during grace period
-// It broadcasts roster_updated, checks for edge cases (count drops to 0), and notifies RoundManager
-func (s *PreLobbyService) HandleParticipantCountChange(ctx context.Context, tournamentID uuid.UUID, action string, userID uuid.UUID, displayName string) {
-	participantCount := s.GetParticipantCount(tournamentID)
-
-	// Broadcast roster update
-	s.BroadcastRosterUpdated(tournamentID, action, userID, displayName, participantCount)
-
-	// Notify RoundManager when a participant joins (for round transition tracking)
-	// This is critical for inter-round flow: RoundManager tracks expected winners joining pre-lobby
-	if action == "joined" && s.roundManager != nil {
-		s.roundManager.OnParticipantJoinedPreLobby(ctx, tournamentID, userID)
-	}
-
-	// Edge case: participant count drops to 0 during grace period
-	if participantCount == 0 {
-		// Check if in grace period
-		preLobby, err := s.repo.GetByTournamentID(ctx, tournamentID)
-		if err != nil {
-			s.logger.Error("failed to get pre-lobby for participant count check", map[string]interface{}{
-				"tournament_id": tournamentID.String(),
-				"error":         err.Error(),
-			})
-			return
-		}
-
-		if preLobby != nil && preLobby.Status == domain.PreLobbyStatusGracePeriod {
-			s.logger.Warn("participant count dropped to 0 during grace period, cancelling tournament", map[string]interface{}{
-				"tournament_id": tournamentID.String(),
-			})
-			if err := s.cancelTournament(ctx, tournamentID, "All participants left during grace period"); err != nil {
-				s.logger.Error("failed to cancel tournament", map[string]interface{}{
-					"tournament_id": tournamentID.String(),
-					"error":         err.Error(),
-				})
-			}
-		}
-	}
 }
 
 // BroadcastMatchAssigned sends match assignment to a specific participant

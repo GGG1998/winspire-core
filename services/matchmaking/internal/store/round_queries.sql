@@ -49,7 +49,12 @@ JOIN tournament_brackets b ON b.id = r.bracket_id
 WHERE r.status = 'in_progress'
 ORDER BY b.tournament_id, r.round_number;
 
-
-
-
+-- name: GetLatestRoundByTournamentID :one
+-- Get the latest (highest round_number) round for a tournament
+SELECT r.*, b.tournament_id
+FROM tournament_rounds r
+JOIN tournament_brackets b ON b.id = r.bracket_id
+WHERE b.tournament_id = $1
+ORDER BY r.round_number DESC
+LIMIT 1;
 

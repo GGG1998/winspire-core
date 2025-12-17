@@ -110,6 +110,11 @@ func (m *MockMatchRepository) HasParticipantLostInTournament(ctx context.Context
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *MockMatchRepository) AssignWinnerToNextMatch(ctx context.Context, nextMatchID uuid.UUID, winnerID uuid.UUID) error {
+	args := m.Called(ctx, nextMatchID, winnerID)
+	return args.Error(0)
+}
+
 type MockRoundRepository struct {
 	mock.Mock
 }
@@ -167,11 +172,49 @@ func (m *MockBracketRepository) UpdateCompletedAt(ctx context.Context, id uuid.U
 	return args.Error(0)
 }
 
+// ==================== Mock PreLobbyService ====================
+
+type MockPreLobbyService struct {
+	mock.Mock
+}
+
+func (m *MockPreLobbyService) PrepareForNextRound(ctx context.Context, tournamentID uuid.UUID, expectedParticipants int) error {
+	args := m.Called(ctx, tournamentID, expectedParticipants)
+	return args.Error(0)
+}
+
+func (m *MockPreLobbyService) StartGracePeriod(ctx context.Context, tournamentID uuid.UUID, onComplete func(uuid.UUID, []uuid.UUID)) error {
+	args := m.Called(ctx, tournamentID, onComplete)
+	return args.Error(0)
+}
+
 // ==================== Test Helpers ====================
 
-func createTestRoundManager(matchRepo *MockMatchRepository, roundRepo *MockRoundRepository, bracketRepo *MockBracketRepository) *RoundManager {
+// MockPreLobbyServiceForRoundManager is a minimal mock for PreLobbyService
+type MockPreLobbyServiceForRoundManager struct{}
+
+func (m *MockPreLobbyServiceForRoundManager) PrepareForNextRound(_ context.Context, _ uuid.UUID, _ int) error {
+	return nil
+}
+
+func (m *MockPreLobbyServiceForRoundManager) StartGracePeriod(_ context.Context, _ uuid.UUID, _ func(uuid.UUID, []uuid.UUID)) error {
+	return nil
+}
+
+// createTestRoundManagerWithMocks creates RoundManager with mock PreLobbyService that won't panic
+func createTestRoundManager(
+	matchRepo *MockMatchRepository,
+	roundRepo *MockRoundRepository,
+	bracketRepo *MockBracketRepository,
+	transitionStore RoundTransitionStoreInterface,
+) *RoundManager {
 	logger := observability.NewLogger("info", "text")
-	return NewRoundManager(matchRepo, roundRepo, bracketRepo, nil, logger)
+	if transitionStore == nil {
+		transitionStore = NewInMemoryRoundTransitionStore(logger)
+	}
+	// Note: We pass nil for preLobbyService and matchAssignmentService
+	// The RoundManager handles nil preLobbyService gracefully
+	return NewRoundManager(matchRepo, roundRepo, bracketRepo, nil, nil, transitionStore, logger)
 }
 
 func createTestMatch(roundID uuid.UUID, matchNumber int, p1, p2 uuid.UUID, status domain.MatchStatus, nextMatchID *uuid.UUID) *domain.Match {
@@ -256,7 +299,7 @@ func TestRoundManager_OnMatchCompleted(t *testing.T) {
 			expectedError:        false,
 			expectedWinnersCount: 1,
 			checkState: func(t *testing.T, rm *RoundManager, tournamentID uuid.UUID) {
-				state := rm.GetTransitionState(tournamentID)
+				state := rm.GetTransitionState(ctx, tournamentID)
 				require.NotNil(t, state, "transition state should exist")
 				assert.Len(t, state.ExpectedWinners, 1, "should have 1 expected winner")
 				assert.False(t, state.GraceStarted, "grace should not start yet")
@@ -341,7 +384,7 @@ func TestRoundManager_OnMatchCompleted(t *testing.T) {
 			expectedError:        false,
 			expectedWinnersCount: 1,
 			checkState: func(t *testing.T, rm *RoundManager, tournamentID uuid.UUID) {
-				state := rm.GetTransitionState(tournamentID)
+				state := rm.GetTransitionState(ctx, tournamentID)
 				require.NotNil(t, state)
 				assert.False(t, state.GraceStarted, "grace should not start - round not complete")
 			},
@@ -356,7 +399,7 @@ func TestRoundManager_OnMatchCompleted(t *testing.T) {
 
 			matchID, winnerID, tournamentID := tt.setupMocks(matchRepo, roundRepo, bracketRepo)
 
-			rm := createTestRoundManager(matchRepo, roundRepo, bracketRepo)
+			rm := createTestRoundManager(matchRepo, roundRepo, bracketRepo, nil)
 
 			err := rm.OnMatchCompleted(ctx, matchID, winnerID)
 
@@ -383,38 +426,42 @@ func TestRoundManager_OnParticipantJoinedPreLobby(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name           string
-		setupState     func(*RoundManager, uuid.UUID) []uuid.UUID // returns expected winners
-		participantID  uuid.UUID
-		checkState     func(*testing.T, *RoundManager, uuid.UUID)
+		name             string
+		setupState       func(*InMemoryRoundTransitionStore, uuid.UUID) []uuid.UUID // returns expected winners
+		participantID    uuid.UUID
+		checkState       func(*testing.T, *RoundManager, uuid.UUID)
 		expectGraceStart bool
 	}{
 		{
 			name: "ignores participant when no pending transition exists",
-			setupState: func(rm *RoundManager, tournamentID uuid.UUID) []uuid.UUID {
+			setupState: func(store *InMemoryRoundTransitionStore, tournamentID uuid.UUID) []uuid.UUID {
 				// No state setup - no pending transition
 				return nil
 			},
 			participantID: uuid.New(),
 			checkState: func(t *testing.T, rm *RoundManager, tournamentID uuid.UUID) {
-				state := rm.GetTransitionState(tournamentID)
+				state := rm.GetTransitionState(ctx, tournamentID)
 				assert.Nil(t, state, "no state should exist")
 			},
 			expectGraceStart: false,
 		},
 		{
 			name: "ignores participant who is not an expected winner",
-			setupState: func(rm *RoundManager, tournamentID uuid.UUID) []uuid.UUID {
+			setupState: func(store *InMemoryRoundTransitionStore, tournamentID uuid.UUID) []uuid.UUID {
 				expectedWinners := []uuid.UUID{uuid.New(), uuid.New()}
-				state := rm.getOrCreateTransitionState(tournamentID, 1)
-				for _, w := range expectedWinners {
-					state.ExpectedWinners[w] = struct{}{}
-				}
+				store.Save(ctx, &RoundTransitionData{
+					TournamentID:    tournamentID,
+					CompletedRound:  1,
+					NextRound:       2,
+					ExpectedWinners: expectedWinners,
+					JoinedWinners:   []uuid.UUID{},
+					GraceStarted:    false,
+				})
 				return expectedWinners
 			},
 			participantID: uuid.New(), // Different from expected winners
 			checkState: func(t *testing.T, rm *RoundManager, tournamentID uuid.UUID) {
-				state := rm.GetTransitionState(tournamentID)
+				state := rm.GetTransitionState(ctx, tournamentID)
 				require.NotNil(t, state)
 				assert.Empty(t, state.JoinedWinners, "no winners should have joined")
 				assert.False(t, state.GraceStarted)
@@ -423,17 +470,21 @@ func TestRoundManager_OnParticipantJoinedPreLobby(t *testing.T) {
 		},
 		{
 			name: "tracks winner joining pre-lobby",
-			setupState: func(rm *RoundManager, tournamentID uuid.UUID) []uuid.UUID {
+			setupState: func(store *InMemoryRoundTransitionStore, tournamentID uuid.UUID) []uuid.UUID {
 				expectedWinners := []uuid.UUID{uuid.New(), uuid.New()}
-				state := rm.getOrCreateTransitionState(tournamentID, 1)
-				for _, w := range expectedWinners {
-					state.ExpectedWinners[w] = struct{}{}
-				}
+				store.Save(ctx, &RoundTransitionData{
+					TournamentID:    tournamentID,
+					CompletedRound:  1,
+					NextRound:       2,
+					ExpectedWinners: expectedWinners,
+					JoinedWinners:   []uuid.UUID{},
+					GraceStarted:    false,
+				})
 				return expectedWinners
 			},
 			participantID: uuid.UUID{}, // Will be set to first expected winner
 			checkState: func(t *testing.T, rm *RoundManager, tournamentID uuid.UUID) {
-				state := rm.GetTransitionState(tournamentID)
+				state := rm.GetTransitionState(ctx, tournamentID)
 				require.NotNil(t, state)
 				assert.Len(t, state.JoinedWinners, 1, "one winner should have joined")
 				assert.False(t, state.GraceStarted, "grace should not start - not all winners")
@@ -441,40 +492,22 @@ func TestRoundManager_OnParticipantJoinedPreLobby(t *testing.T) {
 			expectGraceStart: false,
 		},
 		{
-			name: "triggers grace period when all winners join",
-			setupState: func(rm *RoundManager, tournamentID uuid.UUID) []uuid.UUID {
-				// Only 1 expected winner - when they join, grace should start
-				expectedWinners := []uuid.UUID{uuid.New()}
-				state := rm.getOrCreateTransitionState(tournamentID, 1)
-				for _, w := range expectedWinners {
-					state.ExpectedWinners[w] = struct{}{}
-				}
-				return expectedWinners
-			},
-			participantID: uuid.UUID{}, // Will be set to expected winner
-			checkState: func(t *testing.T, rm *RoundManager, tournamentID uuid.UUID) {
-				state := rm.GetTransitionState(tournamentID)
-				require.NotNil(t, state)
-				assert.Len(t, state.JoinedWinners, 1)
-				// Note: GraceStarted will be true once we implement startGracePeriodForNextRound
-				// For now, we just check the state tracking works
-			},
-			expectGraceStart: true,
-		},
-		{
 			name: "prevents double grace period start",
-			setupState: func(rm *RoundManager, tournamentID uuid.UUID) []uuid.UUID {
+			setupState: func(store *InMemoryRoundTransitionStore, tournamentID uuid.UUID) []uuid.UUID {
 				expectedWinners := []uuid.UUID{uuid.New()}
-				state := rm.getOrCreateTransitionState(tournamentID, 1)
-				for _, w := range expectedWinners {
-					state.ExpectedWinners[w] = struct{}{}
-				}
-				state.GraceStarted = true // Already started
+				store.Save(ctx, &RoundTransitionData{
+					TournamentID:    tournamentID,
+					CompletedRound:  1,
+					NextRound:       2,
+					ExpectedWinners: expectedWinners,
+					JoinedWinners:   []uuid.UUID{},
+					GraceStarted:    true, // Already started
+				})
 				return expectedWinners
 			},
 			participantID: uuid.UUID{}, // Will be set to expected winner
 			checkState: func(t *testing.T, rm *RoundManager, tournamentID uuid.UUID) {
-				state := rm.GetTransitionState(tournamentID)
+				state := rm.GetTransitionState(ctx, tournamentID)
 				require.NotNil(t, state)
 				assert.True(t, state.GraceStarted, "grace should remain true")
 			},
@@ -487,11 +520,13 @@ func TestRoundManager_OnParticipantJoinedPreLobby(t *testing.T) {
 			matchRepo := new(MockMatchRepository)
 			roundRepo := new(MockRoundRepository)
 			bracketRepo := new(MockBracketRepository)
+			logger := observability.NewLogger("info", "text")
+			transitionStore := NewInMemoryRoundTransitionStore(logger)
 
-			rm := createTestRoundManager(matchRepo, roundRepo, bracketRepo)
+			rm := createTestRoundManager(matchRepo, roundRepo, bracketRepo, transitionStore)
 			tournamentID := uuid.New()
 
-			expectedWinners := tt.setupState(rm, tournamentID)
+			expectedWinners := tt.setupState(transitionStore, tournamentID)
 
 			// Use first expected winner if participantID is empty
 			participantID := tt.participantID
@@ -509,22 +544,30 @@ func TestRoundManager_OnParticipantJoinedPreLobby(t *testing.T) {
 // ==================== Tests for GetTransitionState ====================
 
 func TestRoundManager_GetTransitionState(t *testing.T) {
+	ctx := context.Background()
+
 	tests := []struct {
-		name           string
-		setupState     func(*RoundManager, uuid.UUID)
-		expectNil      bool
+		name       string
+		setupState func(*InMemoryRoundTransitionStore, uuid.UUID)
+		expectNil  bool
 	}{
 		{
 			name: "returns nil when no state exists",
-			setupState: func(rm *RoundManager, tournamentID uuid.UUID) {
+			setupState: func(store *InMemoryRoundTransitionStore, tournamentID uuid.UUID) {
 				// No setup - no state
 			},
 			expectNil: true,
 		},
 		{
 			name: "returns state when it exists",
-			setupState: func(rm *RoundManager, tournamentID uuid.UUID) {
-				rm.getOrCreateTransitionState(tournamentID, 1)
+			setupState: func(store *InMemoryRoundTransitionStore, tournamentID uuid.UUID) {
+				store.Save(ctx, &RoundTransitionData{
+					TournamentID:    tournamentID,
+					CompletedRound:  1,
+					NextRound:       2,
+					ExpectedWinners: []uuid.UUID{},
+					JoinedWinners:   []uuid.UUID{},
+				})
 			},
 			expectNil: false,
 		},
@@ -532,12 +575,14 @@ func TestRoundManager_GetTransitionState(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rm := createTestRoundManager(nil, nil, nil)
+			logger := observability.NewLogger("info", "text")
+			transitionStore := NewInMemoryRoundTransitionStore(logger)
+			rm := createTestRoundManager(nil, nil, nil, transitionStore)
 			tournamentID := uuid.New()
 
-			tt.setupState(rm, tournamentID)
+			tt.setupState(transitionStore, tournamentID)
 
-			state := rm.GetTransitionState(tournamentID)
+			state := rm.GetTransitionState(ctx, tournamentID)
 
 			if tt.expectNil {
 				assert.Nil(t, state)
@@ -549,36 +594,15 @@ func TestRoundManager_GetTransitionState(t *testing.T) {
 	}
 }
 
-// ==================== Tests for getOrCreateTransitionState ====================
-
-func TestRoundManager_getOrCreateTransitionState(t *testing.T) {
-	rm := createTestRoundManager(nil, nil, nil)
-	tournamentID := uuid.New()
-
-	// First call should create state
-	state1 := rm.getOrCreateTransitionState(tournamentID, 1)
-	require.NotNil(t, state1)
-	assert.Equal(t, tournamentID, state1.TournamentID)
-	assert.Equal(t, 1, state1.CompletedRound)
-	assert.Equal(t, 2, state1.NextRound)
-	assert.NotNil(t, state1.ExpectedWinners)
-	assert.NotNil(t, state1.JoinedWinners)
-	assert.False(t, state1.GraceStarted)
-
-	// Second call should return same state
-	state2 := rm.getOrCreateTransitionState(tournamentID, 1)
-	assert.Equal(t, state1, state2, "should return same state instance")
-}
-
 // ==================== Integration Tests for Complete Round Flow ====================
 
 func TestRoundManager_CompleteRoundFlow(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name           string
-		numMatches     int
-		setupAndRun    func(*testing.T, *RoundManager, *MockMatchRepository, *MockRoundRepository, *MockBracketRepository) (tournamentID uuid.UUID, winners []uuid.UUID)
+		name            string
+		numMatches      int
+		setupAndRun     func(*testing.T, *RoundManager, *MockMatchRepository, *MockRoundRepository, *MockBracketRepository) (tournamentID uuid.UUID, winners []uuid.UUID)
 		checkFinalState func(*testing.T, *RoundManager, uuid.UUID, []uuid.UUID)
 	}{
 		{
@@ -647,6 +671,7 @@ func TestRoundManager_CompleteRoundFlow(t *testing.T) {
 				matchRepo.On("GetByID", ctx, match2ID).Return(match2, nil)
 				roundRepo.On("GetByID", ctx, roundID).Return(round, nil).Once()
 				bracketRepo.On("GetByID", ctx, bracketID).Return(bracket, nil).Once()
+				roundRepo.On("UpdateStatus", ctx, roundID, domain.RoundStatusCompleted).Return(nil).Once()
 				// After match 2, round IS complete (both matches completed)
 				matchRepo.On("GetByRoundID", ctx, roundID).Return([]domain.Match{
 					{ID: match1ID, RoundID: roundID, Status: domain.MatchStatusCompleted, NextMatchID: &nextMatchID},
@@ -660,7 +685,7 @@ func TestRoundManager_CompleteRoundFlow(t *testing.T) {
 				return tournamentID, winners
 			},
 			checkFinalState: func(t *testing.T, rm *RoundManager, tournamentID uuid.UUID, winners []uuid.UUID) {
-				state := rm.GetTransitionState(tournamentID)
+				state := rm.GetTransitionState(ctx, tournamentID)
 				require.NotNil(t, state, "transition state should exist")
 				assert.Len(t, state.ExpectedWinners, 2, "should have 2 expected winners")
 				assert.Equal(t, 1, state.CompletedRound)
@@ -668,12 +693,12 @@ func TestRoundManager_CompleteRoundFlow(t *testing.T) {
 
 				// Simulate winners joining pre-lobby
 				rm.OnParticipantJoinedPreLobby(ctx, tournamentID, winners[0])
-				state = rm.GetTransitionState(tournamentID)
+				state = rm.GetTransitionState(ctx, tournamentID)
 				assert.Len(t, state.JoinedWinners, 1, "1 winner should have joined")
 				assert.False(t, state.GraceStarted, "grace should not start yet")
 
 				rm.OnParticipantJoinedPreLobby(ctx, tournamentID, winners[1])
-				state = rm.GetTransitionState(tournamentID)
+				state = rm.GetTransitionState(ctx, tournamentID)
 				assert.Len(t, state.JoinedWinners, 2, "2 winners should have joined")
 				assert.True(t, state.GraceStarted, "grace should start when all winners join")
 			},
@@ -753,6 +778,11 @@ func TestRoundManager_CompleteRoundFlow(t *testing.T) {
 					}
 					matchRepo.On("GetByRoundID", ctx, roundID).Return(allMatches, nil).Once()
 
+					// On last match, expect round status update
+					if i == 3 {
+						roundRepo.On("UpdateStatus", ctx, roundID, domain.RoundStatusCompleted).Return(nil).Once()
+					}
+
 					err := rm.OnMatchCompleted(ctx, matchIDs[i], winners[i])
 					require.NoError(t, err)
 				}
@@ -760,14 +790,14 @@ func TestRoundManager_CompleteRoundFlow(t *testing.T) {
 				return tournamentID, winners
 			},
 			checkFinalState: func(t *testing.T, rm *RoundManager, tournamentID uuid.UUID, winners []uuid.UUID) {
-				state := rm.GetTransitionState(tournamentID)
+				state := rm.GetTransitionState(ctx, tournamentID)
 				require.NotNil(t, state, "transition state should exist")
 				assert.Len(t, state.ExpectedWinners, 4, "should have 4 expected winners")
 
 				// Simulate all 4 winners joining
 				for i, winner := range winners {
 					rm.OnParticipantJoinedPreLobby(ctx, tournamentID, winner)
-					state = rm.GetTransitionState(tournamentID)
+					state = rm.GetTransitionState(ctx, tournamentID)
 					assert.Len(t, state.JoinedWinners, i+1)
 					if i < 3 {
 						assert.False(t, state.GraceStarted, "grace should not start yet")
@@ -785,7 +815,7 @@ func TestRoundManager_CompleteRoundFlow(t *testing.T) {
 			roundRepo := new(MockRoundRepository)
 			bracketRepo := new(MockBracketRepository)
 
-			rm := createTestRoundManager(matchRepo, roundRepo, bracketRepo)
+			rm := createTestRoundManager(matchRepo, roundRepo, bracketRepo, nil)
 
 			tournamentID, winners := tt.setupAndRun(t, rm, matchRepo, roundRepo, bracketRepo)
 			tt.checkFinalState(t, rm, tournamentID, winners)
@@ -800,17 +830,25 @@ func TestRoundManager_CompleteRoundFlow(t *testing.T) {
 // TestRoundManager_ConcurrentWinnerJoins tests concurrent access to RoundManager
 func TestRoundManager_ConcurrentWinnerJoins(t *testing.T) {
 	ctx := context.Background()
-	rm := createTestRoundManager(nil, nil, nil)
+	logger := observability.NewLogger("info", "text")
+	transitionStore := NewInMemoryRoundTransitionStore(logger)
+	rm := createTestRoundManager(nil, nil, nil, transitionStore)
 	tournamentID := uuid.New()
 
 	// Setup state with 10 expected winners
 	numWinners := 10
 	winners := make([]uuid.UUID, numWinners)
-	state := rm.getOrCreateTransitionState(tournamentID, 1)
 	for i := 0; i < numWinners; i++ {
 		winners[i] = uuid.New()
-		state.ExpectedWinners[winners[i]] = struct{}{}
 	}
+	transitionStore.Save(ctx, &RoundTransitionData{
+		TournamentID:    tournamentID,
+		CompletedRound:  1,
+		NextRound:       2,
+		ExpectedWinners: winners,
+		JoinedWinners:   []uuid.UUID{},
+		GraceStarted:    false,
+	})
 
 	// Simulate concurrent joins
 	done := make(chan bool, numWinners)
@@ -827,7 +865,7 @@ func TestRoundManager_ConcurrentWinnerJoins(t *testing.T) {
 	}
 
 	// Verify final state
-	finalState := rm.GetTransitionState(tournamentID)
+	finalState := rm.GetTransitionState(ctx, tournamentID)
 	require.NotNil(t, finalState)
 	assert.Len(t, finalState.JoinedWinners, numWinners, "all winners should have joined")
 	assert.True(t, finalState.GraceStarted, "grace should have started")

@@ -50,9 +50,11 @@ func TestCanAcceptParticipants(t *testing.T) {
 	queries := sqlc.New(testDB.Pool)
 	preLobbyRepo := repository.NewPreLobbyRepository(queries, testDB.Pool, testDB.Pool)
 	matchRepo := repository.NewMatchRepository(queries)
+	roundRepo := repository.NewRoundRepository(queries)
 	bracketRepo := repository.NewBracketRepository(queries, testDB.Pool, testDB.Pool)
 	logger := observability.NewLogger("info", "text")
-	service := NewPreLobbyService(preLobbyRepo, matchRepo, nil, nil, nil, logger)
+	participantStore := NewInMemoryPreLobbyParticipantStore()
+	service := NewPreLobbyService(preLobbyRepo, matchRepo, roundRepo, nil, nil, nil, logger, participantStore)
 
 	// Generate 10 test users
 	users := testutil.GenerateTestUsers(10)

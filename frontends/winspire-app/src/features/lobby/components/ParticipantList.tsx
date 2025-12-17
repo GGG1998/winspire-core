@@ -21,7 +21,7 @@ export function ParticipantList({ participants, currentUserId }: ParticipantList
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-testid="participant-list">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-900">
           Uczestnicy ({participants.length})
@@ -56,7 +56,10 @@ export function ParticipantList({ participants, currentUserId }: ParticipantList
                       {participant.displayName}
                     </p>
                     {isCurrentUser && (
-                      <span className="inline-flex items-center rounded-full bg-cyan-100 px-2 py-0.5 text-xs font-medium text-cyan-800">
+                      <span
+                        className="inline-flex items-center rounded-full bg-cyan-100 px-2 py-0.5 text-xs font-medium text-cyan-800"
+                        data-testid="current-user-badge"
+                      >
                         Ty
                       </span>
                     )}
