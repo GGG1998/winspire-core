@@ -1,0 +1,202 @@
+name: Build and Push to ECR
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/**'
+      - 'libs/go/**'
+      - 'Dockerfile.service'
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Services to build (comma-separated, or "all")'
+        required: false
+        default: 'all'
+      environment:
+        description: 'Target environment'
+        required: false
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      deploy:
+        description: 'Deploy to ECS after build'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  AWS_REGION: eu-central-1
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.changes.outputs.services }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed services
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            if [ "${{ inputs.services }}" == "all" ]; then
+              echo 'services=["competition","matchmaking","game-management"]' >> $GITHUB_OUTPUT
+            else
+              # Convert comma-separated to JSON array
+              SERVICES=$(echo "${{ inputs.services }}" | sed 's/,/","/g' | sed 's/^/["/' | sed 's/$/"]/')
+              echo "services=$SERVICES" >> $GITHUB_OUTPUT
+            fi
+          else
+            # Detect which services changed
+            CHANGED_SERVICES="[]"
+
+            # Check if shared libs changed (rebuild all)
+            if git diff --name-only HEAD~1 | grep -q "^libs/go/\|^Dockerfile.service"; then
+              echo 'services=["competition","matchmaking","game-management"]' >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            # Check individual services
+            SERVICES=()
+            for service in competition matchmaking game-management; do
+              if git diff --name-only HEAD~1 | grep -q "^services/$service/"; then
+                SERVICES+=("$service")
+              fi
+            done
+
+            if [ ${#SERVICES[@]} -eq 0 ]; then
+              echo 'services=[]' >> $GITHUB_OUTPUT
+            else
+              JSON=$(printf '%s\n' "${SERVICES[@]}" | jq -R . | jq -s .)
+              echo "services=$JSON" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Show detected services
+        run: echo "Services to build - ${{ steps.changes.outputs.services }}"
+
+  build-and-push:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.services != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate image metadata
+        id: meta
+        run: |
+          ECR_REGISTRY="${{ steps.ecr-login.outputs.registry }}"
+          ENV="${{ steps.env.outputs.environment }}"
+          SERVICE="${{ matrix.service }}"
+          REPO="${ENV}-winspire-${SERVICE}"
+
+          GIT_SHA="${{ github.sha }}"
+          SHORT_SHA="${GIT_SHA:0:7}"
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+          IMAGE_TAG="${ENV}-${SHORT_SHA}-${TIMESTAMP}"
+
+          echo "registry=$ECR_REGISTRY" >> $GITHUB_OUTPUT
+          echo "repository=$REPO" >> $GITHUB_OUTPUT
+          echo "image=$ECR_REGISTRY/$REPO" >> $GITHUB_OUTPUT
+          echo "tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Ensure ECR repository exists
+        run: |
+          aws ecr describe-repositories --repository-names ${{ steps.meta.outputs.repository }} || \
+          aws ecr create-repository \
+            --repository-name ${{ steps.meta.outputs.repository }} \
+            --image-scanning-configuration scanOnPush=true \
+            --encryption-configuration encryptionType=AES256
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.service
+          build-args: SERVICE=${{ matrix.service }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:${{ steps.env.outputs.environment }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Output image info
+        run: |
+          echo "### Built Image" >> $GITHUB_STEP_SUMMARY
+          echo "- **Service:** ${{ matrix.service }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ steps.env.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+
+  deploy:
+    needs: [detect-changes, build-and-push]
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      inputs.deploy == true &&
+      needs.detect-changes.outputs.services != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update ECS service
+        run: |
+          CLUSTER="${{ inputs.environment }}-winspire-cluster"
+          SERVICE="${{ inputs.environment }}-${{ matrix.service }}"
+
+          echo "Updating ECS service: $SERVICE in cluster $CLUSTER"
+
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
+            --force-new-deployment \
+            --output text > /dev/null
+
+          echo "### Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Service:** ${{ matrix.service }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cluster:** $CLUSTER" >> $GITHUB_STEP_SUMMARY

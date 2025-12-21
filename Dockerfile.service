@@ -1,0 +1,74 @@
+# syntax=docker/dockerfile:1.6
+# Unified Multi-Service Dockerfile for Winspire microservices
+# Builds any service from the repository root context
+#
+# Usage:
+#   docker build --build-arg SERVICE=competition -f Dockerfile.service -t winspire-competition:latest .
+#   docker build --build-arg SERVICE=matchmaking -f Dockerfile.service -t winspire-matchmaking:latest .
+#   docker build --build-arg SERVICE=game-management -f Dockerfile.service -t winspire-game-management:latest .
+
+ARG SERVICE=competition
+
+# ==============================================================================
+# Builder Stage
+# ==============================================================================
+FROM golang:1.25-alpine3.21 AS builder
+
+ARG SERVICE
+
+WORKDIR /src
+
+# Copy shared Go libraries
+COPY libs/go/auth ./libs/go/auth
+COPY libs/go/httpx ./libs/go/httpx
+COPY libs/go/pgtype ./libs/go/pgtype
+
+# Change to service directory
+WORKDIR /src/services/${SERVICE}
+
+# Pre-fetch dependencies (cached layer)
+COPY services/${SERVICE}/go.mod services/${SERVICE}/go.sum* ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+# Copy service source code
+COPY services/${SERVICE}/ ./
+
+# Build binary
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w" -o /out/service ./cmd/${SERVICE}
+
+# ==============================================================================
+# Runtime Stage
+# ==============================================================================
+FROM alpine:3.21
+
+ARG SERVICE
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata wget \
+    && addgroup -S app && adduser -S -G app app
+
+WORKDIR /app
+
+# Copy binary
+COPY --from=builder /out/service /usr/local/bin/service
+
+# Copy migrations if they exist
+COPY --from=builder /src/services/${SERVICE}/migrations ./migrations
+
+# Environment
+ENV APP_ENV=production
+
+# Expose port (services use SERVICE_PORT env var)
+EXPOSE 8080
+
+# Health check (uses SERVICE_PORT from runtime env)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:${SERVICE_PORT:-8080}/healthz || exit 1
+
+# Run as non-root user
+USER app
+
+ENTRYPOINT ["/usr/local/bin/service"]

@@ -3,11 +3,11 @@
 
 set -e
 
-echo "🛑 Stopping Winspire Local Development Environment"
+echo "Stopping Winspire Local Development Environment"
 echo ""
 
 if [ ! -f "docker-compose.yaml" ]; then
-    echo "❌ Error: Must be run from platform/local/ directory"
+    echo "Error: Must be run from platform/local/ directory"
     exit 1
 fi
 
@@ -16,10 +16,9 @@ docker-compose down
 docker-compose --profile scale down 2>/dev/null || true
 
 echo ""
-echo "✅ All services stopped"
+echo "All services stopped"
 echo ""
 echo "To start again: ./start.sh"
 echo "To clean volumes: docker-compose down -v"
+echo "To clean everything: make clean"
 echo ""
-
-

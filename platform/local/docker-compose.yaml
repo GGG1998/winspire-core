@@ -1,28 +1,45 @@
-# Local Development Environment with Traefik (simulates AWS ALB)
+# Local Development Environment with LocalStack (emulates AWS ALB)
 # Usage: cd platform/local && docker-compose up
+#
+# Routing Configuration:
+#   http://localhost/v1/games*, /v1/g/*, /v1/admin* -> game-management:8085
+#   http://localhost/v1/matchmaking*                -> matchmaking:8081
+#   http://localhost/v1/* (default)                 -> competition:8089
+#
+# Direct service access (for E2E tests):
+#   http://localhost:8089 -> competition
+#   http://localhost:8088 -> matchmaking
 
 services:
-  # Traefik - API Gateway (simulates AWS ALB)
-  traefik:
-    image: traefik:v3.0
-    container_name: winspire-gateway
-    command:
-      - "--api.insecure=true"
-      - "--api.dashboard=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--log.level=INFO"
-      - "--accesslog=true"
-      # Enable sticky sessions (like ALB)
-      - "--providers.docker.defaultRule=Host(`localhost`)"
+  # LocalStack - AWS Local Emulation (replaces Traefik)
+  localstack:
+    image: localstack/localstack:3.0
+    container_name: winspire-localstack
     ports:
-      - "80:80"       # HTTP
-      - "8080:8080"   # Traefik Dashboard
+      - "4566:4566"           # LocalStack Gateway (ALB routing)
+      - "80:4566"             # HTTP proxy to ALB
+      - "4510-4559:4510-4559" # External service ports
+    environment:
+      - SERVICES=elbv2,ec2,sts
+      - DEBUG=${LOCALSTACK_DEBUG:-0}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - LOCALSTACK_HOST=localhost
+      - EAGER_SERVICE_LOADING=1
+      - LS_LOG=warn
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./localstack-init:/etc/localstack/init/ready.d"
+      - "localstack-data:/var/lib/localstack"
     networks:
-      - winspire-network
+      winspire-network:
+        aliases:
+          - localstack.localhost
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   # Redis - for JWT caching and SSE Pub/Sub
   redis:
@@ -50,33 +67,25 @@ services:
     ports:
       - "8089:8089"  # Direct access for E2E tests
     environment:
-      # App configuration
       - APP_ENV=development
       - SERVICE_PORT=8089
-
-      # Database (Supabase local)
       - POSTGRES_DSN=${POSTGRES_DSN:-postgresql://postgres:postgres@host.docker.internal:54322/postgres?sslmode=disable}
       - MATCHMAKING_BASE_URL=http://matchmaking:8081
-      # Redis
       - REDIS_ADDR=redis:6379
-
-      # JWT Auth (Supabase config)
       - HOST_JWT_SECRET=${HOST_JWT_SECRET:-your-jwt-secret-here}
       - HOST_JWT_ISSUER=${HOST_JWT_ISSUER:-https://your-project.supabase.co/auth/v1}
       - HOST_JWT_AUDIENCE=${HOST_JWT_AUDIENCE:-authenticated}
     depends_on:
       redis:
         condition: service_healthy
-    labels:
-      - "traefik.enable=true"
-      # Path-based routing for tournament/match routes
-      - "traefik.http.routers.competition.rule=PathPrefix(`/v1/`)"
-      - "traefik.http.routers.competition.entrypoints=web"
-      - "traefik.http.routers.competition.priority=1"
-      - "traefik.http.services.competition.loadbalancer.server.port=8089"
-      # Health check
-      - "traefik.http.services.competition.loadbalancer.healthcheck.path=/healthz"
-      - "traefik.http.services.competition.loadbalancer.healthcheck.interval=30s"
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8089/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - winspire-network
     extra_hosts:
@@ -97,27 +106,14 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    labels:
-      - "traefik.enable=true"
-      # Path-based routing (like ALB)
-      - "traefik.http.routers.game-management.rule=PathPrefix(`/v1/games`) || PathPrefix(`/v1/g`) || PathPrefix(`/v1/admin`)"
-      - "traefik.http.routers.game-management.entrypoints=web"
-      - "traefik.http.routers.game-management.priority=100"
-      - "traefik.http.routers.game-management.middlewares=game-bundle-iframe"
-      - "traefik.http.services.game-management.loadbalancer.server.port=8085"
-      # Health check
-      - "traefik.http.services.game-management.loadbalancer.healthcheck.path=/healthz"
-      - "traefik.http.services.game-management.loadbalancer.healthcheck.interval=30s"
-      # Middleware to allow iframe embedding for game bundles
-      - "traefik.http.middlewares.game-bundle-iframe.headers.customresponseheaders.X-Frame-Options="
-      - "traefik.http.middlewares.game-bundle-iframe.headers.customresponseheaders.Content-Security-Policy=frame-ancestors *"
-      # CORS middleware for development
-      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowmethods=GET,POST,PUT,PATCH,DELETE,OPTIONS"
-      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowheaders=Origin,Content-Type,Authorization,X-Request-ID"
-      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolalloworiginlistregex=.*"
-      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolmaxage=86400"
-      - "traefik.http.middlewares.matchmaking-cors.headers.addvaryheader=true"
-      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowcredentials=true"
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8085/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - winspire-network
     extra_hosts:
@@ -136,25 +132,13 @@ services:
     environment:
       - APP_ENV=development
       - SERVICE_PORT=8081
-
-      # Database
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres?sslmode=disable}
-      
-      # Redis
       - REDIS_URL=redis://redis:6379
-      
-      # JWT Auth
       - HOST_JWT_SECRET=${HOST_JWT_SECRET:-your-jwt-secret-here}
       - HOST_JWT_ISSUER=${HOST_JWT_ISSUER:-https://your-project.supabase.co/auth/v1}
       - HOST_JWT_AUDIENCE=${HOST_JWT_AUDIENCE:-authenticated}
-      
-      # Competition Service (for tournament info)
       - COMPETITION_SERVICE_URL=http://competition:8089
-      
-      # Game Management Service (for game info and URLs)
       - GAME_MANAGEMENT_URL=http://game-management:8085
-      
-      # Supabase Storage
       - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
     depends_on:
@@ -162,29 +146,108 @@ services:
         condition: service_healthy
       competition:
         condition: service_started
-    labels:
-      - "traefik.enable=true"
-      # Path-based routing (like ALB)
-      - "traefik.http.routers.matchmaking.rule=PathPrefix(`/v1/matchmaking`)"
-      - "traefik.http.routers.matchmaking.entrypoints=web"
-      - "traefik.http.routers.matchmaking.middlewares=matchmaking-cors"
-      - "traefik.http.routers.matchmaking.priority=100"
-      - "traefik.http.services.matchmaking.loadbalancer.server.port=8081"
-      # CORS middleware for development
-      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowmethods=GET,POST,PUT,PATCH,DELETE,OPTIONS"
-      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowheaders=Origin,Content-Type,Authorization,X-Request-ID"
-      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolalloworiginlistregex=.*"
-      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolmaxage=86400"
-      - "traefik.http.middlewares.matchmaking-cors.headers.addvaryheader=true"
-      - "traefik.http.middlewares.matchmaking-cors.headers.accesscontrolallowcredentials=true"
-      # Health check
-      - "traefik.http.services.matchmaking.loadbalancer.healthcheck.path=/health"
-      - "traefik.http.services.matchmaking.loadbalancer.healthcheck.interval=30s"
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - winspire-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  # ALB Target Registrar - registers service IPs with LocalStack ALB
+  alb-registrar:
+    image: amazon/aws-cli:2.15.0
+    container_name: alb-registrar
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        echo "Waiting for services to be healthy..."
+        sleep 15
+
+        # Wait for ALB to be created
+        echo "Waiting for ALB setup..."
+        until aws --endpoint-url=http://localstack:4566 elbv2 describe-load-balancers --names winspire-local-alb 2>/dev/null; do
+            echo "ALB not ready yet, waiting..."
+            sleep 5
+        done
+
+        echo "ALB is ready. Registering targets..."
+
+        # Get container IPs using DNS resolution
+        COMPETITION_IP=$$(getent hosts competition | awk '{ print $$1 }')
+        GAME_MGMT_IP=$$(getent hosts game-management | awk '{ print $$1 }')
+        MATCHMAKING_IP=$$(getent hosts matchmaking | awk '{ print $$1 }')
+
+        echo "Container IPs:"
+        echo "  Competition: $$COMPETITION_IP"
+        echo "  Game Management: $$GAME_MGMT_IP"
+        echo "  Matchmaking: $$MATCHMAKING_IP"
+
+        # Get target group ARNs
+        TG_COMPETITION=$$(aws --endpoint-url=http://localstack:4566 elbv2 describe-target-groups --names competition-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
+        TG_GAME_MGMT=$$(aws --endpoint-url=http://localstack:4566 elbv2 describe-target-groups --names game-management-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
+        TG_MATCHMAKING=$$(aws --endpoint-url=http://localstack:4566 elbv2 describe-target-groups --names matchmaking-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
+
+        if [ -z "$$TG_COMPETITION" ] || [ -z "$$TG_GAME_MGMT" ] || [ -z "$$TG_MATCHMAKING" ]; then
+            echo "ERROR: Could not find all target groups"
+            exit 1
+        fi
+
+        # Register targets
+        echo "Registering competition ($$COMPETITION_IP:8089)..."
+        aws --endpoint-url=http://localstack:4566 elbv2 register-targets \
+            --target-group-arn "$$TG_COMPETITION" \
+            --targets Id="$$COMPETITION_IP",Port=8089
+
+        echo "Registering game-management ($$GAME_MGMT_IP:8085)..."
+        aws --endpoint-url=http://localstack:4566 elbv2 register-targets \
+            --target-group-arn "$$TG_GAME_MGMT" \
+            --targets Id="$$GAME_MGMT_IP",Port=8085
+
+        echo "Registering matchmaking ($$MATCHMAKING_IP:8081)..."
+        aws --endpoint-url=http://localstack:4566 elbv2 register-targets \
+            --target-group-arn "$$TG_MATCHMAKING" \
+            --targets Id="$$MATCHMAKING_IP",Port=8081
+
+        echo ""
+        echo "============================================"
+        echo "Target Registration Complete!"
+        echo "============================================"
+        echo ""
+        echo "Test routing:"
+        echo "  curl http://localhost/v1/cups           # -> competition"
+        echo "  curl http://localhost/v1/games          # -> game-management"
+        echo "  curl http://localhost/v1/matchmaking/health  # -> matchmaking"
+        echo ""
+
+        # Keep container running for debugging
+        echo "Registration complete. Container will stay alive for debugging."
+        tail -f /dev/null
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+    depends_on:
+      localstack:
+        condition: service_healthy
+      competition:
+        condition: service_healthy
+      game-management:
+        condition: service_healthy
+      matchmaking:
+        condition: service_healthy
+    networks:
+      - winspire-network
+
 networks:
   winspire-network:
     driver: bridge
+
+volumes:
+  localstack-data:

@@ -1,0 +1,55 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  claude-review:
+    # Run on PR events or when someone mentions @claude
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # Auto-review new PRs
+          auto_review: ${{ github.event_name == 'pull_request' }}
+
+          # Custom review prompt
+          custom_prompt: |
+            You are reviewing code for Winspire, a tournament/competition platform.
+
+            Key areas to check:
+            - Go services follow SQLC patterns (no raw SQL)
+            - React components use Zod for validation
+            - Security: no SQL injection, XSS, or secrets in code
+            - Inter-service communication uses events, not direct DB queries
+
+            Be concise. Focus on bugs and security issues.
+
+          # Allowed tools for safety
+          allowed_tools: |
+            Read
+            Glob
+            Grep
+            WebFetch
