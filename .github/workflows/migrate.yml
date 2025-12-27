@@ -1,0 +1,183 @@
+name: Database Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to migrate'
+        required: true
+        type: choice
+        options:
+          - competition
+          - matchmaking
+          - game-management
+      action:
+        description: 'Migration action'
+        required: true
+        type: choice
+        options:
+          - apply
+          - status
+          - down
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      down_count:
+        description: 'Number of migrations to rollback (only for down action)'
+        required: false
+        default: '1'
+      dry_run:
+        description: 'Dry run (show SQL without executing)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  ATLAS_VERSION: v0.28.0
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Atlas
+        run: |
+          curl -sSf https://atlasgo.sh | sh -s -- -y --version ${{ env.ATLAS_VERSION }}
+          echo "$HOME/.atlas/bin" >> $GITHUB_PATH
+
+      - name: Set database URL
+        id: db
+        run: |
+          # Use environment-specific secret
+          case "${{ inputs.environment }}" in
+            dev)
+              echo "url=${{ secrets.SUPABASE_DB_URL_DEV }}" >> $GITHUB_OUTPUT
+              ;;
+            staging)
+              echo "url=${{ secrets.SUPABASE_DB_URL_STAGING }}" >> $GITHUB_OUTPUT
+              ;;
+            prod)
+              echo "url=${{ secrets.SUPABASE_DB_URL_PROD }}" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Check migration status
+        if: inputs.action == 'status' || inputs.action == 'apply'
+        run: |
+          echo "### Migration Status for ${{ inputs.service }}" >> $GITHUB_STEP_SUMMARY
+
+          atlas migrate status \
+            --dir file://services/${{ inputs.service }}/migrations \
+            --url "${{ steps.db.outputs.url }}" | tee status.txt
+
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat status.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Apply migrations
+        if: inputs.action == 'apply'
+        id: apply
+        run: |
+          echo "Applying migrations for ${{ inputs.service }}..."
+
+          DRY_RUN_FLAG=""
+          if [ "${{ inputs.dry_run }}" == "true" ]; then
+            DRY_RUN_FLAG="--dry-run"
+            echo "DRY RUN MODE - No changes will be made"
+          fi
+
+          # Attempt migration
+          if atlas migrate apply \
+            --dir file://services/${{ inputs.service }}/migrations \
+            --url "${{ steps.db.outputs.url }}" \
+            $DRY_RUN_FLAG 2>&1 | tee apply.txt; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "### Migration Applied Successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "### Migration Failed" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat apply.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat apply.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Rollback migrations
+        if: inputs.action == 'down'
+        run: |
+          echo "Rolling back ${{ inputs.down_count }} migration(s) for ${{ inputs.service }}..."
+
+          DRY_RUN_FLAG=""
+          if [ "${{ inputs.dry_run }}" == "true" ]; then
+            DRY_RUN_FLAG="--dry-run"
+            echo "DRY RUN MODE - No changes will be made"
+          fi
+
+          atlas migrate down \
+            --dir file://services/${{ inputs.service }}/migrations \
+            --url "${{ steps.db.outputs.url }}" \
+            --dev-url "sqlite://dev?mode=memory" \
+            $DRY_RUN_FLAG \
+            ${{ inputs.down_count }} 2>&1 | tee down.txt
+
+          echo "### Rollback Complete" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat down.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # Auto-rollback job if apply fails
+  auto-rollback:
+    needs: migrate
+    if: failure() && inputs.action == 'apply' && inputs.dry_run == false
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Atlas
+        run: |
+          curl -sSf https://atlasgo.sh | sh -s -- -y --version ${{ env.ATLAS_VERSION }}
+          echo "$HOME/.atlas/bin" >> $GITHUB_PATH
+
+      - name: Set database URL
+        id: db
+        run: |
+          case "${{ inputs.environment }}" in
+            dev)
+              echo "url=${{ secrets.SUPABASE_DB_URL_DEV }}" >> $GITHUB_OUTPUT
+              ;;
+            staging)
+              echo "url=${{ secrets.SUPABASE_DB_URL_STAGING }}" >> $GITHUB_OUTPUT
+              ;;
+            prod)
+              echo "url=${{ secrets.SUPABASE_DB_URL_PROD }}" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Auto-rollback failed migration
+        run: |
+          echo "### Auto-Rollback Triggered" >> $GITHUB_STEP_SUMMARY
+          echo "Migration failed, attempting to rollback last migration..." >> $GITHUB_STEP_SUMMARY
+
+          atlas migrate down \
+            --dir file://services/${{ inputs.service }}/migrations \
+            --url "${{ steps.db.outputs.url }}" \
+            --dev-url "sqlite://dev?mode=memory" \
+            1 2>&1 | tee rollback.txt
+
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat rollback.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

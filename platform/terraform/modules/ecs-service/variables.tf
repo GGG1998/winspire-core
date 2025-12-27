@@ -24,8 +24,14 @@ variable "vpc_id" {
 }
 
 variable "private_subnet_ids" {
-  description = "List of private subnet IDs for ECS tasks"
+  description = "List of subnet IDs for ECS tasks"
   type        = list(string)
+}
+
+variable "assign_public_ip" {
+  description = "Assign public IP to ECS tasks (required for public subnets without NAT)"
+  type        = bool
+  default     = false
 }
 
 variable "alb_security_group_id" {

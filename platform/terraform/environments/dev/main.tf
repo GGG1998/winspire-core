@@ -37,22 +37,86 @@ provider "aws" {
 variable "aws_region" {
   description = "AWS region"
   type        = string
-  default     = "us-east-1"
+  default     = "eu-central-1"
 }
 
-variable "vpc_id" {
-  description = "VPC ID (must be created separately)"
+variable "postgres_dsn" {
+  description = "PostgreSQL connection string (Supabase) - set via GitHub Secrets"
   type        = string
+  sensitive   = true
+  default     = "placeholder-will-be-set-by-github-ci"
 }
 
-variable "public_subnet_ids" {
-  description = "List of public subnet IDs"
-  type        = list(string)
+variable "jwt_secret" {
+  description = "JWT secret for authentication (Supabase) - set via GitHub Secrets"
+  type        = string
+  sensitive   = true
+  default     = "placeholder-will-be-set-by-github-ci"
 }
 
-variable "private_subnet_ids" {
-  description = "List of private subnet IDs"
-  type        = list(string)
+variable "jwt_issuer" {
+  description = "JWT issuer URL (Supabase)"
+  type        = string
+  default     = "https://your-project.supabase.co/auth/v1"
+}
+
+variable "jwt_audience" {
+  description = "JWT audience (Supabase)"
+  type        = string
+  default     = "authenticated"
+}
+
+variable "supabase_url" {
+  description = "Supabase API URL"
+  type        = string
+  default     = "http://localhost:54321"
+}
+
+variable "supabase_anon_key" {
+  description = "Supabase anon/public key"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "supabase_service_key" {
+  description = "Supabase service_role/secret key (bypasses RLS)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "redis_password" {
+  description = "Redis password (empty for no auth)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "game_api_url" {
+  description = "External game API URL (optional)"
+  type        = string
+  default     = ""
+}
+
+variable "game_api_key" {
+  description = "External game API key (optional)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+# VPC - creates all networking
+module "vpc" {
+  source = "../../modules/vpc"
+
+  environment          = "dev"
+  vpc_cidr             = "10.0.0.0/16"
+  az_count             = 2
+  enable_nat_gateway   = false  # Not needed - ECS in public subnets
+  enable_vpc_endpoints = false  # Not needed without NAT
+
+  tags = { Team = "Platform" }
 }
 
 # ECS Cluster
@@ -73,14 +137,12 @@ resource "aws_ecs_cluster" "main" {
 module "alb" {
   source = "../../modules/alb"
 
-  environment              = "dev"
-  vpc_id                   = var.vpc_id
-  public_subnet_ids        = var.public_subnet_ids
+  environment                = "dev"
+  vpc_id                     = module.vpc.vpc_id
+  public_subnet_ids          = module.vpc.public_subnet_ids
   enable_deletion_protection = false
 
-  tags = {
-    Team = "Platform"
-  }
+  tags = { Team = "Platform" }
 }
 
 # Redis for JWT caching and SSE broadcasting
@@ -88,69 +150,144 @@ module "redis" {
   source = "../../modules/redis"
 
   environment        = "dev"
-  vpc_id             = var.vpc_id
-  private_subnet_ids = var.private_subnet_ids
-  
+  vpc_id             = module.vpc.vpc_id
+  private_subnet_ids = module.vpc.private_subnet_ids
+
   # Allow ECS services to access Redis
   allowed_security_groups = [
-    module.competition_host_stream.security_group_id,
+    module.competition.security_group_id,
+    module.matchmaking.security_group_id,
     module.game_management.security_group_id,
   ]
 
-  # Dev settings
+  # Dev settings - smallest instance
   node_type            = "cache.t4g.micro"
-  num_cache_nodes      = 1  # Single node for dev
+  num_cache_nodes      = 1
   enable_cloudwatch_alarms = false
-  
-  tags = {
-    Team = "Platform"
-  }
+
+  tags = { Team = "Platform" }
 }
 
-# Competition Host Stream Service
-module "competition_host_stream" {
+# Competition Service
+module "competition" {
   source = "../../modules/ecs-service"
 
   environment            = "dev"
-  service_name           = "competition-host-stream"
+  service_name           = "competition"
   ecs_cluster_id         = aws_ecs_cluster.main.id
   ecs_cluster_name       = aws_ecs_cluster.main.name
-  vpc_id                 = var.vpc_id
-  private_subnet_ids     = var.private_subnet_ids
+  vpc_id                 = module.vpc.vpc_id
+  private_subnet_ids     = module.vpc.public_subnet_ids  # Public for internet access
+  assign_public_ip       = true
   alb_security_group_id  = module.alb.alb_security_group_id
 
-  container_image = "competition-host-stream:latest"  # Replace with your ECR image
-  container_port  = 8086
-  
-  task_cpu    = 512
-  task_memory = 1024
+  container_image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/dev-winspire-competition:latest"
+  container_port  = 8089
 
-  desired_count = 2
-  min_capacity  = 2
+  # Minimal Fargate size (0.25 vCPU, 512MB) - ~$9/month per task
+  task_cpu    = 256
+  task_memory = 512
+
+  # Scale from 1 to 10 based on load
+  desired_count = 1
+  min_capacity  = 1
   max_capacity  = 10
 
-  # Enable sticky sessions for SSE connections
-  enable_sticky_sessions   = true
-  sticky_session_duration  = 3600
+  enable_sticky_sessions = true
+  sticky_session_duration = 3600
 
   environment_variables = {
-    APP_ENV      = "development"
-    SERVICE_PORT = "8086"
-    REDIS_URL    = module.redis.redis_connection_string
-    USE_REDIS_BROKER = "true"
+    APP_ENV               = "production"
+    SERVICE_PORT          = "8089"
+    REDIS_ADDR            = module.redis.redis_endpoint
+    MATCHMAKING_BASE_URL  = "http://matchmaking.internal:8081"
+    GAME_MANAGEMENT_URL   = "http://game-management.internal:8087"
+    HOST_JWT_ISSUER       = var.jwt_issuer
+    HOST_JWT_AUDIENCE     = var.jwt_audience
+    SCHEDULER_ENABLED     = "true"
+    SCHEDULER_INTERVAL    = "*/2 * * * *"
+    LOG_LEVEL             = "info"
+    HTTP_READ_TIMEOUT     = "15s"
+    HTTP_WRITE_TIMEOUT    = "15s"
+    SHUTDOWN_GRACE        = "10s"
   }
 
-  # Secrets from AWS Secrets Manager/Parameter Store
   secrets = {
-    POSTGRES_DSN    = "arn:aws:secretsmanager:${var.aws_region}:ACCOUNT_ID:secret:dev/postgres-dsn"
-    HOST_JWT_SECRET = "arn:aws:secretsmanager:${var.aws_region}:ACCOUNT_ID:secret:dev/jwt-secret"
+    POSTGRES_DSN    = aws_secretsmanager_secret.db_url.arn
+    HOST_JWT_SECRET = aws_secretsmanager_secret.jwt_secret.arn
   }
 
   enable_execute_command = true
+  tags = { Team = "Platform" }
+}
 
-  tags = {
-    Team = "Platform"
+# Matchmaking Service
+module "matchmaking" {
+  source = "../../modules/ecs-service"
+
+  environment            = "dev"
+  service_name           = "matchmaking"
+  ecs_cluster_id         = aws_ecs_cluster.main.id
+  ecs_cluster_name       = aws_ecs_cluster.main.name
+  vpc_id                 = module.vpc.vpc_id
+  private_subnet_ids     = module.vpc.public_subnet_ids
+  assign_public_ip       = true
+  alb_security_group_id  = module.alb.alb_security_group_id
+
+  container_image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/dev-winspire-matchmaking:latest"
+  container_port  = 8081
+
+  task_cpu    = 256
+  task_memory = 512
+
+  desired_count = 1
+  min_capacity  = 1
+  max_capacity  = 10
+
+  environment_variables = {
+    APP_ENV                           = "production"
+    SERVICE_PORT                      = "8081"
+    PORT                              = "8081"
+    GIN_MODE                          = "release"
+    REDIS_ADDR                        = module.redis.redis_endpoint
+    REDIS_URL                         = "redis://${module.redis.redis_endpoint}:6379/0"
+    REDIS_DB                          = "0"
+    COMPETITION_SERVICE_URL           = "http://competition.internal:8089"
+    GAME_MANAGEMENT_URL               = "http://game-management.internal:8087"
+    HOST_JWT_ISSUER                   = var.jwt_issuer
+    HOST_JWT_AUDIENCE                 = var.jwt_audience
+    SUPABASE_URL                      = var.supabase_url
+    GAME_API_URL                      = var.game_api_url
+    GAME_API_POLL_INTERVAL            = "5s"
+    GAME_API_POLL_TIMEOUT             = "60s"
+    GAME_API_CIRCUIT_BREAKER_THRESHOLD = "5"
+    GAME_API_CIRCUIT_BREAKER_TIMEOUT  = "30s"
+    LOG_LEVEL                         = "info"
+    LOG_FORMAT                        = "json"
+    ENABLE_WEBSOCKET_LOBBIES          = "true"
+    ENABLE_AUTO_SCORE_RETRIEVAL       = "true"
+    ENABLE_DISCONNECT_HANDLING        = "true"
+    LOBBY_JOIN_TIMEOUT                = "2m"
+    DISCONNECT_RECONNECT_WINDOW       = "30s"
+    READY_CHECK_TIMEOUT               = "5m"
+    MAX_CONCURRENT_TOURNAMENTS        = "50"
+    MAX_PARTICIPANTS_PER_TOURNAMENT   = "256"
+    DATABASE_MAX_CONNS                = "25"
+    DATABASE_MAX_IDLE_CONNS           = "5"
   }
+
+  secrets = {
+    POSTGRES_DSN         = aws_secretsmanager_secret.db_url.arn
+    DATABASE_URL         = aws_secretsmanager_secret.db_url.arn
+    HOST_JWT_SECRET      = aws_secretsmanager_secret.jwt_secret.arn
+    REDIS_PASSWORD       = aws_secretsmanager_secret.redis_password.arn
+    SUPABASE_ANON_KEY    = aws_secretsmanager_secret.supabase_anon_key.arn
+    SUPABASE_SERVICE_KEY = aws_secretsmanager_secret.supabase_service_key.arn
+    GAME_API_KEY         = aws_secretsmanager_secret.game_api_key.arn
+  }
+
+  enable_execute_command = true
+  tags = { Team = "Platform" }
 }
 
 # Game Management Service
@@ -161,51 +298,125 @@ module "game_management" {
   service_name           = "game-management"
   ecs_cluster_id         = aws_ecs_cluster.main.id
   ecs_cluster_name       = aws_ecs_cluster.main.name
-  vpc_id                 = var.vpc_id
-  private_subnet_ids     = var.private_subnet_ids
+  vpc_id                 = module.vpc.vpc_id
+  private_subnet_ids     = module.vpc.public_subnet_ids
+  assign_public_ip       = true
   alb_security_group_id  = module.alb.alb_security_group_id
 
-  container_image = "game-management:latest"  # Replace with your ECR image
-  container_port  = 8085
-  
+  container_image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/dev-winspire-game-management:latest"
+  container_port  = 8087
+
   task_cpu    = 256
   task_memory = 512
 
-  desired_count = 2
-  min_capacity  = 2
+  desired_count = 1
+  min_capacity  = 1
   max_capacity  = 10
 
   environment_variables = {
-    APP_ENV      = "development"
-    SERVICE_PORT = "8085"
-    REDIS_URL    = module.redis.redis_connection_string
+    APP_ENV           = "production"
+    SERVICE_PORT      = "8087"
+    REDIS_ADDR        = module.redis.redis_endpoint
+    HOST_JWT_ISSUER   = var.jwt_issuer
+    HOST_JWT_AUDIENCE = "authenticated"
   }
 
   secrets = {
-    POSTGRES_DSN    = "arn:aws:secretsmanager:${var.aws_region}:ACCOUNT_ID:secret:dev/postgres-dsn"
-    HOST_JWT_SECRET = "arn:aws:secretsmanager:${var.aws_region}:ACCOUNT_ID:secret:dev/jwt-secret"
+    POSTGRES_DSN    = aws_secretsmanager_secret.db_url.arn
+    HOST_JWT_SECRET = aws_secretsmanager_secret.jwt_secret.arn
   }
 
   enable_execute_command = true
+  tags = { Team = "Platform" }
+}
 
-  tags = {
-    Team = "Platform"
-  }
+# Data source for AWS account ID
+data "aws_caller_identity" "current" {}
+
+# Secrets Manager for sensitive values
+resource "aws_secretsmanager_secret" "db_url" {
+  name = "dev/winspire/postgres-dsn"
+}
+
+resource "aws_secretsmanager_secret_version" "db_url" {
+  secret_id     = aws_secretsmanager_secret.db_url.id
+  secret_string = var.postgres_dsn
+}
+
+resource "aws_secretsmanager_secret" "jwt_secret" {
+  name = "dev/winspire/jwt-secret"
+}
+
+resource "aws_secretsmanager_secret_version" "jwt_secret" {
+  secret_id     = aws_secretsmanager_secret.jwt_secret.id
+  secret_string = var.jwt_secret
+}
+
+resource "aws_secretsmanager_secret" "supabase_anon_key" {
+  name = "dev/winspire/supabase-anon-key"
+}
+
+resource "aws_secretsmanager_secret_version" "supabase_anon_key" {
+  secret_id     = aws_secretsmanager_secret.supabase_anon_key.id
+  secret_string = var.supabase_anon_key
+}
+
+resource "aws_secretsmanager_secret" "redis_password" {
+  name = "dev/winspire/redis-password"
+}
+
+resource "aws_secretsmanager_secret_version" "redis_password" {
+  secret_id     = aws_secretsmanager_secret.redis_password.id
+  secret_string = var.redis_password
+}
+
+resource "aws_secretsmanager_secret" "game_api_key" {
+  name = "dev/winspire/game-api-key"
+}
+
+resource "aws_secretsmanager_secret_version" "game_api_key" {
+  secret_id     = aws_secretsmanager_secret.game_api_key.id
+  secret_string = var.game_api_key
+}
+
+resource "aws_secretsmanager_secret" "supabase_service_key" {
+  name = "dev/winspire/supabase-service-key"
+}
+
+resource "aws_secretsmanager_secret_version" "supabase_service_key" {
+  secret_id     = aws_secretsmanager_secret.supabase_service_key.id
+  secret_string = var.supabase_service_key
 }
 
 # ALB Listener Rules for path-based routing
-resource "aws_lb_listener_rule" "competition_host_stream" {
+resource "aws_lb_listener_rule" "competition" {
   listener_arn = module.alb.http_listener_arn
   priority     = 100
 
   action {
     type             = "forward"
-    target_group_arn = module.competition_host_stream.target_group_arn
+    target_group_arn = module.competition.target_group_arn
   }
 
   condition {
     path_pattern {
-      values = ["/v1/stream/*", "/v1/cups/*", "/v1/tournaments/*", "/v1/matches/*"]
+      values = ["/v1/tournaments/*", "/v1/hosts/*", "/v1/registrations/*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "matchmaking" {
+  listener_arn = module.alb.http_listener_arn
+  priority     = 150
+
+  action {
+    type             = "forward"
+    target_group_arn = module.matchmaking.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/brackets/*", "/v1/matches/*", "/v1/lobbies/*"]
     }
   }
 }
@@ -221,12 +432,17 @@ resource "aws_lb_listener_rule" "game_management" {
 
   condition {
     path_pattern {
-      values = ["/v1/games/*", "/v1/bundles/*", "/v1/admin/*"]
+      values = ["/v1/games/*", "/v1/bundles/*"]
     }
   }
 }
 
 # Outputs
+output "vpc_id" {
+  description = "VPC ID"
+  value       = module.vpc.vpc_id
+}
+
 output "alb_dns_name" {
   description = "DNS name of the Application Load Balancer"
   value       = module.alb.alb_dns_name
@@ -238,13 +454,17 @@ output "redis_endpoint" {
   sensitive   = true
 }
 
-output "competition_host_stream_log_group" {
-  description = "CloudWatch log group for competition-host-stream"
-  value       = module.competition_host_stream.log_group_name
+output "ecs_cluster_name" {
+  description = "ECS cluster name"
+  value       = aws_ecs_cluster.main.name
 }
 
-output "game_management_log_group" {
-  description = "CloudWatch log group for game-management"
-  value       = module.game_management.log_group_name
+output "service_log_groups" {
+  description = "CloudWatch log groups for services"
+  value = {
+    competition     = module.competition.log_group_name
+    matchmaking     = module.matchmaking.log_group_name
+    game_management = module.game_management.log_group_name
+  }
 }
 

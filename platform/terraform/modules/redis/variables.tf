@@ -72,11 +72,6 @@ variable "transit_encryption_enabled" {
   default     = true
 }
 
-variable "auth_token_enabled" {
-  description = "Enable Redis AUTH token"
-  type        = bool
-  default     = true
-}
 
 variable "notification_topic_arn" {
   description = "SNS topic ARN for notifications"

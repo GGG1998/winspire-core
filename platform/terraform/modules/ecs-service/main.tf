@@ -88,7 +88,7 @@ resource "aws_ecs_service" "main" {
   network_configuration {
     subnets          = var.private_subnet_ids
     security_groups  = [aws_security_group.ecs_service.id]
-    assign_public_ip = false
+    assign_public_ip = var.assign_public_ip
   }
 
   load_balancer {
@@ -97,16 +97,14 @@ resource "aws_ecs_service" "main" {
     container_port   = var.container_port
   }
 
-  health_check_grace_period_seconds = 60
-  enable_execute_command            = var.enable_execute_command
+  health_check_grace_period_seconds  = 60
+  enable_execute_command             = var.enable_execute_command
+  deployment_maximum_percent         = 200
+  deployment_minimum_healthy_percent = 100
 
-  deployment_configuration {
-    maximum_percent         = 200
-    minimum_healthy_percent = 100
-    deployment_circuit_breaker {
-      enable   = true
-      rollback = true
-    }
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
   }
 
   depends_on = [aws_lb_target_group.main]

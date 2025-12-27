@@ -58,9 +58,9 @@ resource "aws_security_group" "redis" {
 
 # ElastiCache Replication Group (Redis Cluster)
 resource "aws_elasticache_replication_group" "main" {
-  replication_group_id       = "${var.environment}-winspire-redis"
-  replication_group_description = "Redis cluster for Winspire ${var.environment}"
-  
+  replication_group_id = "${var.environment}-winspire-redis"
+  description          = "Redis cluster for Winspire ${var.environment}"
+
   engine               = "redis"
   engine_version       = var.redis_version
   node_type            = var.node_type
@@ -81,7 +81,6 @@ resource "aws_elasticache_replication_group" "main" {
   # Encryption
   at_rest_encryption_enabled = var.at_rest_encryption_enabled
   transit_encryption_enabled = var.transit_encryption_enabled
-  auth_token_enabled         = var.auth_token_enabled
 
   # Notifications
   notification_topic_arn = var.notification_topic_arn

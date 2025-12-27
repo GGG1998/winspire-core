@@ -6,6 +6,15 @@
 supabase/.env
 supabase/.env.production
 
+# Terraform secrets (NEVER commit)
+*.auto.tfvars
+!*.auto.tfvars.example
+terraform.tfvars
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
 # Docker volumes data
 supabase-db-data/
 supabase-storage-data/
