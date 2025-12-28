@@ -44,12 +44,8 @@ import {
   UserIcon,
 } from '@heroicons/react/16/solid';
 import {
-  HomeIcon,
   InboxIcon,
   MagnifyingGlassIcon,
-  TrophyIcon,
-  PlayIcon,
-  ChartBarIcon,
   ArrowLeftIcon,
 } from '@heroicons/react/20/solid';
 

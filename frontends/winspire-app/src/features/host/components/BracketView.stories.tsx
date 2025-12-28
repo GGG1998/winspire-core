@@ -90,7 +90,7 @@ function generateBracket(numRounds: number, tournamentId: string): Bracket {
         winnerId,
         scorePlayer1,
         scorePlayer2,
-        resultSource: status === 'completed' ? 'game_api' : null,
+        resultSource: status === 'completed' ? 'game_api' as const : null,
         disconnectedPlayerId: null,
         disconnectedAt: null,
         gameApiMatchId: status !== 'ready' ? `game-${matchId}` : null,
@@ -101,12 +101,13 @@ function generateBracket(numRounds: number, tournamentId: string): Bracket {
       });
     }
 
+    const roundStatus = matches.every(m => m.status === 'completed') ? 'completed' : matches.some(m => m.status === 'started') ? 'in_progress' : 'pending';
     rounds.unshift({
       id: generateId(5000 + roundNum),
       roundNumber: roundNum,
       roundName,
       matchesCount: matchesInRound,
-      status: matches.every(m => m.status === 'completed') ? 'completed' : matches.some(m => m.status === 'started') ? 'in_progress' : 'pending',
+      status: roundStatus as 'pending' | 'in_progress' | 'completed',
       matches,
     });
   }
@@ -275,7 +276,7 @@ export const NotStarted: Story = {
   args: {
     tournament: {
       ...baseTournament,
-      status: 'pending',
+      status: 'draft',
     },
   },
 };

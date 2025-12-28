@@ -53,8 +53,8 @@ export function TournamentSettings({
   const canPublish = status === 'draft'
   // Can open registration if tournament is scheduled
   const canOpenRegistration = status === 'scheduled'
-  // Can start if tournament is registration_open or registration_closed (not if already starting)
-  const canStart = (status === 'registration_open' || status === 'registration_closed') && status !== 'starting'
+  // Can start if tournament is registration_open or registration_closed
+  const canStart = status === 'registration_open' || status === 'registration_closed'
   // Can cancel if tournament is not completed
   const canCancel = status !== 'completed'
   // Can edit if tournament is not completed or cancelled

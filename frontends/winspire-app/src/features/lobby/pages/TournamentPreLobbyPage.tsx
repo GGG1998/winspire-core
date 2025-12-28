@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth';
 import { LoadingSpinner } from '../../../shared/components/common/LoadingSpinner';
 import { ErrorMessage } from '../../../shared/components/common/ErrorMessage';

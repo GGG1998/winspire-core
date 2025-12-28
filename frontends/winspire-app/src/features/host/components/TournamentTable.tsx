@@ -41,10 +41,10 @@ function formatDate(date: Date): string {
 /**
  * Table component for displaying tournament list
  */
-export function TournamentTable({ 
-  tournaments, 
+export function TournamentTable({
+  tournaments,
   isLoading,
-  onRefresh,
+  onRefresh: _onRefresh,
   onTournamentClick
 }: TournamentTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])

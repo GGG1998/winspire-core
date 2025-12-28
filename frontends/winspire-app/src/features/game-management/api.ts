@@ -4,19 +4,8 @@
  * Client for interacting with the game-management service
  */
 
-import { apiClient } from '@/lib/api-client'
+import { apiClient } from '../../shared/api/client'
 import type { Game } from './types'
-
-/**
- * API response wrapper
- */
-interface ApiResponse<T> {
-  data?: T
-  error?: {
-    message: string
-    code?: string
-  }
-}
 
 /**
  * Game Management API

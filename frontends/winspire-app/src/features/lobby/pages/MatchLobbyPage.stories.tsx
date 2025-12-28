@@ -49,6 +49,8 @@ const createMockMatch = (overrides?: Partial<Match>): Match => ({
   status: 'ready',
   participant1Ready: false,
   participant2Ready: false,
+  participant1GameLoaded: false,
+  participant2GameLoaded: false,
   winnerId: null,
   scorePlayer1: null,
   scorePlayer2: null,

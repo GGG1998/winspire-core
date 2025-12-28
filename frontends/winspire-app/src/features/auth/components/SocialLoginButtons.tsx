@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { Button } from '../../../shared/components/ui/button';
 
 export type OAuthProvider = 'google' | 'twitch' | 'discord';
 

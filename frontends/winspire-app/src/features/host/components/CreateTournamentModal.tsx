@@ -28,7 +28,6 @@ import {
 } from '../constants'
 import type { CreateTournamentModalProps } from '../types'
 import { gameManagementApi, type Game } from '../../../shared/api/gameManagementApi'
-import type { GameSnapshot } from '../../../features/game-management'
 
 /**
  * Get default start time (now + 1 hour)

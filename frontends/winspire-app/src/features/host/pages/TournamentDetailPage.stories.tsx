@@ -206,35 +206,7 @@ const mockTournamentBase: Tournament = {
     value: 1000,
     currency: 'PLN'
   },
-  participants: [
-    {
-      id: 'player-1',
-      name: 'ProGamer123',
-      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80',
-      isReady: true,
-      registeredAt: new Date(Date.now() - 5 * 60 * 60 * 1000)
-    },
-    {
-      id: 'player-2',
-      name: 'ElitePlayer456',
-      avatarUrl: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=100&q=80',
-      isReady: true,
-      registeredAt: new Date(Date.now() - 4 * 60 * 60 * 1000)
-    },
-    {
-      id: 'player-3',
-      name: 'GamerX',
-      avatarUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&q=80',
-      isReady: false,
-      registeredAt: new Date(Date.now() - 3 * 60 * 60 * 1000)
-    },
-    {
-      id: 'player-4',
-      name: 'NoobMaster69',
-      isReady: true,
-      registeredAt: new Date(Date.now() - 2 * 60 * 60 * 1000)
-    }
-  ],
+  participantCount: 4,
   lastActivity: new Date(Date.now() - 30 * 60 * 1000) // 30 minutes ago
 }
 
@@ -267,7 +239,7 @@ let mockApiDelay = 0
 function setupMockApi() {
   const originalGetTournament = tournamentApi.getTournament
   
-  tournamentApi.getTournament = async (tournamentId: string): Promise<Tournament> => {
+  tournamentApi.getTournament = async (_tournamentId: string): Promise<Tournament> => {
     await new Promise(resolve => setTimeout(resolve, mockApiDelay))
     
     if (mockApiResponse === 'loading') {

@@ -34,6 +34,9 @@ type Story = StoryObj<typeof meta>;
  * Shows the lobby layout with standard navigation
  */
 export const Default: Story = {
+  args: {
+    children: null,
+  },
   render: () => (
     <LobbyLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -81,6 +84,9 @@ export const Default: Story = {
  * Shows "Powrót do Podglądu turnieju" link in sidebar
  */
 export const WithTournamentContext: Story = {
+  args: {
+    children: null,
+  },
   render: () => (
     <LobbyLayout tournamentId="test-tournament-123" streamerId="streamer-456">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -113,6 +119,9 @@ export const WithTournamentContext: Story = {
  * Tests scrolling behavior
  */
 export const WithLongContent: Story = {
+  args: {
+    children: null,
+  },
   render: () => (
     <LobbyLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -141,6 +150,9 @@ export const WithLongContent: Story = {
  * Minimal content in layout
  */
 export const EmptyContent: Story = {
+  args: {
+    children: null,
+  },
   render: () => (
     <LobbyLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -162,6 +174,9 @@ export const EmptyContent: Story = {
  * Content that spans the full width
  */
 export const FullWidthContent: Story = {
+  args: {
+    children: null,
+  },
   render: () => (
     <LobbyLayout>
       <div className="px-4 sm:px-6 lg:px-8 py-8">
@@ -199,6 +214,9 @@ export const FullWidthContent: Story = {
  * Layout on mobile devices
  */
 export const MobileView: Story = {
+  args: {
+    children: null,
+  },
   render: () => (
     <LobbyLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -240,6 +258,9 @@ export const MobileView: Story = {
  * Shows loading spinners in layout
  */
 export const WithLoadingContent: Story = {
+  args: {
+    children: null,
+  },
   render: () => (
     <LobbyLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -270,6 +291,9 @@ export const WithLoadingContent: Story = {
  * Shows various UI states
  */
 export const WithAlerts: Story = {
+  args: {
+    children: null,
+  },
   render: () => (
     <LobbyLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

@@ -13,7 +13,9 @@ describe('formToApiInput', () => {
       name: '  Test Tournament  ',
       startTime: '2024-12-31T20:00',
       game: 'Packman',
+      gameSnapshot: { id: 'game-1', name: 'Packman', slug: 'packman', version: '1.0.0' },
       teamMode: '1v1',
+      minPlayers: 2,
       maxPlayers: 16
     }
 
@@ -39,7 +41,9 @@ describe('formToApiInput', () => {
         name: 'Test',
         startTime: '2024-12-31T20:00',
         game: 'Packman',
+        gameSnapshot: { id: 'game-1', name: 'Packman', slug: 'packman', version: '1.0.0' },
         teamMode,
+        minPlayers: 2,
         maxPlayers: 16
       }
 
@@ -53,7 +57,9 @@ describe('formToApiInput', () => {
       name: 'Test Tournament',
       startTime: '',
       game: '',
+      gameSnapshot: { id: '', name: '', slug: '', version: '' },
       teamMode: '1v1',
+      minPlayers: 2,
       maxPlayers: 8
     }
 
@@ -70,7 +76,9 @@ describe('formToApiInput', () => {
       name: '   Spaced Tournament   ',
       startTime: '2024-12-31T20:00',
       game: 'Packman',
+      gameSnapshot: { id: 'game-1', name: 'Packman', slug: 'packman', version: '1.0.0' },
       teamMode: '1v1',
+      minPlayers: 2,
       maxPlayers: 16
     }
 
@@ -83,7 +91,9 @@ describe('formToApiInput', () => {
       name: 'Test',
       startTime: '2024-12-31T20:00',
       game: 'PACKMAN',
+      gameSnapshot: { id: 'game-1', name: 'PACKMAN', slug: 'packman', version: '1.0.0' },
       teamMode: '1v1',
+      minPlayers: 2,
       maxPlayers: 16
     }
 
@@ -97,7 +107,8 @@ describe('apiToUiTournament', () => {
     const apiData: TournamentApiData = {
       id: '123e4567-e89b-12d3-a456-426614174000',
       name: 'Test Tournament',
-      startTime: '2024-12-31T20:00:00Z',
+      status: 'scheduled',
+      scheduledStartTimeAt: '2024-12-31T20:00:00Z',
       game: 'Packman',
       gameLogoUrl: 'https://example.com/logo.png',
       bannerUrl: 'https://example.com/banner.png',
@@ -127,7 +138,8 @@ describe('apiToUiTournament', () => {
     const apiData: TournamentApiData = {
       id: '123',
       name: 'Test',
-      startTime: '2024-12-31T20:00:00Z',
+      status: 'scheduled',
+      scheduledStartTimeAt: '2024-12-31T20:00:00Z',
       game: 'Packman',
       creatorId: '456',
       roomLink: '/tournament/123',
@@ -150,7 +162,8 @@ describe('apiToUiTournament', () => {
     const apiData: TournamentApiData = {
       id: '123',
       name: 'Test',
-      startTime: '2024-12-31T20:00:00Z',
+      status: 'scheduled',
+      scheduledStartTimeAt: '2024-12-31T20:00:00Z',
       game: 'Packman',
       creatorId: '456',
       roomLink: '/tournament/123',
@@ -175,7 +188,8 @@ describe('apiToUiTournament', () => {
     const apiData: TournamentApiData = {
       id: '123',
       name: 'Test',
-      startTime: '2024-12-31T20:00:00Z',
+      status: 'scheduled',
+      scheduledStartTimeAt: '2024-12-31T20:00:00Z',
       game: 'Packman',
       creatorId: '456',
       roomLink: '/tournament/123',
@@ -194,45 +208,31 @@ describe('apiToUiTournament', () => {
     expect(result.readyWindow?.endsAt).toBeInstanceOf(Date)
   })
 
-  it('should convert participants with registeredAt dates', () => {
+  it('should handle participantCount field', () => {
     const apiData: TournamentApiData = {
       id: '123',
       name: 'Test',
-      startTime: '2024-12-31T20:00:00Z',
+      status: 'scheduled',
+      scheduledStartTimeAt: '2024-12-31T20:00:00Z',
       game: 'Packman',
       creatorId: '456',
       roomLink: '/tournament/123',
       isCompleted: false,
       createdAt: '2024-01-01T10:00:00Z',
       updatedAt: '2024-01-01T10:00:00Z',
-      participants: [
-        {
-          id: 'p1',
-          name: 'Player 1',
-          isReady: true,
-          registeredAt: '2024-12-01T10:00:00Z'
-        },
-        {
-          id: 'p2',
-          name: 'Player 2',
-          avatarUrl: 'https://example.com/avatar.png',
-          isReady: false,
-          registeredAt: '2024-12-01T11:00:00Z'
-        }
-      ]
+      participantCount: 12
     }
 
     const result = apiToUiTournament(apiData)
-    expect(result.participants).toHaveLength(2)
-    expect(result.participants?.[0].registeredAt).toBeInstanceOf(Date)
-    expect(result.participants?.[1].registeredAt).toBeInstanceOf(Date)
+    expect(result.participantCount).toBe(12)
   })
 
   it('should handle lastActivity date conversion', () => {
     const apiData: TournamentApiData = {
       id: '123',
       name: 'Test',
-      startTime: '2024-12-31T20:00:00Z',
+      status: 'scheduled',
+      scheduledStartTimeAt: '2024-12-31T20:00:00Z',
       game: 'Packman',
       creatorId: '456',
       roomLink: '/tournament/123',

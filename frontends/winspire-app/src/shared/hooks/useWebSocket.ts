@@ -92,8 +92,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
   // Refs (don't trigger re-renders)
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messageQueueRef = useRef<(string | object)[]>([]);
   const isManualCloseRef = useRef(false);
 

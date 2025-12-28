@@ -1,4 +1,3 @@
-import React from 'react';
 import { LoadingSpinner } from '../../../shared/components/common/LoadingSpinner';
 
 interface ReadyButtonProps {

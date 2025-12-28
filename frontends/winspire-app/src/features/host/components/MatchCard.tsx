@@ -21,13 +21,13 @@ interface MatchCardProps {
  * - "Join Lobby" button for user's active matches
  * - Click navigation to match details
  */
-export function MatchCard({ 
-  match, 
+export function MatchCard({
+  match,
   tournamentId,
-  streamerId,
+  streamerId: _streamerId,
   currentUserId,
   roundName,
-  isClickable = true 
+  isClickable = true
 }: MatchCardProps) {
   const navigate = useNavigate();
 

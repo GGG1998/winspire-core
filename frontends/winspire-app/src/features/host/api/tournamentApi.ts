@@ -130,10 +130,6 @@ export function apiToUiTournament(apiData: TournamentApiData): Tournament {
             : undefined,
         }
       : undefined,
-    participants: apiData.participants?.map(p => ({
-      ...p,
-      registeredAt: new Date(p.registeredAt)
-    })),
     lastActivity: apiData.lastActivity ? new Date(apiData.lastActivity) : undefined,
     participantCount: apiData.participantCount
   }
@@ -424,7 +420,6 @@ export const tournamentApi = {
    */
   async getBracket(tournamentId: string): Promise<Bracket> {
     try {
-      const hostId = await getCurrentHostId()
       const response = await apiClient.get<{ bracket: Bracket }>(
         `:8088/v1/matchmaking/tournaments/${tournamentId}/bracket`
       )
@@ -450,7 +445,6 @@ export const tournamentApi = {
    */
   async getMatches(tournamentId: string): Promise<MatchWithPlayers[]> {
     try {
-      const hostId = await getCurrentHostId()
       const response = await apiClient.get<{
         matches: Array<{
           match: Match
@@ -486,13 +480,12 @@ export const tournamentApi = {
    * Used when game API fails or is unavailable
    */
   async submitManualResult(
-    matchId: string, 
-    winnerId: string, 
-    scorePlayer1: number | null = null, 
+    matchId: string,
+    winnerId: string,
+    scorePlayer1: number | null = null,
     scorePlayer2: number | null = null
   ): Promise<void> {
     try {
-      const hostId = await getCurrentHostId()
       const response = await apiClient.post<{ success: boolean }>(
         `/v1/matchmaking/matches/${matchId}/manual-result`,
         {

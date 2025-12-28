@@ -19,13 +19,13 @@ interface BracketMatchProps {
  * - Bye indicators
  * - Click navigation to match lobby
  */
-export function BracketMatch({ 
-  match, 
-  player1, 
-  player2, 
+export function BracketMatch({
+  match,
+  player1,
+  player2,
   tournamentId,
-  streamerId,
-  isClickable = true 
+  streamerId: _streamerId,
+  isClickable = true
 }: BracketMatchProps) {
   const navigate = useNavigate();
 

@@ -29,9 +29,7 @@ import {
 import { Avatar } from '../../../shared/components/ui/avatar';
 import {
   ArrowRightStartOnRectangleIcon,
-  ChevronDownIcon,
   ChevronUpIcon,
-  Cog8ToothIcon,
   HomeIcon,
   ShieldCheckIcon,
   UserIcon,
@@ -77,7 +75,7 @@ export function ProfilePage() {
   );
 }
 
-function ProfileNavbar({ user, onLogout, initials }: { user: any; onLogout: () => void; initials: string }) {
+function ProfileNavbar({ onLogout, initials }: { user: any; onLogout: () => void; initials: string }) {
   return (
     <Navbar>
       <NavbarSpacer />

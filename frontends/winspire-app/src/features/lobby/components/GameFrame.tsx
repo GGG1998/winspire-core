@@ -183,7 +183,7 @@ export function GameFrame({
   };
 
   // Handle iframe error
-  const handleIframeError = (e: React.SyntheticEvent<HTMLIFrameElement, Event>) => {
+  const handleIframeError = (_e: React.SyntheticEvent<HTMLIFrameElement, Event>) => {
     setError('Nie udało się załadować gry. Sprawdź konsolę przeglądarki.');
     setIsLoading(false);
     onGameError?.('Iframe load error');

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../../../shared/hooks/useWebSocket';
 import { getPreLobbyState, getPreLobbyWebSocketUrl } from '../api/matchmakingApi';
 import { WS_BASE_URL } from '../../../shared/config/websocket';

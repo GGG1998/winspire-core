@@ -1,4 +1,3 @@
-import React from 'react';
 import { Avatar } from '../../../shared/components/ui/avatar';
 import type { PlayerInfo } from '../types';
 

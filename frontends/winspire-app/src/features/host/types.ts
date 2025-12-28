@@ -267,8 +267,8 @@ export interface EditTournamentInput {
   /** Description (max 4000 characters) */
   description?: string
   
-  /** Tournament status (for state transitions: open, started, completed, cancelled) */
-  status?: 'draft' | 'open' | 'started' | 'completed' | 'cancelled'
+  /** Tournament status (for state transitions: open, registration_open, started, completed, cancelled) */
+  status?: 'draft' | 'open' | 'registration_open' | 'started' | 'completed' | 'cancelled'
   
   /** Scheduled start time (ISO 8601) */
   scheduledStartTimeAt?: string

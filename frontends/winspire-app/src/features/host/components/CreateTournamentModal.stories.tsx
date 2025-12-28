@@ -76,7 +76,7 @@ export const WithValidationErrors: Story = {
   args: {
     isOpen: true,
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement: _canvasElement }) => {
     // This story is interactive - user can trigger validation errors
     // by interacting with the form
   },

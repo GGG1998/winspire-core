@@ -5,7 +5,7 @@
  * Main layout wrapper for host/streamer pages with sidebar navigation
  */
 
-import { useLocation, useParams } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { Avatar } from '../../../shared/components/ui/avatar'
 import { LoadingSpinner } from '../../../shared/components/common/LoadingSpinner'
 import {

@@ -37,7 +37,7 @@ function formatFormatType(type: string): string {
 /**
  * Format ready window for display
  */
-function formatReadyWindow(startsAt: Date, endsAt: Date): string {
+function formatReadyWindow(startsAt: Date, _endsAt: Date): string {
   const options: Intl.DateTimeFormatOptions = {
     weekday: 'short',
     month: 'long',

@@ -1,10 +1,11 @@
 /**
  * useMatchLobby Hook Tests
- * 
+ *
  * Tests for the useMatchLobby hook, focusing on preventing infinite render loops
  * and proper state management.
  */
 
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useMatchLobby } from './useMatchLobby';
 import * as matchmakingApiModule from '../api/matchmakingApi';
@@ -13,14 +14,14 @@ import * as supabaseModule from '../../../shared/api/supabase';
 import * as useAuthModule from '../../auth';
 
 // Mock modules
-jest.mock('../api/matchmakingApi');
-jest.mock('../../../shared/hooks/useWebSocket');
-jest.mock('../../../shared/api/supabase');
-jest.mock('../../auth');
+vi.mock('../api/matchmakingApi');
+vi.mock('../../../shared/hooks/useWebSocket');
+vi.mock('../../../shared/api/supabase');
+vi.mock('../../auth');
 
-const mockMatchmakingApi = matchmakingApiModule.matchmakingApi as jest.Mocked<typeof matchmakingApiModule.matchmakingApi>;
-const mockUseWebSocket = useWebSocketModule.useWebSocket as jest.MockedFunction<typeof useWebSocketModule.useWebSocket>;
-const mockUseAuth = useAuthModule.useAuth as jest.MockedFunction<typeof useAuthModule.useAuth>;
+const mockMatchmakingApi = matchmakingApiModule.matchmakingApi as unknown as { getMatch: Mock };
+const mockUseWebSocket = useWebSocketModule.useWebSocket as Mock;
+const mockUseAuth = useAuthModule.useAuth as Mock;
 
 describe('useMatchLobby', () => {
   const mockUser = {
@@ -39,6 +40,8 @@ describe('useMatchLobby', () => {
       status: 'ready' as const,
       participant1Ready: false,
       participant2Ready: false,
+      participant1GameLoaded: false,
+      participant2GameLoaded: false,
       winnerId: null,
       scorePlayer1: null,
       scorePlayer2: null,
@@ -46,6 +49,7 @@ describe('useMatchLobby', () => {
       disconnectedPlayerId: null,
       disconnectedAt: null,
       gameApiMatchId: null,
+      gameUrl: null,
       createdAt: new Date(Date.now() - 1 * 60 * 1000).toISOString(), // 1 minute ago
       startedAt: null,
       completedAt: null,
@@ -70,27 +74,39 @@ describe('useMatchLobby', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    
+    vi.clearAllMocks();
+
     // Mock useAuth
-    (mockUseAuth as jest.Mock).mockReturnValue({
+    mockUseAuth.mockReturnValue({
       user: mockUser,
     });
 
     // Mock supabase
-    (supabaseModule.supabase.auth.getSession as jest.Mock).mockResolvedValue({
+    vi.mocked(supabaseModule.supabase.auth.getSession).mockResolvedValue({
       data: {
         session: {
           access_token: 'mock-token',
+          refresh_token: 'mock-refresh-token',
+          expires_in: 3600,
+          token_type: 'bearer',
+          user: {
+            id: 'user-123',
+            email: 'test@example.com',
+            aud: 'authenticated',
+            created_at: new Date().toISOString(),
+            app_metadata: {},
+            user_metadata: {},
+          },
         },
       },
-    });
+      error: null,
+    } as unknown as Awaited<ReturnType<typeof supabaseModule.supabase.auth.getSession>>);
 
     // Mock useWebSocket
-    (mockUseWebSocket as jest.Mock).mockReturnValue({
+    mockUseWebSocket.mockReturnValue({
       status: 'connected',
-      send: jest.fn(),
-      close: jest.fn(),
+      send: vi.fn(),
+      close: vi.fn(),
     });
 
     // Mock matchmaking API
