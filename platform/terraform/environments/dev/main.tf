@@ -199,7 +199,7 @@ module "competition" {
   environment_variables = {
     APP_ENV               = "production"
     SERVICE_PORT          = "8089"
-    REDIS_ADDR            = module.redis.redis_endpoint
+    REDIS_ADDR            = "${module.redis.redis_endpoint}:6379"
     MATCHMAKING_BASE_URL  = "http://matchmaking.internal:8081"
     GAME_MANAGEMENT_URL   = "http://game-management.internal:8087"
     HOST_JWT_ISSUER       = var.jwt_issuer
@@ -246,7 +246,7 @@ module "matchmaking" {
     SERVICE_PORT                      = "8081"
     PORT                              = "8081"
     GIN_MODE                          = "release"
-    REDIS_ADDR                        = module.redis.redis_endpoint
+    REDIS_ADDR                        = "${module.redis.redis_endpoint}:6379"
     REDIS_URL                         = "redis://${module.redis.redis_endpoint}:6379/0"
     REDIS_DB                          = "0"
     COMPETITION_SERVICE_URL           = "http://competition.internal:8089"
@@ -310,7 +310,7 @@ module "game_management" {
   environment_variables = {
     APP_ENV           = "production"
     SERVICE_PORT      = "8087"
-    REDIS_ADDR        = module.redis.redis_endpoint
+    REDIS_ADDR        = "${module.redis.redis_endpoint}:6379"
     HOST_JWT_ISSUER   = var.jwt_issuer
     HOST_JWT_AUDIENCE = "authenticated"
     POSTGRES_DSN      = var.postgres_dsn
