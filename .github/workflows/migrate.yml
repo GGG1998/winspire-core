@@ -51,7 +51,7 @@ jobs:
 
       - name: Install Atlas
         run: |
-          curl -sSf https://atlasgo.sh | sh -s -- -y --version ${{ env.ATLAS_VERSION }}
+          curl -sSf https://atlasgo.sh | ATLAS_VERSION=${{ env.ATLAS_VERSION }} sh -s -- -y
           echo "$HOME/.atlas/bin" >> $GITHUB_PATH
 
       - name: Set database URL
@@ -193,7 +193,7 @@ jobs:
 
       - name: Install Atlas
         run: |
-          curl -sSf https://atlasgo.sh | sh -s -- -y --version ${{ env.ATLAS_VERSION }}
+          curl -sSf https://atlasgo.sh | ATLAS_VERSION=${{ env.ATLAS_VERSION }} sh -s -- -y
           echo "$HOME/.atlas/bin" >> $GITHUB_PATH
 
       - name: Set database URL
