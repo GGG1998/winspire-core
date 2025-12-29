@@ -13,7 +13,7 @@ import (
 	"github.com/winspire-core/services/matchmaking/internal/observability"
 )
 
-// CompetitionClient is an HTTP client for the competition service
+// CompetitionClient is an HTTP client for the tournament service
 type CompetitionClient struct {
 	baseURL    string
 	httpClient *http.Client
@@ -29,7 +29,7 @@ type registrationCacheEntry struct {
 	expiresAt    time.Time
 }
 
-// NewCompetitionClient creates a new competition service client
+// NewCompetitionClient creates a new tournament service client
 func NewCompetitionClient(baseURL string, logger *observability.Logger) *CompetitionClient {
 	return &CompetitionClient{
 		baseURL: baseURL,
@@ -41,7 +41,7 @@ func NewCompetitionClient(baseURL string, logger *observability.Logger) *Competi
 	}
 }
 
-// GetTournamentInfo fetches tournament information from the competition service
+// GetTournamentInfo fetches tournament information from the tournament service
 func (c *CompetitionClient) GetTournamentInfo(ctx context.Context, tournamentID uuid.UUID) (*TournamentInfo, error) {
 	url := fmt.Sprintf("%s/internal/tournaments/%s", c.baseURL, tournamentID)
 
@@ -53,7 +53,7 @@ func (c *CompetitionClient) GetTournamentInfo(ctx context.Context, tournamentID 
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		c.logger.Warn("competition service request failed", map[string]interface{}{
+		c.logger.Warn("tournament service request failed", map[string]interface{}{
 			"tournament_id": tournamentID.String(),
 			"error":         err.Error(),
 		})
@@ -135,7 +135,7 @@ func (c *CompetitionClient) IsUserRegistered(ctx context.Context, tournamentID, 
 	}
 	c.registrationCacheMu.RUnlock()
 
-	// Fetch from competition service
+	// Fetch from tournament service
 	url := fmt.Sprintf("%s/internal/tournaments/%s/registrations/%s", c.baseURL, tournamentID, userID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -145,7 +145,7 @@ func (c *CompetitionClient) IsUserRegistered(ctx context.Context, tournamentID, 
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		c.logger.Warn("competition service registration check failed", map[string]interface{}{
+		c.logger.Warn("tournament service registration check failed", map[string]interface{}{
 			"tournament_id": tournamentID.String(),
 			"user_id":       userID.String(),
 			"error":         err.Error(),

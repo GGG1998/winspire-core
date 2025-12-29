@@ -33,13 +33,13 @@ module "alb" {
 Add listener rules in your environment configuration:
 
 ```hcl
-resource "aws_lb_listener_rule" "competition_host_stream" {
+resource "aws_lb_listener_rule" "tournament" {
   listener_arn = module.alb.http_listener_arn
   priority     = 100
 
   action {
     type             = "forward"
-    target_group_arn = module.competition_host_stream.target_group_arn
+    target_group_arn = module.tournament.target_group_arn
   }
 
   condition {
@@ -53,9 +53,9 @@ resource "aws_lb_listener_rule" "competition_host_stream" {
 ## Sticky Sessions for SSE
 
 ```hcl
-resource "aws_lb_target_group" "competition_host_stream" {
-  name     = "${var.environment}-competition-host-stream"
-  port     = 8086
+resource "aws_lb_target_group" "tournament" {
+  name     = "${var.environment}-tournament"
+  port     = 8089
   protocol = "HTTP"
   vpc_id   = var.vpc_id
   target_type = "ip"

@@ -33,7 +33,7 @@ async function closePool(): Promise<void> {
 }
 
 // ============================================================================
-// Competition Service Helpers (tournament + registrations)
+// Tournament Service Helpers (tournament + registrations)
 // ============================================================================
 
 /**
@@ -57,7 +57,7 @@ interface CreateTournamentOptions {
 }
 
 /**
- * Creates a tournament in the competition service database.
+ * Creates a tournament in the tournament service database.
  */
 async function createTournament(pool: Pool, options: CreateTournamentOptions): Promise<void> {
   await ensureDefaultHost(pool);
@@ -91,7 +91,7 @@ interface RegisterPlayerOptions {
 }
 
 /**
- * Registers a player for a tournament in the competition service database.
+ * Registers a player for a tournament in the tournament service database.
  */
 async function registerPlayer(pool: Pool, options: RegisterPlayerOptions): Promise<void> {
   const displayName = options.player.session.user?.user_metadata?.nickname
@@ -350,7 +350,7 @@ interface SeedBracketOptions {
  * Round 2 (Final):
  *   Match 3: placeholders (actual winners set by backend)
  *
- * Seeds both competition service data (tournament + registrations)
+ * Seeds both tournament service data (tournament + registrations)
  * and matchmaking service data (bracket, rounds, matches).
  */
 export async function seedTournamentBracket(options: SeedBracketOptions): Promise<TournamentBracketSeed> {
@@ -363,7 +363,7 @@ export async function seedTournamentBracket(options: SeedBracketOptions): Promis
 
   const tournamentId = randomUUID();
 
-  // === Competition Service Data ===
+  // === Tournament Service Data ===
   await createTournament(pool, { tournamentId, name: 'E2E 4-Player Bracket', minPlayers: 4 });
   await registerPlayers(pool, tournamentId, players);
 
@@ -462,7 +462,7 @@ interface SeedSixPlayerBracketOptions {
  * Round 3 (Final):
  *   Match 5: R2M3 winner vs R2M4 winner
  *
- * Seeds both competition service data (tournament + registrations)
+ * Seeds both tournament service data (tournament + registrations)
  * and matchmaking service data (bracket, rounds, matches).
  */
 export async function seedSixPlayerBracket(options: SeedSixPlayerBracketOptions): Promise<SixPlayerBracketSeed> {
@@ -475,7 +475,7 @@ export async function seedSixPlayerBracket(options: SeedSixPlayerBracketOptions)
 
   const tournamentId = randomUUID();
 
-  // === Competition Service Data ===
+  // === Tournament Service Data ===
   await createTournament(pool, { tournamentId, name: 'E2E 6-Player Bracket', minPlayers: 6 });
   await registerPlayers(pool, tournamentId, players);
 
@@ -603,7 +603,7 @@ export async function seedMatchInStartedState(
   const pool = getPool();
   const tournamentId = randomUUID();
 
-  // === Competition Service Data ===
+  // === Tournament Service Data ===
   await createTournament(pool, { tournamentId, name: 'E2E Started Match', minPlayers: 2 });
   await registerPlayers(pool, tournamentId, players);
 
@@ -657,7 +657,7 @@ export async function seedMatchLobby1v1(options: {
     ? [options.participant1, options.participant2]
     : [options.participant1];
 
-  // === Competition Service Data ===
+  // === Tournament Service Data ===
   await createTournament(pool, { tournamentId, name: 'E2E 1v1 Match', minPlayers: 2 });
   await registerPlayers(pool, tournamentId, players);
 
@@ -706,7 +706,7 @@ export async function seedMatchInLoadingState(
   const pool = getPool();
   const tournamentId = randomUUID();
 
-  // === Competition Service Data ===
+  // === Tournament Service Data ===
   await createTournament(pool, { tournamentId, name: 'E2E Loading Match', minPlayers: 2 });
   await registerPlayers(pool, tournamentId, [participant1, participant2]);
 
@@ -751,17 +751,17 @@ export async function seedMatchInLoadingState(
 // API Helpers
 // ============================================================================
 
-const COMPETITION_API_URL = process.env.COMPETITION_API_URL ?? 'http://localhost:8089';
+const TOURNAMENT_API_URL = process.env.TOURNAMENT_API_URL ?? 'http://localhost:8089';
 
 /**
- * Verifies that a tournament exists in the competition service via internal API.
+ * Verifies that a tournament exists in the tournament service via internal API.
  * Useful for debugging 404 errors in E2E tests.
  */
 export async function verifyTournamentExists(
   request: APIRequestContext,
   tournamentId: Id
 ): Promise<{ exists: boolean; data?: Record<string, unknown>; error?: string }> {
-  const url = `${COMPETITION_API_URL}/internal/tournaments/${tournamentId}`;
+  const url = `${TOURNAMENT_API_URL}/internal/tournaments/${tournamentId}`;
   console.log(`[verifyTournamentExists] Checking: ${url}`);
 
   try {

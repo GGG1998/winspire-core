@@ -8,14 +8,14 @@ Guide for running Winspire locally with Traefik as API Gateway (simulates AWS AL
 Browser
   ↓
 Traefik (localhost:80) - API Gateway
-  ├─ /v1/stream/* → competition-host-stream:8086 (sticky sessions)
-  ├─ /v1/cups/* → competition-host-stream:8086
-  ├─ /v1/tournaments/* → competition-host-stream:8086
+  ├─ /v1/stream/* → tournament:8089 (sticky sessions)
+  ├─ /v1/cups/* → tournament:8089
+  ├─ /v1/tournaments/* → tournament:8089
   ├─ /v1/games/* → game-management:8085
   └─ /v1/admin/* → game-management:8085
   ↓
 Services (Docker Containers)
-  ├─ competition-host-stream (1-2 instances)
+  ├─ tournament (1-2 instances)
   ├─ game-management
   └─ Redis (JWT cache + SSE Pub/Sub)
   ↓
@@ -81,7 +81,7 @@ docker-compose logs -f
 
 **Health Checks:**
 ```bash
-# Competition Host Stream
+# Tournament Service
 curl http://localhost/v1/cups
 
 # Game Management
@@ -106,7 +106,7 @@ docker-compose down
 docker-compose up --build
 
 # View logs
-docker-compose logs -f competition-host-stream
+docker-compose logs -f tournament
 
 # Scale up (test load balancing)
 docker-compose --profile scale up -d
@@ -144,8 +144,8 @@ curl -N -v http://localhost/v1/stream/cup/123456
 docker-compose --profile scale up -d
 
 # This starts:
-# - competition-host-stream (instance 1)
-# - competition-host-stream-2 (instance 2)
+# - tournament (instance 1)
+# - tournament-2 (instance 2)
 
 # Test load balancing
 for i in {1..10}; do
@@ -185,7 +185,7 @@ docker exec -it winspire-redis redis-cli
 # Traefik automatically monitors service health
 
 # Stop a service
-docker-compose stop competition-host-stream
+docker-compose stop tournament
 
 # Check Traefik dashboard - service shows as unhealthy
 open http://localhost:8080
@@ -195,7 +195,7 @@ curl http://localhost/v1/cups
 # Returns 503 Service Unavailable
 
 # Restart service
-docker-compose start competition-host-stream
+docker-compose start tournament
 # Traefik automatically detects it's healthy
 ```
 
@@ -224,10 +224,10 @@ cd ../supabase
 supabase start
 
 # 3. Run services locally
-cd ../../services/competition-host-stream
+cd ../../services/tournament
 export $(cat ../../platform/local/.env | xargs)
 export SERVICE_PORT=8086
-go run cmd/competition-host-stream/main.go
+go run cmd/tournament/main.go
 
 # In another terminal:
 cd services/game-management
@@ -245,10 +245,10 @@ Note: When running locally, services will be accessible directly on their ports 
 cd platform/local
 docker-compose up traefik redis game-management
 
-# Run competition-host-stream locally for debugging
-cd ../../services/competition-host-stream
+# Run tournament service locally for debugging
+cd ../../services/tournament
 export $(cat ../../platform/local/.env | xargs)
-go run cmd/competition-host-stream/main.go
+go run cmd/tournament/main.go
 ```
 
 ## Debugging
@@ -262,7 +262,7 @@ cd platform/local
 docker-compose logs -f
 
 # Specific service
-docker-compose logs -f competition-host-stream
+docker-compose logs -f tournament
 
 # Traefik access logs
 docker-compose logs traefik | grep "request"
@@ -387,7 +387,7 @@ supabase stop
 ```bash
 # Check service logs
 cd platform/local
-docker-compose logs competition-host-stream
+docker-compose logs tournament
 
 # Common issues:
 # - Missing .env file → copy from .env.example
@@ -402,7 +402,7 @@ docker-compose logs competition-host-stream
 open http://localhost:8080
 
 # Verify labels on service
-docker inspect competition-host-stream | grep traefik
+docker inspect tournament | grep traefik
 
 # Check Traefik logs
 docker-compose logs traefik
@@ -418,7 +418,7 @@ supabase status
 nc -zv localhost 54322
 
 # Check from Docker container
-docker exec -it competition-host-stream sh
+docker exec -it tournament sh
 > apk add postgresql-client
 > psql postgresql://postgres:postgres@host.docker.internal:54322/postgres -c "SELECT version();"
 ```
@@ -433,7 +433,7 @@ docker-compose ps redis
 docker exec -it winspire-redis redis-cli ping
 
 # Check from service
-docker exec -it competition-host-stream sh
+docker exec -it tournament sh
 > apk add redis
 > redis-cli -h redis ping
 ```

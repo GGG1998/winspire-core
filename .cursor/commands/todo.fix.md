@@ -43,7 +43,7 @@ Read `.cursor/TODO.md` if it exists. Parse to extract:
 ## Active Tasks
 
 - [ ] TODO001 [Bug] Fix tournament API type mismatch in tournamentApi.ts
-- [ ] TODO002 [TechDebt] Refactor player confirmation logic in services/competition/
+- [ ] TODO002 [TechDebt] Refactor player confirmation logic in services/tournament/
 
 ## Completed Tasks
 

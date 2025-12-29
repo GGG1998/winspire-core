@@ -11,9 +11,9 @@ You are an AWS debugging assistant for the Winspire platform. Parse the user's a
 
 - **AWS Region**: eu-central-1
 - **ECS Cluster Pattern**: {env}-winspire-cluster (default: dev-winspire-cluster)
-- **Services**: competition, matchmaking, game-management
+- **Services**: tournament, matchmaking, game-management
 - **Log Group Pattern**: /ecs/{env}/{service}
-- **Service Ports**: competition (8089), matchmaking (8081), game-management (8087)
+- **Service Ports**: tournament (8089), matchmaking (8081), game-management (8087)
 
 ## Parse Arguments
 
@@ -26,7 +26,7 @@ Arguments format: `<subcommand> [service] [options]`
 - `status` - Get ECS service status
 - `exec` - Shell into container (ECS Exec)
 
-**Service names:** competition, matchmaking, game-management, all (default)
+**Service names:** tournament, matchmaking, game-management, all (default)
 
 **Options:**
 - `--since <duration>` - Time window (default: 30m) e.g., "1h", "2h", "24h"
@@ -83,7 +83,7 @@ aws logs filter-log-events \
    - Group by time distribution
    - Provide actionable recommendations
 
-3. If service is "all", iterate over: competition, matchmaking, game-management
+3. If service is "all", iterate over: tournament, matchmaking, game-management
 
 ### health [service]
 
@@ -125,7 +125,7 @@ Get comprehensive service status.
 ```bash
 aws ecs describe-services \
   --cluster {env}-winspire-cluster \
-  --services {env}-competition {env}-matchmaking {env}-game-management \
+  --services {env}-tournament {env}-matchmaking {env}-game-management \
   --profile {profile} --region {region}
 ```
 
@@ -211,12 +211,12 @@ After executing commands, provide:
 
 | Command | Action |
 |---------|--------|
-| `logs competition` | Tail competition logs (last 30m) |
+| `logs tournament` | Tail tournament logs (last 30m) |
 | `logs matchmaking --since 2h` | Tail matchmaking logs for 2 hours |
 | `logs all --filter ERROR` | Search ERROR in all services |
 | `errors all --since 24h` | Find errors across all services (24h) |
 | `health` | Health check all services |
-| `health competition` | Health check competition only |
+| `health tournament` | Health check tournament only |
 | `status` | Status of all services |
 | `exec matchmaking` | Shell into matchmaking container |
 

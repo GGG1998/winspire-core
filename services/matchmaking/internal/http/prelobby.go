@@ -69,7 +69,7 @@ type PreLobbyHandler struct {
 	logger            *observability.Logger
 }
 
-// CompetitionClient interface for fetching tournament info from competition service
+// CompetitionClient interface for fetching tournament info from tournament service
 type CompetitionClient interface {
 	GetTournamentInfo(ctx context.Context, tournamentID uuid.UUID) (*application.TournamentInfo, error)
 	IsUserRegistered(ctx context.Context, tournamentID, userID uuid.UUID) (bool, error)
@@ -119,7 +119,7 @@ func (h *PreLobbyHandler) GetPreLobbyState(c *gin.Context) {
 		return
 	}
 
-	// Fetch tournament info from competition service
+	// Fetch tournament info from tournament service
 	tournamentInfo, err := h.competitionClient.GetTournamentInfo(c.Request.Context(), tournamentID)
 	if err != nil {
 		h.logger.Warn("failed to get tournament info", map[string]interface{}{
@@ -127,7 +127,7 @@ func (h *PreLobbyHandler) GetPreLobbyState(c *gin.Context) {
 			"error":         err.Error(),
 		})
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error":   "competition_service_unavailable",
+			"error":   "tournament_service_unavailable",
 			"message": "Unable to fetch tournament information",
 		})
 		return
@@ -160,7 +160,7 @@ func (h *PreLobbyHandler) GetPreLobbyState(c *gin.Context) {
 			"error":         err.Error(),
 		})
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error":   "competition_service_unavailable",
+			"error":   "tournament_service_unavailable",
 			"message": "Unable to verify registration status",
 		})
 		return
@@ -360,7 +360,7 @@ func (h *PreLobbyWebSocketHandler) UpgradePreLobbyConnection(c *gin.Context) {
 		return
 	}
 
-	// Fetch tournament info
+	// Fetch tournament info from tournament service
 	tournamentInfo, err := h.competitionClient.GetTournamentInfo(c.Request.Context(), tournamentID)
 	if err != nil {
 		h.logger.Warn("failed to get tournament info for WebSocket", map[string]interface{}{
@@ -368,7 +368,7 @@ func (h *PreLobbyWebSocketHandler) UpgradePreLobbyConnection(c *gin.Context) {
 			"error":         err.Error(),
 		})
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error":   "competition_service_unavailable",
+			"error":   "tournament_service_unavailable",
 			"message": "Unable to fetch tournament information",
 		})
 		return
@@ -401,7 +401,7 @@ func (h *PreLobbyWebSocketHandler) UpgradePreLobbyConnection(c *gin.Context) {
 			"error":         err.Error(),
 		})
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error":   "competition_service_unavailable",
+			"error":   "tournament_service_unavailable",
 			"message": "Unable to verify registration status",
 		})
 		return

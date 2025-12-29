@@ -11,7 +11,7 @@ import { APIRequestContext } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 
 // Environment variables with fallbacks
-// Competition service runs on :8089 locally (make run)
+// Tournament service runs on :8089 locally (make run)
 // Matchmaking service runs on :8088 locally (make run)
 const API_BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:8089';
 const SUPABASE_URL = process.env.SUPABASE_URL ?? 'http://localhost:54321';
@@ -138,7 +138,7 @@ export async function createStreamer(
 }
 
 /**
- * Create tournament via Competition API
+ * Create tournament via Tournament API
  * Endpoint: POST /v1/:hostId/tournaments
  */
 export async function createTournament(

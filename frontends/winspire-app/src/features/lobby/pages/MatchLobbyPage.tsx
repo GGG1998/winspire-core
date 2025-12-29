@@ -48,7 +48,7 @@ export function MatchLobbyPage() {
   console.log('[MatchLobbyPage] matchState:', matchState);
 
   // Tournament info is now included in matchState (from matchmaking service)
-  // No need for separate API call to competition service (which was blocked by CORS)
+  // No need for separate API call to tournament service (which was blocked by CORS)
 
   // Determine current player's ready status
   const currentPlayerReady = user && matchState

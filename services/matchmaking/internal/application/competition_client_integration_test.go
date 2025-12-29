@@ -46,7 +46,7 @@ func setupCompetitionTestEnv(ctx context.Context, t *testing.T) *competitionTest
 	// Start PostgreSQL container
 	pgContainer, err := postgres.Run(ctx,
 		"postgres:15-alpine",
-		postgres.WithDatabase("competition_test"),
+		postgres.WithDatabase("tournament_test"),
 		postgres.WithUsername("postgres"),
 		postgres.WithPassword("postgres"),
 		tc.WithWaitStrategy(
@@ -82,14 +82,14 @@ func setupCompetitionTestEnv(ctx context.Context, t *testing.T) *competitionTest
 	pool, err := pgxpool.New(ctx, connStr)
 	require.NoError(t, err, "failed to create postgres pool")
 
-	// Run competition service migrations
+	// Run tournament service migrations
 	err = runCompetitionMigrations(ctx, pool)
-	require.NoError(t, err, "failed to run competition migrations")
+	require.NoError(t, err, "failed to run tournament migrations")
 
-	// Get the internal network connection string for the competition service
-	networkConnStr := "postgresql://postgres:postgres@postgres:5432/competition_test?sslmode=disable"
+	// Get the internal network connection string for the tournament service
+	networkConnStr := "postgresql://postgres:postgres@postgres:5432/tournament_test?sslmode=disable"
 
-	// Build and start the competition service container
+	// Build and start the tournament service container
 	// Path: application -> internal -> matchmaking -> services -> winspire-core (4 levels up)
 	_, thisFile, _, _ := runtime.Caller(0)
 	projectRoot := filepath.Join(filepath.Dir(thisFile), "../../../..")
@@ -97,7 +97,7 @@ func setupCompetitionTestEnv(ctx context.Context, t *testing.T) *competitionTest
 	competitionReq := tc.ContainerRequest{
 		FromDockerfile: tc.FromDockerfile{
 			Context:    projectRoot,
-			Dockerfile: "services/competition/cmd/competition/Dockerfile.test",
+			Dockerfile: "services/tournament/cmd/tournament/Dockerfile.test",
 		},
 		ExposedPorts: []string{"8089/tcp"},
 		Env: map[string]string{
@@ -116,14 +116,14 @@ func setupCompetitionTestEnv(ctx context.Context, t *testing.T) *competitionTest
 		ContainerRequest: competitionReq,
 		Started:          true,
 	})
-	require.NoError(t, err, "failed to start competition container")
+	require.NoError(t, err, "failed to start tournament service container")
 
-	// Get the competition service URL
+	// Get the tournament service URL
 	host, err := competitionContainer.Host(ctx)
-	require.NoError(t, err, "failed to get competition container host")
+	require.NoError(t, err, "failed to get tournament container host")
 
 	port, err := competitionContainer.MappedPort(ctx, "8089")
-	require.NoError(t, err, "failed to get competition container port")
+	require.NoError(t, err, "failed to get tournament container port")
 
 	competitionURL := fmt.Sprintf("http://%s:%s", host, port.Port())
 
@@ -156,12 +156,12 @@ func (e *competitionTestEnv) cleanup(ctx context.Context) {
 	}
 }
 
-// runCompetitionMigrations executes competition service migrations
+// runCompetitionMigrations executes tournament service migrations
 func runCompetitionMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 	// Path: application -> internal -> matchmaking -> services -> winspire-core (4 levels up)
-	// Then: services/competition/migrations
+	// Then: services/tournament/migrations
 	_, thisFile, _, _ := runtime.Caller(0)
-	migrationsDir := filepath.Join(filepath.Dir(thisFile), "../../../..", "services/competition/migrations")
+	migrationsDir := filepath.Join(filepath.Dir(thisFile), "../../../..", "services/tournament/migrations")
 
 	files, err := os.ReadDir(migrationsDir)
 	if err != nil {

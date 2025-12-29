@@ -57,8 +57,8 @@ CREATE TABLE tournament_matches (
     CONSTRAINT unique_round_match_number UNIQUE (round_id, match_number)
 );
 
--- Note: No foreign keys on participant1_id, participant2_id, winner_id, 
--- or disconnected_player_id because users table exists in competition_db 
+-- Note: No foreign keys on participant1_id, participant2_id, winner_id,
+-- or disconnected_player_id because users table exists in tournament_db
 -- (separate database). Application layer validates user existence.
 
 -- Indexes

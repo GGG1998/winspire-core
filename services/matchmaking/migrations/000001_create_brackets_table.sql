@@ -18,6 +18,6 @@ CREATE TABLE tournament_brackets (
 CREATE INDEX idx_brackets_tournament_id ON tournament_brackets(tournament_id);
 
 COMMENT ON TABLE tournament_brackets IS 'Stores bracket structure for each tournament. One bracket per tournament.';
-COMMENT ON COLUMN tournament_brackets.tournament_id IS 'References tournaments.id in competition_db (no FK due to separate database)';
+COMMENT ON COLUMN tournament_brackets.tournament_id IS 'References tournaments.id in tournament_db (no FK due to separate database)';
 COMMENT ON COLUMN tournament_brackets.total_rounds IS 'Number of rounds calculated as CEIL(LOG2(participant_count))';
 COMMENT ON COLUMN tournament_brackets.byes_count IS 'Number of byes assigned: (2^total_rounds) - participant_count';

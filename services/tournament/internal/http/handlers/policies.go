@@ -54,7 +54,7 @@ func ApplyCreateTournamentPolicy(hostID uuid.UUID, req CreateTournamentRequest) 
 		params.AutoForceReady = req.AutoForceReady
 	}
 
-	// Apply competition parameters (team size, template)
+	// Apply tournament configuration parameters (team size, template)
 	if req.CompetitionParameters.TournamentParameters != nil {
 		if req.CompetitionParameters.TournamentParameters.TeamSize != nil {
 			params.TeamSize = int32(*req.CompetitionParameters.TournamentParameters.TeamSize)

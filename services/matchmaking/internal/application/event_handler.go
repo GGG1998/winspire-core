@@ -59,7 +59,7 @@ type TournamentStartRequestedPayload struct {
 	StartedAt    string                 `json:"started_at"`
 }
 
-// HandleTournamentStartRequested processes TournamentStartRequested events from competition service
+// HandleTournamentStartRequested processes TournamentStartRequested events from tournament service
 // This initiates the tournament start saga: grace period → bracket generation → confirmation
 func (h *EventHandler) HandleTournamentStartRequested(ctx context.Context, eventType string, payload map[string]interface{}, metadata map[string]string) error {
 	h.logger.Info("Received TournamentStartRequested event", map[string]interface{}{
@@ -184,7 +184,7 @@ func (h *EventHandler) HandleTournamentStartRequested(ctx context.Context, event
 					compensationCtx := context.Background()
 					reason := fmt.Sprintf("Bracket generation failed: %v", err)
 
-					// Publish BracketGenerationFailed event (triggers rollback in competition service)
+					// Publish BracketGenerationFailed event (triggers rollback in tournament service)
 					failedEvent := domain.NewBracketGenerationFailed(
 						tournamentID,
 						err,

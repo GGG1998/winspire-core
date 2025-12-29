@@ -29,7 +29,7 @@ type matchService interface {
 	// TODO HandleByeMatch(ctx context.Context, matchID uuid.UUID) error
 }
 
-// competitionClientInterface defines methods needed from CompetitionClient
+// competitionClientInterface defines methods needed from CompetitionClient (tournament service client)
 type competitionClientInterface interface {
 	GetTournamentInfo(ctx context.Context, tournamentID uuid.UUID) (*application.TournamentInfo, error)
 }
@@ -97,7 +97,7 @@ func (h *MatchHandler) GetMatch(c *gin.Context) {
 		return
 	}
 
-	// Fetch tournament info from competition service
+	// Fetch tournament info from tournament service
 	var tournamentName string
 	var hostID uuid.UUID
 	if h.competitionClient != nil {

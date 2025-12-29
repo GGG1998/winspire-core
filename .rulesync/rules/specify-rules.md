@@ -14,8 +14,8 @@ cursor:
 Auto-generated from all feature plans. Last updated: 2025-11-21
 
 ## Active Technologies
-- Go 1.25.4 + `github.com/gin-gonic/gin`, `github.com/r3labs/sse/v2`, `github.com/jackc/pgx/v5`, `sqlc`, `redis/go-redis/v9` (001-competition-spec)
-- PostgreSQL (extends existing `services/competition` database with 3 new tables: `tournament_brackets`, `tournament_rounds`, `tournament_matches`) (001-tournament-matchmaking)
+- Go 1.25.4 + `github.com/gin-gonic/gin`, `github.com/r3labs/sse/v2`, `github.com/jackc/pgx/v5`, `sqlc`, `redis/go-redis/v9` (001-tournament-spec)
+- PostgreSQL (extends existing `services/tournament` database with 3 new tables: `tournament_brackets`, `tournament_rounds`, `tournament_matches`) (001-tournament-matchmaking)
 - PostgreSQL (new independent database `matchmaking_db` with 3 tables: `tournament_brackets`, `tournament_rounds`, `tournament_matches`) (001-tournament-matchmaking)
 - TypeScript 5.9+ + React 19, Vite 7, Tailwind CSS v4, React Router v7, React Query (TanStack Query), Zod (003-matchmaking-lobby-frontend)
 - N/A (frontend consumes backend API) (003-matchmaking-lobby-frontend)

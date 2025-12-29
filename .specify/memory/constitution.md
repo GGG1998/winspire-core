@@ -38,10 +38,10 @@ Services MUST be organized around **Bounded Contexts** as defined by Domain-Driv
 **Rationale**: Bounded contexts ensure clear ownership, reduce coupling, and enable independent evolution of domain models. Event-driven communication decouples services temporally and allows for scalable, resilient architectures.
 
 **Examples**:
-- ✅ `competition` service owns Tournament lifecycle (TournamentManagement BC)
+- ✅ `tournament` service owns Tournament lifecycle (TournamentManagement BC)
 - ✅ `matchmaking` service owns Match creation and brackets (Matchmaking BC)
 - ✅ Services communicate via `TournamentStarted`, `MatchCreated` events
-- ❌ `competition` does NOT directly call `matchmaking` REST API for domain operations
+- ❌ `tournament` does NOT directly call `matchmaking` REST API for domain operations
 - ❌ Services do NOT share tables or schemas across bounded contexts
 
 ### IV. Technology Stack

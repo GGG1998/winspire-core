@@ -10,14 +10,14 @@ Internet
 CloudFront (optional)
   ↓
 Application Load Balancer (ALB)
-  ├─→ /v1/stream/* → competition-host-stream (sticky sessions)
-  ├─→ /v1/cups/* → competition-host-stream
-  ├─→ /v1/tournaments/* → competition-host-stream
+  ├─→ /v1/stream/* → tournament (sticky sessions)
+  ├─→ /v1/cups/* → tournament
+  ├─→ /v1/tournaments/* → tournament
   ├─→ /v1/games/* → game-management
   └─→ /v1/admin/* → game-management (admin only)
   ↓
 ECS Fargate Services
-  ├─→ competition-host-stream (2-20 instances, auto-scaling)
+  ├─→ tournament (2-20 instances, auto-scaling)
   ├─→ game-management (2-10 instances, auto-scaling)
   └─→ [future services]
   ↓
@@ -97,7 +97,7 @@ curl http://ALB_DNS_NAME/v1/games
 
 ### Auto-Scaling Triggers
 
-**competition-host-stream:**
+**tournament:**
 - CPU > 70% → scale out
 - Memory > 80% → scale out
 - SSE connections > 500/instance → scale out (custom metric)
@@ -114,7 +114,7 @@ curl http://ALB_DNS_NAME/v1/games
 
 ```bash
 # Update desired count
-terraform apply -var="competition_host_stream_desired_count=5"
+terraform apply -var="tournament_desired_count=5"
 ```
 
 ## Monitoring
@@ -122,8 +122,8 @@ terraform apply -var="competition_host_stream_desired_count=5"
 ### CloudWatch Logs
 
 ```bash
-# competition-host-stream logs
-aws logs tail /ecs/dev/competition-host-stream --follow
+# tournament logs
+aws logs tail /ecs/dev/tournament --follow
 
 # game-management logs
 aws logs tail /ecs/dev/game-management --follow
@@ -177,13 +177,13 @@ ECS supports blue/green deployments via CodeDeploy:
 # Deploy new version
 aws ecs update-service \
   --cluster dev-winspire-cluster \
-  --service competition-host-stream \
+  --service tournament \
   --force-new-deployment
 
 # Monitor deployment
 aws ecs describe-services \
   --cluster dev-winspire-cluster \
-  --services competition-host-stream
+  --services tournament
 ```
 
 ## Cost Optimization

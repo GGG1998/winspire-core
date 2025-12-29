@@ -40,7 +40,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		AppEnv:      valueOrDefault("APP_ENV", "development"),
 		ServicePort: intFromEnv("SERVICE_PORT", 8089),
-		PostgresDSN: valueOrDefault("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5432/competition_db?sslmode=disable"),
+		PostgresDSN: valueOrDefault("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5432/tournament_db?sslmode=disable"),
 
 		RedisAddr: valueOrDefault("REDIS_ADDR", "localhost:6379"),
 

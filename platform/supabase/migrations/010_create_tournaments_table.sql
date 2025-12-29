@@ -1,5 +1,5 @@
 -- Migration: Create tournaments table
--- Purpose: Store tournament information for competition management
+-- Purpose: Store tournament information for tournament management
 -- Date: 2024-11-28
 
 -- ============================================================================

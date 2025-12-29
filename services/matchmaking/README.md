@@ -115,7 +115,7 @@ make docker-build
 
 ### Tournament Brackets (1 per tournament)
 - `id`: UUID primary key
-- `tournament_id`: UUID (references tournaments in competition_db)
+- `tournament_id`: UUID (references tournaments in tournament_db)
 - `total_rounds`: Integer (calculated as CEIL(LOG2(participants)))
 - `total_matches`: Integer
 - `byes_count`: Integer (for odd participant counts)
@@ -201,7 +201,7 @@ See `.env.example` for all configuration options.
 Key environment variables:
 - `DATABASE_URL`: PostgreSQL connection string
 - `REDIS_URL`: Redis connection string
-- `JWT_SECRET`: JWT signing key (shared with competition service)
+- `JWT_SECRET`: JWT signing key (shared with tournament service)
 - `GAME_API_URL`: External game API endpoint
 - `PORT`: HTTP server port (default: 8081)
 

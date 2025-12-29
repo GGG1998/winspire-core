@@ -5,7 +5,7 @@
 # Usage:
 #   ./scripts/deploy.sh                           # Deploy all services to dev
 #   ./scripts/deploy.sh -e prod -u                # Deploy to prod and update ECS
-#   ./scripts/deploy.sh -s competition,matchmaking # Deploy specific services
+#   ./scripts/deploy.sh -s tournament,matchmaking # Deploy specific services
 
 set -e
 
@@ -17,12 +17,12 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 AWS_REGION="${AWS_REGION:-eu-central-1}"
 ENVIRONMENT="${ENVIRONMENT:-dev}"
 UPDATE_ECS="${UPDATE_ECS:-false}"
-SERVICES="${SERVICES:-competition,matchmaking,game-management}"
+SERVICES="${SERVICES:-tournament,matchmaking,game-management}"
 DRY_RUN="${DRY_RUN:-false}"
 
 # Service port mapping
 declare -A SERVICE_PORTS=(
-    ["competition"]="8089"
+    ["tournament"]="8089"
     ["matchmaking"]="8081"
     ["game-management"]="8087"
 )
@@ -49,14 +49,14 @@ Options:
     -e, --environment   Environment (dev|staging|prod) [default: dev]
     -r, --region        AWS region [default: eu-central-1]
     -s, --services      Comma-separated list of services to deploy
-                        [default: competition,matchmaking,game-management]
+                        [default: tournament,matchmaking,game-management]
     -u, --update-ecs    Update ECS services after pushing images
     -d, --dry-run       Show what would be done without executing
     -h, --help          Show this help message
 
 Examples:
     $0                                    # Deploy all services to dev
-    $0 -e dev -s competition,matchmaking  # Deploy specific services
+    $0 -e dev -s tournament,matchmaking  # Deploy specific services
     $0 -e prod -u                         # Deploy to prod and update ECS
     $0 --dry-run                          # Preview without executing
 

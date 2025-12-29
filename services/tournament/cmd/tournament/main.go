@@ -27,7 +27,7 @@ import (
 func main() {
 	// Load .env file in development (Docker Compose will override with its own env vars)
 	// Try multiple locations to handle different working directories
-	envPaths := []string{".env", "services/competition/.env", "../../.env"}
+	envPaths := []string{".env", "services/tournament/.env", "../../.env"}
 	for _, path := range envPaths {
 		if _, err := os.Stat(path); err == nil {
 			if err := godotenv.Load(path); err == nil {

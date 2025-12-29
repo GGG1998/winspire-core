@@ -13,7 +13,7 @@ import { randomUUID } from 'crypto';
 // ============================================================================
 
 const POSTGRES_DSN = process.env.POSTGRES_DSN ?? 'postgresql://postgres:postgres@localhost:54322/postgres?sslmode=disable';
-const COMPETITION_API_URL = process.env.COMPETITION_API_URL ?? 'http://localhost:8089';
+const TOURNAMENT_API_URL = process.env.TOURNAMENT_API_URL ?? 'http://localhost:8089';
 const DEFAULT_HOST_ID = '00000000-0000-0000-0000-000000000001';
 
 type Id = string;
@@ -148,7 +148,7 @@ async function registerPlayerForTournament(
 }
 
 /**
- * Start tournament via competition service host API.
+ * Start tournament via tournament service host API.
  * This triggers the REAL flow: TournamentStartRequested event → grace period → bracket generation.
  */
 async function startTournamentViaHostApi(
@@ -158,7 +158,7 @@ async function startTournamentViaHostApi(
   token: string
 ): Promise<void> {
   const response = await request.put(
-    `${COMPETITION_API_URL}/v1/${hostId}/tournaments/${tournamentId}`,
+    `${TOURNAMENT_API_URL}/v1/${hostId}/tournaments/${tournamentId}`,
     {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -364,7 +364,7 @@ test.describe('Real User Flow - 4 Player Tournament', () => {
       // ========================================================================
       console.log('[E2E] Phase 2: Grace Period');
 
-      // Start tournament via competition service host API
+      // Start tournament via tournament service host API
       // This triggers: TournamentStartRequested event → grace period → bracket generation
       await startTournamentViaHostApi(
         request,

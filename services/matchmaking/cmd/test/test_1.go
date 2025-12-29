@@ -24,7 +24,7 @@ func main() {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("competition service request failed", err)
+		fmt.Println("tournament service request failed", err)
 	}
 	defer resp.Body.Close()
 

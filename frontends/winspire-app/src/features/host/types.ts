@@ -96,7 +96,7 @@ export interface TournamentMatchInfo {
 }
 
 /**
- * Tournament entity representing a gaming competition
+ * Tournament entity representing a gaming tournament
  */
 export interface Tournament {
   /** Unique tournament identifier (UUID) */
@@ -183,9 +183,9 @@ export interface TournamentParametersInput {
 }
 
 /**
- * Competition parameters
+ * Tournament configuration parameters
  */
-export interface CompetitionParametersInput {
+export interface TournamentConfigInput {
   /** Tournament parameters */
   tournamentParameters?: TournamentParametersInput
 }
@@ -225,8 +225,8 @@ export interface CreateTournamentInput {
   /** Caller-provided idempotency key */
   externalId?: string
   
-  /** Competition parameters */
-  competitionParameters: CompetitionParametersInput
+  /** Tournament configuration parameters */
+  competitionParameters: TournamentConfigInput
   
   /** Registration window open time (ISO 8601) */
   registrationWindowOpenAt?: string

@@ -100,9 +100,9 @@ make clean
 
 ```
 Browser → Traefik (localhost:80)
-  ├─ /v1/stream/* → competition-host-stream (sticky sessions)
-  ├─ /v1/cups/* → competition-host-stream
-  ├─ /v1/tournaments/* → competition-host-stream
+  ├─ /v1/stream/* → tournament (sticky sessions)
+  ├─ /v1/cups/* → tournament
+  ├─ /v1/tournaments/* → tournament
   ├─ /v1/games/* → game-management
   └─ /v1/admin/* → game-management
   ↓
@@ -115,8 +115,8 @@ Services
 
 ```
 Internet → CloudFront → ALB
-  ├─ /v1/stream/* → ECS Service (competition-host-stream)
-  ├─ /v1/cups/* → ECS Service (competition-host-stream)
+  ├─ /v1/stream/* → ECS Service (tournament)
+  ├─ /v1/cups/* → ECS Service (tournament)
   ├─ /v1/games/* → ECS Service (game-management)
   └─ /v1/admin/* → ECS Service (game-management)
   ↓
@@ -165,7 +165,7 @@ lsof -i :80 -i :8080 -i :6379
 nc -zv localhost 54322
 
 # Check from Docker
-docker exec -it competition-host-stream sh
+docker exec -it tournament sh
 > apk add postgresql-client
 > psql postgresql://postgres:postgres@host.docker.internal:54322/postgres
 ```

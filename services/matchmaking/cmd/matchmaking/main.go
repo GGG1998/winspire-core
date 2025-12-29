@@ -216,7 +216,7 @@ func main() {
 	router.GET("/ready", healthHandler.HandleReadiness)
 	router.GET("/live", healthHandler.HandleLiveness)
 
-	// Initialize competition client (for fetching tournament info)
+	// Initialize tournament service client (for fetching tournament info)
 	competitionClient := application.NewCompetitionClient(cfg.CompetitionServiceURL, logger)
 
 	// Set hub on pre-lobby service (after hub is created)

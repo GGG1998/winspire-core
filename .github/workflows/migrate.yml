@@ -60,15 +60,21 @@ jobs:
           # Use environment-specific secret
           case "${{ inputs.environment }}" in
             dev)
-              echo "url=${{ secrets.SUPABASE_DB_URL_DEV }}" >> $GITHUB_OUTPUT
+              echo "url=${{ secrets.DATABASE_URL_DEV }}" >> $GITHUB_OUTPUT
               ;;
             staging)
-              echo "url=${{ secrets.SUPABASE_DB_URL_STAGING }}" >> $GITHUB_OUTPUT
+              echo "url=${{ secrets.DATABASE_URL_STAGING }}" >> $GITHUB_OUTPUT
               ;;
             prod)
-              echo "url=${{ secrets.SUPABASE_DB_URL_PROD }}" >> $GITHUB_OUTPUT
+              echo "url=${{ secrets.DATABASE_URL_PROD }}" >> $GITHUB_OUTPUT
               ;;
           esac
+
+          # Check if URL was set
+          if [ -z "${{ steps.db.outputs.url }}" ]; then
+            echo "::error::Database URL secret not configured for environment: ${{ inputs.environment }}"
+            exit 1
+          fi
 
       - name: Check migration status
         if: inputs.action == 'status' || inputs.action == 'apply'
@@ -82,9 +88,13 @@ jobs:
           for SERVICE in $SERVICES; do
             echo "### Migration Status for $SERVICE" >> $GITHUB_STEP_SUMMARY
 
+            # Use service-specific revisions schema to isolate migration tracking
+            REVISIONS_SCHEMA="${SERVICE//-/_}_revisions"
+
             atlas migrate status \
               --dir file://services/$SERVICE/migrations \
-              --url "${{ steps.db.outputs.url }}" | tee status.txt
+              --url "${{ steps.db.outputs.url }}" \
+              --revisions-schema "$REVISIONS_SCHEMA" | tee status.txt
 
             echo '```' >> $GITHUB_STEP_SUMMARY
             cat status.txt >> $GITHUB_STEP_SUMMARY
@@ -110,10 +120,14 @@ jobs:
           for SERVICE in $SERVICES; do
             echo "Applying migrations for $SERVICE..."
 
+            # Use service-specific revisions schema to isolate migration tracking
+            REVISIONS_SCHEMA="${SERVICE//-/_}_revisions"
+
             # Attempt migration
             if atlas migrate apply \
               --dir file://services/$SERVICE/migrations \
               --url "${{ steps.db.outputs.url }}" \
+              --revisions-schema "$REVISIONS_SCHEMA" \
               $DRY_RUN_FLAG 2>&1 | tee apply.txt; then
               echo "### Migration Applied Successfully for $SERVICE" >> $GITHUB_STEP_SUMMARY
             else
@@ -150,10 +164,14 @@ jobs:
           for SERVICE in $SERVICES; do
             echo "Rolling back ${{ inputs.down_count }} migration(s) for $SERVICE..."
 
+            # Use service-specific revisions schema to isolate migration tracking
+            REVISIONS_SCHEMA="${SERVICE//-/_}_revisions"
+
             atlas migrate down \
               --dir file://services/$SERVICE/migrations \
               --url "${{ steps.db.outputs.url }}" \
               --dev-url "sqlite://dev?mode=memory" \
+              --revisions-schema "$REVISIONS_SCHEMA" \
               $DRY_RUN_FLAG \
               ${{ inputs.down_count }} 2>&1 | tee down.txt
 
@@ -183,13 +201,13 @@ jobs:
         run: |
           case "${{ inputs.environment }}" in
             dev)
-              echo "url=${{ secrets.SUPABASE_DB_URL_DEV }}" >> $GITHUB_OUTPUT
+              echo "url=${{ secrets.DATABASE_URL_DEV }}" >> $GITHUB_OUTPUT
               ;;
             staging)
-              echo "url=${{ secrets.SUPABASE_DB_URL_STAGING }}" >> $GITHUB_OUTPUT
+              echo "url=${{ secrets.DATABASE_URL_STAGING }}" >> $GITHUB_OUTPUT
               ;;
             prod)
-              echo "url=${{ secrets.SUPABASE_DB_URL_PROD }}" >> $GITHUB_OUTPUT
+              echo "url=${{ secrets.DATABASE_URL_PROD }}" >> $GITHUB_OUTPUT
               ;;
           esac
 
@@ -206,10 +224,15 @@ jobs:
 
           for SERVICE in $SERVICES; do
             echo "Rolling back $SERVICE..."
+
+            # Use service-specific revisions schema to isolate migration tracking
+            REVISIONS_SCHEMA="${SERVICE//-/_}_revisions"
+
             atlas migrate down \
               --dir file://services/$SERVICE/migrations \
               --url "${{ steps.db.outputs.url }}" \
               --dev-url "sqlite://dev?mode=memory" \
+              --revisions-schema "$REVISIONS_SCHEMA" \
               1 2>&1 | tee rollback.txt
 
             echo "#### Rollback for $SERVICE" >> $GITHUB_STEP_SUMMARY

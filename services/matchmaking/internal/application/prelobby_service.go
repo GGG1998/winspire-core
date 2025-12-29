@@ -43,7 +43,7 @@ type GracePeriodInfo struct {
 	RemainingSeconds int
 }
 
-// TournamentInfo contains tournament metadata from competition service
+// TournamentInfo contains tournament metadata from tournament service
 type TournamentInfo struct {
 	ID              uuid.UUID
 	Name            string
@@ -575,7 +575,7 @@ func (s *PreLobbyService) StartGracePeriod(ctx context.Context, tournamentID uui
 			})
 		}
 
-		// Publish GracePeriodStarted (for saga coordination with competition service)
+		// Publish GracePeriodStarted (for saga coordination with tournament service)
 		sagaEvent := domain.NewGracePeriodStarted(
 			tournamentID,
 			*preLobby.GracePeriodStart,

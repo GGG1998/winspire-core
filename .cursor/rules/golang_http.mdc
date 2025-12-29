@@ -881,7 +881,7 @@ make help
 make logs
 
 # Logi z konkretnego serwisu
-make logs-service SERVICE=competition-host-stream
+make logs-service SERVICE=tournament
 
 # Health check wszystkich serwisów
 make test

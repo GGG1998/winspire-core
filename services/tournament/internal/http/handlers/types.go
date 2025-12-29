@@ -87,7 +87,7 @@ type TournamentParametersInput struct {
 	TeamSize *int `json:"teamSize,omitempty"`
 }
 
-// CompetitionParametersInput defines the competition parameters.
+// CompetitionParametersInput defines the tournament configuration parameters.
 type CompetitionParametersInput struct {
 	// TournamentParameters for creating tournaments.
 	TournamentParameters *TournamentParametersInput `json:"tournamentParameters,omitempty"`
@@ -136,7 +136,7 @@ type CreateTournamentRequest struct {
 	Description *string `json:"description,omitempty" binding:"omitempty,max=4000"`
 	// ExternalID can be used to guarantee idempotency.
 	ExternalID *string `json:"externalId,omitempty"`
-	// CompetitionParameters define the competition settings.
+	// CompetitionParameters define the tournament configuration settings.
 	CompetitionParameters CompetitionParametersInput `json:"competitionParameters" binding:"required"`
 	// RegistrationWindowOpenAt is when registration opens.
 	RegistrationWindowOpenAt *time.Time `json:"registrationWindowOpenAt,omitempty"`

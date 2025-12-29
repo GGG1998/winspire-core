@@ -614,7 +614,7 @@ type GracePeriodStartedPayload struct {
 }
 
 // GracePeriodStarted event fired when grace period successfully starts
-// This confirms to competition service that the saga can proceed
+// This confirms to tournament service that the saga can proceed
 type GracePeriodStarted struct {
 	BaseEvent
 }
@@ -666,7 +666,7 @@ type BracketGenerationFailedPayload struct {
 }
 
 // BracketGenerationFailed event fired when bracket generation fails
-// This triggers compensating actions (status rollback in competition service)
+// This triggers compensating actions (status rollback in tournament service)
 type BracketGenerationFailed struct {
 	BaseEvent
 }
