@@ -48,9 +48,9 @@ all-migrate:
 		exit 1; \
 	fi
 	@echo "Migrating tournament..."
-	@atlas migrate apply --dir file://services/tournament/migrations --url "$(DATABASE_URL)" --revisions-schema "tournament_revisions"
+	@atlas migrate apply --dir file://services/tournament/migrations --url "$(DATABASE_URL)" --revisions-schema tournament_revisions --allow-dirty
 	@echo "Migrating matchmaking..."
-	@atlas migrate apply --dir file://services/matchmaking/migrations --url "$(DATABASE_URL)" --revisions-schema "matchmaking_revisions"
+	@atlas migrate apply --dir file://services/matchmaking/migrations --url "$(DATABASE_URL)" --revisions-schema matchmaking_revisions --allow-dirty
 	@echo "Migrating game-management..."
-	@atlas migrate apply --dir file://services/game-management/migrations --url "$(DATABASE_URL)" --revisions-schema "game_management_revisions"
+	@atlas migrate apply --dir file://services/game-management/migrations --url "$(DATABASE_URL)" --revisions-schema game_management_revisions --allow-dirty
 	@echo "All migrations completed!"

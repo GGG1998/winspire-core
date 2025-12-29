@@ -38,9 +38,6 @@ on:
         type: boolean
         default: false
 
-env:
-  ATLAS_VERSION: v0.28.0
-
 jobs:
   migrate:
     runs-on: ubuntu-latest
@@ -51,8 +48,6 @@ jobs:
 
       - name: Install Atlas
         uses: ariga/setup-atlas@v0
-        with:
-          version: ${{ env.ATLAS_VERSION }}
 
       - name: Set database URL
         id: db
@@ -195,8 +190,6 @@ jobs:
 
       - name: Install Atlas
         uses: ariga/setup-atlas@v0
-        with:
-          version: ${{ env.ATLAS_VERSION }}
 
       - name: Set database URL
         id: db

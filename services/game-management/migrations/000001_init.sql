@@ -1,4 +1,4 @@
--- +migrate Up
+-- Migration: Create games table
 CREATE TABLE IF NOT EXISTS games (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     game_integration_id UUID UNIQUE,
@@ -15,10 +15,5 @@ CREATE TABLE IF NOT EXISTS games (
 
 CREATE INDEX idx_games_slug ON games(slug) WHERE is_active = true;
 CREATE INDEX idx_games_active ON games(is_active);
-
--- +migrate Down
-DROP INDEX IF EXISTS idx_games_active;
-DROP INDEX IF EXISTS idx_games_slug;
-DROP TABLE IF EXISTS games;
 
 
