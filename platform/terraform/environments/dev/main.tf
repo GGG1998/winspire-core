@@ -165,6 +165,10 @@ module "redis" {
   num_cache_nodes      = 1
   enable_cloudwatch_alarms = false
 
+  # Disable TLS for dev - Go services don't have TLS configured
+  transit_encryption_enabled = false
+  at_rest_encryption_enabled = false
+
   tags = { Team = "Platform" }
 }
 
