@@ -67,7 +67,7 @@ terraform init
 
 # Configure variables
 cat > terraform.tfvars <<EOF
-aws_region         = "us-east-1"
+aws_region         = "eu-central-1"
 vpc_id             = "vpc-xxxxx"
 public_subnet_ids  = ["subnet-xxxxx", "subnet-yyyyy"]
 private_subnet_ids = ["subnet-aaaaa", "subnet-bbbbb"]

@@ -210,11 +210,8 @@ module "competition" {
     HTTP_READ_TIMEOUT     = "15s"
     HTTP_WRITE_TIMEOUT    = "15s"
     SHUTDOWN_GRACE        = "10s"
-  }
-
-  secrets = {
-    POSTGRES_DSN    = aws_secretsmanager_secret.db_url.arn
-    HOST_JWT_SECRET = aws_secretsmanager_secret.jwt_secret.arn
+    POSTGRES_DSN          = var.postgres_dsn
+    HOST_JWT_SECRET       = var.jwt_secret
   }
 
   enable_execute_command = true
@@ -274,16 +271,13 @@ module "matchmaking" {
     MAX_PARTICIPANTS_PER_TOURNAMENT   = "256"
     DATABASE_MAX_CONNS                = "25"
     DATABASE_MAX_IDLE_CONNS           = "5"
-  }
-
-  secrets = {
-    POSTGRES_DSN         = aws_secretsmanager_secret.db_url.arn
-    DATABASE_URL         = aws_secretsmanager_secret.db_url.arn
-    HOST_JWT_SECRET      = aws_secretsmanager_secret.jwt_secret.arn
-    REDIS_PASSWORD       = aws_secretsmanager_secret.redis_password.arn
-    SUPABASE_ANON_KEY    = aws_secretsmanager_secret.supabase_anon_key.arn
-    SUPABASE_SERVICE_KEY = aws_secretsmanager_secret.supabase_service_key.arn
-    GAME_API_KEY         = aws_secretsmanager_secret.game_api_key.arn
+    POSTGRES_DSN                      = var.postgres_dsn
+    DATABASE_URL                      = var.postgres_dsn
+    HOST_JWT_SECRET                   = var.jwt_secret
+    REDIS_PASSWORD                    = var.redis_password
+    SUPABASE_ANON_KEY                 = var.supabase_anon_key
+    SUPABASE_SERVICE_KEY              = var.supabase_service_key
+    GAME_API_KEY                      = var.game_api_key
   }
 
   enable_execute_command = true
@@ -319,11 +313,8 @@ module "game_management" {
     REDIS_ADDR        = module.redis.redis_endpoint
     HOST_JWT_ISSUER   = var.jwt_issuer
     HOST_JWT_AUDIENCE = "authenticated"
-  }
-
-  secrets = {
-    POSTGRES_DSN    = aws_secretsmanager_secret.db_url.arn
-    HOST_JWT_SECRET = aws_secretsmanager_secret.jwt_secret.arn
+    POSTGRES_DSN      = var.postgres_dsn
+    HOST_JWT_SECRET   = var.jwt_secret
   }
 
   enable_execute_command = true
@@ -332,61 +323,6 @@ module "game_management" {
 
 # Data source for AWS account ID
 data "aws_caller_identity" "current" {}
-
-# Secrets Manager for sensitive values
-resource "aws_secretsmanager_secret" "db_url" {
-  name = "dev/winspire/postgres-dsn"
-}
-
-resource "aws_secretsmanager_secret_version" "db_url" {
-  secret_id     = aws_secretsmanager_secret.db_url.id
-  secret_string = var.postgres_dsn
-}
-
-resource "aws_secretsmanager_secret" "jwt_secret" {
-  name = "dev/winspire/jwt-secret"
-}
-
-resource "aws_secretsmanager_secret_version" "jwt_secret" {
-  secret_id     = aws_secretsmanager_secret.jwt_secret.id
-  secret_string = var.jwt_secret
-}
-
-resource "aws_secretsmanager_secret" "supabase_anon_key" {
-  name = "dev/winspire/supabase-anon-key"
-}
-
-resource "aws_secretsmanager_secret_version" "supabase_anon_key" {
-  secret_id     = aws_secretsmanager_secret.supabase_anon_key.id
-  secret_string = var.supabase_anon_key
-}
-
-resource "aws_secretsmanager_secret" "redis_password" {
-  name = "dev/winspire/redis-password"
-}
-
-resource "aws_secretsmanager_secret_version" "redis_password" {
-  secret_id     = aws_secretsmanager_secret.redis_password.id
-  secret_string = var.redis_password
-}
-
-resource "aws_secretsmanager_secret" "game_api_key" {
-  name = "dev/winspire/game-api-key"
-}
-
-resource "aws_secretsmanager_secret_version" "game_api_key" {
-  secret_id     = aws_secretsmanager_secret.game_api_key.id
-  secret_string = var.game_api_key
-}
-
-resource "aws_secretsmanager_secret" "supabase_service_key" {
-  name = "dev/winspire/supabase-service-key"
-}
-
-resource "aws_secretsmanager_secret_version" "supabase_service_key" {
-  secret_id     = aws_secretsmanager_secret.supabase_service_key.id
-  secret_string = var.supabase_service_key
-}
 
 # ALB Listener Rules for path-based routing
 resource "aws_lb_listener_rule" "competition" {

@@ -105,7 +105,7 @@ func Load() (*Config, error) {
 		// Observability
 		LogLevel:            getEnv("LOG_LEVEL", "debug"),
 		LogFormat:           getEnv("LOG_FORMAT", "json"),
-		CloudWatchRegion:    getEnv("CLOUDWATCH_REGION", "us-east-1"),
+		CloudWatchRegion:    getEnv("CLOUDWATCH_REGION", "eu-central-1"),
 		CloudWatchLogGroup:  getEnv("CLOUDWATCH_LOG_GROUP", "/aws/ecs/matchmaking"),
 		CloudWatchNamespace: getEnv("CLOUDWATCH_NAMESPACE", "Winspire/Matchmaking"),
 

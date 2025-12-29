@@ -31,11 +31,6 @@ Builds Docker images and pushes to ECR.
 - **Trigger**: Manual (`workflow_dispatch`) or push to `main` (services changed)
 - **Options**: Choose services, environment, deploy flag
 
-### `sync-secrets.yml`
-Syncs GitHub Secrets to AWS Secrets Manager.
-- **Trigger**: Manual only
-- **When to run**: After adding/updating GitHub Secrets
-
 ### `migrate.yml`
 Runs database migrations with Atlas.
 - **Trigger**: Manual only
@@ -45,10 +40,23 @@ Runs database migrations with Atlas.
 AI code review on pull requests.
 - **Trigger**: Pull request opened/synchronized
 
+## How Secrets Flow
+
+```
+GitHub Secrets → Terraform variables → ECS Task Definition (env vars)
+```
+
+Secrets are passed to Terraform via CLI or tfvars during `terraform apply`:
+```bash
+terraform apply \
+  -var="postgres_dsn=$POSTGRES_DSN" \
+  -var="jwt_secret=$JWT_SECRET" \
+  ...
+```
+
 ## First-time Setup
 
 1. Add all secrets to GitHub (Settings → Secrets)
 2. Add all variables to GitHub (Settings → Variables)
-3. Run `sync-secrets.yml` to push secrets to AWS
-4. Run Terraform to create infrastructure
-5. Run `build-and-push.yml` to build and deploy services
+3. Run Terraform to create infrastructure
+4. Run `build-and-push.yml` to build and deploy services
