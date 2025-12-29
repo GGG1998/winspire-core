@@ -50,9 +50,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | ATLAS_VERSION=${{ env.ATLAS_VERSION }} sh -s -- -y
-          echo "$HOME/.atlas/bin" >> $GITHUB_PATH
+        uses: ariga/setup-atlas@v0
+        with:
+          version: ${{ env.ATLAS_VERSION }}
 
       - name: Set database URL
         id: db
@@ -60,21 +60,23 @@ jobs:
           # Use environment-specific secret
           case "${{ inputs.environment }}" in
             dev)
-              echo "url=${{ secrets.DATABASE_URL_DEV }}" >> $GITHUB_OUTPUT
+              DB_URL="${{ secrets.DATABASE_URL_DEV }}"
               ;;
             staging)
-              echo "url=${{ secrets.DATABASE_URL_STAGING }}" >> $GITHUB_OUTPUT
+              DB_URL="${{ secrets.DATABASE_URL_STAGING }}"
               ;;
             prod)
-              echo "url=${{ secrets.DATABASE_URL_PROD }}" >> $GITHUB_OUTPUT
+              DB_URL="${{ secrets.DATABASE_URL_PROD }}"
               ;;
           esac
 
           # Check if URL was set
-          if [ -z "${{ steps.db.outputs.url }}" ]; then
-            echo "::error::Database URL secret not configured for environment: ${{ inputs.environment }}"
+          if [ -z "$DB_URL" ]; then
+            echo "::error::DATABASE_URL_${{ inputs.environment }} secret not configured"
             exit 1
           fi
+
+          echo "url=$DB_URL" >> $GITHUB_OUTPUT
 
       - name: Check migration status
         if: inputs.action == 'status' || inputs.action == 'apply'
@@ -192,9 +194,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | ATLAS_VERSION=${{ env.ATLAS_VERSION }} sh -s -- -y
-          echo "$HOME/.atlas/bin" >> $GITHUB_PATH
+        uses: ariga/setup-atlas@v0
+        with:
+          version: ${{ env.ATLAS_VERSION }}
 
       - name: Set database URL
         id: db
