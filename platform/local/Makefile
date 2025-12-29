@@ -20,7 +20,7 @@ stop: ## Stop all services
 logs: ## Show logs from all services
 	@docker-compose logs -f
 
-logs-service: ## Show logs from a specific service (usage: make logs-service SERVICE=competition)
+logs-service: ## Show logs from a specific service (usage: make logs-service SERVICE=tournament)
 	@docker-compose logs -f $(SERVICE)
 
 logs-localstack: ## Show LocalStack logs
@@ -35,10 +35,10 @@ restart: ## Restart all services
 rebuild: ## Rebuild and restart all services
 	@docker-compose up --build -d
 
-scale: ## Start with scaled instances (2x competition)
+scale: ## Start with scaled instances (2x tournament)
 	@echo "Starting with scaled instances..."
 	@docker-compose --profile scale up -d
-	@echo "Started 2x competition instances"
+	@echo "Started 2x tournament instances"
 
 scale-down: ## Stop scaled instances
 	@docker-compose --profile scale down
@@ -46,7 +46,7 @@ scale-down: ## Stop scaled instances
 test: ## Run basic health checks via ALB routing
 	@echo "Testing services via LocalStack ALB..."
 	@echo ""
-	@echo "Competition (/v1/cups):"
+	@echo "Tournament (/v1/cups):"
 	@curl -s http://localhost/v1/cups 2>/dev/null || echo "Failed (service may not be ready)"
 	@echo ""
 	@echo "Game Management (/v1/games):"
@@ -62,7 +62,7 @@ health: ## Check LocalStack and service health
 	@curl -s http://localhost:4566/_localstack/health | jq . 2>/dev/null || curl -s http://localhost:4566/_localstack/health
 	@echo ""
 	@echo "Service Health (direct):"
-	@echo "  Competition:     $$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8089/healthz 2>/dev/null || echo 'down')"
+	@echo "  Tournament:      $$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8089/healthz 2>/dev/null || echo 'down')"
 	@echo "  Matchmaking:     $$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8088/health 2>/dev/null || echo 'down')"
 
 alb-status: ## Show LocalStack ALB status
@@ -79,7 +79,7 @@ alb-targets: ## Show registered ALB targets
 	@echo "Registered ALB Targets"
 	@echo "======================"
 	@echo ""
-	@for tg in competition-tg game-management-tg matchmaking-tg; do \
+	@for tg in tournament-tg game-management-tg matchmaking-tg; do \
 		echo "$$tg:"; \
 		docker exec winspire-localstack awslocal elbv2 describe-target-health \
 			--target-group-arn $$(docker exec winspire-localstack awslocal elbv2 describe-target-groups --names $$tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null) \

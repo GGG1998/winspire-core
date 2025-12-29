@@ -10,7 +10,7 @@ Winspire is a tournament/competition management platform built as a monorepo wit
 
 ### Bounded Contexts (Domain-Driven Design)
 
-- **competition**: Tournament lifecycle & participant registration (TournamentCreated, Published, Started, Completed)
+- **tournament**: Tournament lifecycle & participant registration (TournamentCreated, Published, Started, Completed)
 - **matchmaking**: Match creation, brackets, lobbies, scoring (BracketGenerated, MatchCreated, ScoreSubmitted)
 - **game-management**: Game catalog & asset management (GameBundle storage in S3)
 
@@ -20,7 +20,7 @@ Services communicate via Redis pub/sub (async events) and REST APIs (sync querie
 
 ```
 services/           # Go microservices (each has own go.mod)
-├── competition/    # Port 8089
+├── tournament/     # Port 8089
 ├── matchmaking/    # Port 8088
 ├── game-management/# Port 8087
 └── template/       # Cookiecutter template for new services
@@ -47,7 +47,7 @@ platform/
 make start          # Start all services via Docker Compose
 make rebuild        # Rebuild and restart all services (use after Go code changes)
 make logs           # View all service logs
-make logs-service SERVICE=competition  # View specific service logs
+make logs-service SERVICE=tournament  # View specific service logs
 make stop           # Stop all services
 make clean          # Remove all containers, volumes, images
 make redis-cli      # Connect to Redis CLI

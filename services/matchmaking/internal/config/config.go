@@ -38,7 +38,7 @@ type Config struct {
 	GameAPICircuitBreakerThreshold int
 	GameAPICircuitBreakerTimeout   time.Duration
 
-	// Competition Service
+	// Tournament Service
 	CompetitionServiceURL string
 
 	// Game Management Service
@@ -96,8 +96,8 @@ func Load() (*Config, error) {
 		GameAPICircuitBreakerThreshold: getEnvAsInt("GAME_API_CIRCUIT_BREAKER_THRESHOLD", 5),
 		GameAPICircuitBreakerTimeout:   getEnvAsDuration("GAME_API_CIRCUIT_BREAKER_TIMEOUT", 30*time.Second),
 
-		// Competition Service
-		CompetitionServiceURL: getEnv("COMPETITION_SERVICE_URL", "http://localhost:8080"),
+		// Tournament Service
+		CompetitionServiceURL: getEnv("TOURNAMENT_SERVICE_URL", "http://localhost:8089"),
 
 		// Game Management Service
 		GameManagementURL: getEnv("GAME_MANAGEMENT_URL", "http://localhost:8087"),

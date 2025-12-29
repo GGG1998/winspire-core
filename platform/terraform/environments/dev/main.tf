@@ -155,7 +155,7 @@ module "redis" {
 
   # Allow ECS services to access Redis
   allowed_security_groups = [
-    module.competition.security_group_id,
+    module.tournament.security_group_id,
     module.matchmaking.security_group_id,
     module.game_management.security_group_id,
   ]
@@ -172,12 +172,12 @@ module "redis" {
   tags = { Team = "Platform" }
 }
 
-# Competition Service
-module "competition" {
+# Tournament Service
+module "tournament" {
   source = "../../modules/ecs-service"
 
   environment            = "dev"
-  service_name           = "competition"
+  service_name           = "tournament"
   ecs_cluster_id         = aws_ecs_cluster.main.id
   ecs_cluster_name       = aws_ecs_cluster.main.name
   vpc_id                 = module.vpc.vpc_id
@@ -185,16 +185,16 @@ module "competition" {
   assign_public_ip       = true
   alb_security_group_id  = module.alb.alb_security_group_id
 
-  container_image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/dev-winspire-competition:latest"
+  container_image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/dev-winspire-tournament:latest"
   container_port  = 8089
 
   # Minimal Fargate size (0.25 vCPU, 512MB) - ~$9/month per task
   task_cpu    = 256
   task_memory = 512
 
-  # Scale from 1 to 10 based on load
-  desired_count = 1
-  min_capacity  = 1
+  # Scale from 0 to 10 (cost savings for dev)
+  desired_count = 0
+  min_capacity  = 0
   max_capacity  = 10
 
   enable_sticky_sessions = true
@@ -241,8 +241,8 @@ module "matchmaking" {
   task_cpu    = 256
   task_memory = 512
 
-  desired_count = 1
-  min_capacity  = 1
+  desired_count = 0
+  min_capacity  = 0
   max_capacity  = 10
 
   environment_variables = {
@@ -253,7 +253,7 @@ module "matchmaking" {
     REDIS_ADDR                        = "${module.redis.redis_endpoint}:6379"
     REDIS_URL                         = "redis://${module.redis.redis_endpoint}:6379/0"
     REDIS_DB                          = "0"
-    COMPETITION_SERVICE_URL           = "http://competition.internal:8089"
+    TOURNAMENT_SERVICE_URL            = "http://tournament.internal:8089"
     GAME_MANAGEMENT_URL               = "http://game-management.internal:8087"
     HOST_JWT_ISSUER                   = var.jwt_issuer
     HOST_JWT_AUDIENCE                 = var.jwt_audience
@@ -307,18 +307,19 @@ module "game_management" {
   task_cpu    = 256
   task_memory = 512
 
-  desired_count = 1
-  min_capacity  = 1
+  desired_count = 0
+  min_capacity  = 0
   max_capacity  = 10
 
   environment_variables = {
-    APP_ENV           = "production"
-    SERVICE_PORT      = "8087"
-    REDIS_ADDR        = "${module.redis.redis_endpoint}:6379"
-    HOST_JWT_ISSUER   = var.jwt_issuer
-    HOST_JWT_AUDIENCE = "authenticated"
-    POSTGRES_DSN      = var.postgres_dsn
-    HOST_JWT_SECRET   = var.jwt_secret
+    APP_ENV                          = "production"
+    SERVICE_PORT                     = "8087"
+    REDIS_ADDR                       = "${module.redis.redis_endpoint}:6379"
+    HOST_JWT_ISSUER                  = var.jwt_issuer
+    HOST_JWT_AUDIENCE                = "authenticated"
+    POSTGRES_DSN                     = var.postgres_dsn
+    HOST_JWT_SECRET                  = var.jwt_secret
+    GAME_MANAGEMENT_INTERNAL_API_KEY = "dev-internal-api-key-12345"
   }
 
   enable_execute_command = true
@@ -329,23 +330,41 @@ module "game_management" {
 data "aws_caller_identity" "current" {}
 
 # ALB Listener Rules for path-based routing
-resource "aws_lb_listener_rule" "competition" {
+# Note: ALB limits 5 values per rule, so we split into multiple rules
+
+resource "aws_lb_listener_rule" "tournament_tournaments" {
   listener_arn = module.alb.http_listener_arn
   priority     = 100
 
   action {
     type             = "forward"
-    target_group_arn = module.competition.target_group_arn
+    target_group_arn = module.tournament.target_group_arn
   }
 
   condition {
     path_pattern {
-      values = ["/v1/tournaments/*", "/v1/hosts/*", "/v1/registrations/*"]
+      values = ["/v1/tournaments", "/v1/tournaments/*"]
     }
   }
 }
 
-resource "aws_lb_listener_rule" "matchmaking" {
+resource "aws_lb_listener_rule" "tournament_hosts" {
+  listener_arn = module.alb.http_listener_arn
+  priority     = 101
+
+  action {
+    type             = "forward"
+    target_group_arn = module.tournament.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/hosts", "/v1/hosts/*", "/v1/registrations", "/v1/registrations/*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "matchmaking_brackets" {
   listener_arn = module.alb.http_listener_arn
   priority     = 150
 
@@ -356,7 +375,23 @@ resource "aws_lb_listener_rule" "matchmaking" {
 
   condition {
     path_pattern {
-      values = ["/v1/brackets/*", "/v1/matches/*", "/v1/lobbies/*"]
+      values = ["/v1/brackets", "/v1/brackets/*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "matchmaking_matches" {
+  listener_arn = module.alb.http_listener_arn
+  priority     = 151
+
+  action {
+    type             = "forward"
+    target_group_arn = module.matchmaking.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/matches", "/v1/matches/*", "/v1/lobbies", "/v1/lobbies/*"]
     }
   }
 }
@@ -372,7 +407,7 @@ resource "aws_lb_listener_rule" "game_management" {
 
   condition {
     path_pattern {
-      values = ["/v1/games/*", "/v1/bundles/*"]
+      values = ["/v1/games", "/v1/games/*", "/v1/bundles", "/v1/bundles/*"]
     }
   }
 }
@@ -402,7 +437,7 @@ output "ecs_cluster_name" {
 output "service_log_groups" {
   description = "CloudWatch log groups for services"
   value = {
-    competition     = module.competition.log_group_name
+    tournament      = module.tournament.log_group_name
     matchmaking     = module.matchmaking.log_group_name
     game_management = module.game_management.log_group_name
   }

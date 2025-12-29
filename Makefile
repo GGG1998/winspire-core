@@ -40,3 +40,17 @@ add-to-workspace:
 dev-mini-admin:
 	cd services/game-management && make run &
 	cd frontends/mini-admin && yarn dev
+
+all-migrate:
+	@if [ -z "$(DATABASE_URL)" ]; then \
+		echo "ERROR: DATABASE_URL environment variable not set"; \
+		echo "Usage: DATABASE_URL=postgresql://postgres.fzqcgjwsewkytrijenkf:[PASSWORD]@aws-0-eu-central-1.pooler.supabase.com:6543/postgres make all-migrate"; \
+		exit 1; \
+	fi
+	@echo "Migrating tournament..."
+	@atlas migrate apply --dir file://services/tournament/migrations --url "$(DATABASE_URL)"
+	@echo "Migrating matchmaking..."
+	@atlas migrate apply --dir file://services/matchmaking/migrations --url "$(DATABASE_URL)"
+	@echo "Migrating game-management..."
+	@atlas migrate apply --dir file://services/game-management/migrations --url "$(DATABASE_URL)"
+	@echo "All migrations completed!"

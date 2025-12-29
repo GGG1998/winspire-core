@@ -6,7 +6,7 @@
 # Routing Configuration (matches Traefik config):
 #   - /v1/games*, /v1/g*, /v1/admin* -> game-management:8085 (priority 100)
 #   - /v1/matchmaking* -> matchmaking:8081 (priority 101)
-#   - /v1/* -> competition:8089 (default action)
+#   - /v1/* -> tournament:8089 (default action)
 
 set -e
 
@@ -112,9 +112,9 @@ echo "ALB DNS: $ALB_DNS"
 echo ""
 echo "[5/7] Creating target groups..."
 
-# Competition service (default target - catches /v1/*)
-TG_COMPETITION=$(awslocal elbv2 create-target-group \
-    --name competition-tg \
+# Tournament service (default target - catches /v1/*)
+TG_TOURNAMENT=$(awslocal elbv2 create-target-group \
+    --name tournament-tg \
     --protocol HTTP \
     --port 8089 \
     --vpc-id "$VPC_ID" \
@@ -126,7 +126,7 @@ TG_COMPETITION=$(awslocal elbv2 create-target-group \
     --unhealthy-threshold-count 2 \
     --query 'TargetGroups[0].TargetGroupArn' \
     --output text)
-echo "Created Competition TG: $TG_COMPETITION"
+echo "Created Tournament TG: $TG_TOURNAMENT"
 
 # Game Management service (/v1/games, /v1/g, /v1/admin)
 TG_GAME_MGMT=$(awslocal elbv2 create-target-group \
@@ -166,12 +166,12 @@ echo "Created Matchmaking TG: $TG_MATCHMAKING"
 echo ""
 echo "[6/7] Creating listener and routing rules..."
 
-# Create default listener with competition as default action
+# Create default listener with tournament as default action
 LISTENER_ARN=$(awslocal elbv2 create-listener \
     --load-balancer-arn "$ALB_ARN" \
     --protocol HTTP \
     --port 80 \
-    --default-actions Type=forward,TargetGroupArn="$TG_COMPETITION" \
+    --default-actions Type=forward,TargetGroupArn="$TG_TOURNAMENT" \
     --query 'Listeners[0].ListenerArn' \
     --output text)
 echo "Created listener: $LISTENER_ARN"
@@ -194,7 +194,7 @@ awslocal elbv2 create-rule \
     > /dev/null
 echo "Created rule: /v1/matchmaking* -> matchmaking (priority 101)"
 
-echo "Default rule: /v1/* -> competition"
+echo "Default rule: /v1/* -> tournament"
 
 # ==============================================================================
 # Export Configuration
@@ -211,7 +211,7 @@ SG_ID=$SG_ID
 ALB_ARN=$ALB_ARN
 ALB_DNS=$ALB_DNS
 LISTENER_ARN=$LISTENER_ARN
-TG_COMPETITION=$TG_COMPETITION
+TG_TOURNAMENT=$TG_TOURNAMENT
 TG_GAME_MGMT=$TG_GAME_MGMT
 TG_MATCHMAKING=$TG_MATCHMAKING
 EOF
@@ -229,7 +229,7 @@ echo ""
 echo "Routing Configuration:"
 echo "  /v1/games*, /v1/g/*, /v1/admin* -> game-management:8085"
 echo "  /v1/matchmaking*                -> matchmaking:8081"
-echo "  /v1/* (default)                 -> competition:8089"
+echo "  /v1/* (default)                 -> tournament:8089"
 echo ""
 echo "ALB DNS: $ALB_DNS"
 echo ""

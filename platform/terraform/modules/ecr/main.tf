@@ -19,7 +19,7 @@ variable "environment" {
 variable "services" {
   description = "List of service names to create repositories for"
   type        = list(string)
-  default     = ["competition", "matchmaking", "game-management"]
+  default     = ["tournament", "matchmaking", "game-management"]
 }
 
 variable "image_retention_count" {

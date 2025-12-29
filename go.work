@@ -4,7 +4,7 @@ use (
 	./libs/go/auth
 	./libs/go/httpx
 	./libs/go/pgtype
-	./services/competition
+	./services/tournament
 	./services/game-management
 	./services/matchmaking
 )

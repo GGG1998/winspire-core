@@ -4,10 +4,10 @@
 # Routing Configuration:
 #   http://localhost/v1/games*, /v1/g/*, /v1/admin* -> game-management:8085
 #   http://localhost/v1/matchmaking*                -> matchmaking:8081
-#   http://localhost/v1/* (default)                 -> competition:8089
+#   http://localhost/v1/* (default)                 -> tournament:8089
 #
 # Direct service access (for E2E tests):
-#   http://localhost:8089 -> competition
+#   http://localhost:8089 -> tournament
 #   http://localhost:8088 -> matchmaking
 
 services:
@@ -56,12 +56,12 @@ services:
     networks:
       - winspire-network
 
-  # Competition Service (Tournament & Match Management)
-  competition:
+  # Tournament Service (Tournament & Match Management)
+  tournament:
     build:
       context: ../..
-      dockerfile: services/competition/cmd/competition/Dockerfile.dev
-    container_name: competition
+      dockerfile: services/tournament/cmd/tournament/Dockerfile.dev
+    container_name: tournament
     env_file:
       - .env
     ports:
@@ -137,14 +137,14 @@ services:
       - HOST_JWT_SECRET=${HOST_JWT_SECRET:-your-jwt-secret-here}
       - HOST_JWT_ISSUER=${HOST_JWT_ISSUER:-https://your-project.supabase.co/auth/v1}
       - HOST_JWT_AUDIENCE=${HOST_JWT_AUDIENCE:-authenticated}
-      - COMPETITION_SERVICE_URL=http://competition:8089
+      - TOURNAMENT_SERVICE_URL=http://tournament:8089
       - GAME_MANAGEMENT_URL=http://game-management:8085
       - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
     depends_on:
       redis:
         condition: service_healthy
-      competition:
+      tournament:
         condition: service_started
       localstack:
         condition: service_healthy
@@ -180,30 +180,30 @@ services:
         echo "ALB is ready. Registering targets..."
 
         # Get container IPs using DNS resolution
-        COMPETITION_IP=$$(getent hosts competition | awk '{ print $$1 }')
+        TOURNAMENT_IP=$$(getent hosts tournament | awk '{ print $$1 }')
         GAME_MGMT_IP=$$(getent hosts game-management | awk '{ print $$1 }')
         MATCHMAKING_IP=$$(getent hosts matchmaking | awk '{ print $$1 }')
 
         echo "Container IPs:"
-        echo "  Competition: $$COMPETITION_IP"
+        echo "  Tournament: $$TOURNAMENT_IP"
         echo "  Game Management: $$GAME_MGMT_IP"
         echo "  Matchmaking: $$MATCHMAKING_IP"
 
         # Get target group ARNs
-        TG_COMPETITION=$$(aws --endpoint-url=http://localstack:4566 elbv2 describe-target-groups --names competition-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
+        TG_TOURNAMENT=$$(aws --endpoint-url=http://localstack:4566 elbv2 describe-target-groups --names tournament-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
         TG_GAME_MGMT=$$(aws --endpoint-url=http://localstack:4566 elbv2 describe-target-groups --names game-management-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
         TG_MATCHMAKING=$$(aws --endpoint-url=http://localstack:4566 elbv2 describe-target-groups --names matchmaking-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
 
-        if [ -z "$$TG_COMPETITION" ] || [ -z "$$TG_GAME_MGMT" ] || [ -z "$$TG_MATCHMAKING" ]; then
+        if [ -z "$$TG_TOURNAMENT" ] || [ -z "$$TG_GAME_MGMT" ] || [ -z "$$TG_MATCHMAKING" ]; then
             echo "ERROR: Could not find all target groups"
             exit 1
         fi
 
         # Register targets
-        echo "Registering competition ($$COMPETITION_IP:8089)..."
+        echo "Registering tournament ($$TOURNAMENT_IP:8089)..."
         aws --endpoint-url=http://localstack:4566 elbv2 register-targets \
-            --target-group-arn "$$TG_COMPETITION" \
-            --targets Id="$$COMPETITION_IP",Port=8089
+            --target-group-arn "$$TG_TOURNAMENT" \
+            --targets Id="$$TOURNAMENT_IP",Port=8089
 
         echo "Registering game-management ($$GAME_MGMT_IP:8085)..."
         aws --endpoint-url=http://localstack:4566 elbv2 register-targets \
@@ -221,7 +221,7 @@ services:
         echo "============================================"
         echo ""
         echo "Test routing:"
-        echo "  curl http://localhost/v1/cups           # -> competition"
+        echo "  curl http://localhost/v1/cups           # -> tournament"
         echo "  curl http://localhost/v1/games          # -> game-management"
         echo "  curl http://localhost/v1/matchmaking/health  # -> matchmaking"
         echo ""
@@ -236,7 +236,7 @@ services:
     depends_on:
       localstack:
         condition: service_healthy
-      competition:
+      tournament:
         condition: service_healthy
       game-management:
         condition: service_healthy

@@ -72,7 +72,7 @@ Each service maps to a **Bounded Context** in Domain-Driven Design. Services com
 ```bash
 services/
 │
-├── competition/                    # BC: TournamentManagement
+├── tournament/                     # BC: TournamentManagement
 │   ├── Domain: Tournament lifecycle & participant registration
 │   ├── Responsibilities:
 │   │   ✅ Tournament creation (TournamentCreated)
@@ -127,7 +127,7 @@ Only for:
 - ❌ **Shared database** between services (violates BC boundaries) for now we have but create new table
 - ❌ **Direct service-to-service calls** for domain logic (use events)
 - ❌ **Domain logic in realtime stream** (only projections)
-- ❌ **Matchmaking logic in competition** (wrong BC)
+- ❌ **Matchmaking logic in tournament** (wrong BC)
 
 ## ✅ Adding a New Service
 
