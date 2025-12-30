@@ -425,6 +425,22 @@ resource "aws_lb_listener_rule" "matchmaking_matches" {
   }
 }
 
+resource "aws_lb_listener_rule" "matchmaking_api" {
+  listener_arn = module.alb.http_listener_arn
+  priority     = 152
+
+  action {
+    type             = "forward"
+    target_group_arn = module.matchmaking.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/matchmaking", "/v1/matchmaking/*"]
+    }
+  }
+}
+
 resource "aws_lb_listener_rule" "game_management" {
   listener_arn = module.alb.http_listener_arn
   priority     = 200
@@ -502,6 +518,22 @@ resource "aws_lb_listener_rule" "matchmaking_matches_https" {
   condition {
     path_pattern {
       values = ["/v1/matches", "/v1/matches/*", "/v1/lobbies", "/v1/lobbies/*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "matchmaking_api_https" {
+  listener_arn = module.alb.https_listener_arn
+  priority     = 152
+
+  action {
+    type             = "forward"
+    target_group_arn = module.matchmaking.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/matchmaking", "/v1/matchmaking/*"]
     }
   }
 }
