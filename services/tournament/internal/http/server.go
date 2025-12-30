@@ -42,6 +42,8 @@ func NewRouter(deps ServerDeps) *gin.Engine {
 	// Use shared httpx middleware
 	httpCfg := sharedhttp.DefaultConfig()
 	httpCfg.ServiceName = "tournament"
+	httpCfg.AllowOrigins = deps.Config.CORSAllowedOrigins
+	httpCfg.AllowCredentials = true
 
 	router.Use(
 		sharedhttp.Recovery(deps.Logger),

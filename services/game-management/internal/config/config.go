@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -34,6 +35,9 @@ type Config struct {
 
 	// Cache configuration
 	BundleCacheTTL time.Duration
+
+	// CORS configuration
+	CORSAllowedOrigins []string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -56,6 +60,7 @@ func Load() (Config, error) {
 		AWSSecretAccessKey:    valueOrDefault("AWS_SECRET_ACCESS_KEY", ""),
 		InternalServiceAPIKey: valueOrDefault("GAME_MANAGEMENT_INTERNAL_API_KEY", ""),
 		LogLevel:              valueOrDefault("LOG_LEVEL", "info"),
+		CORSAllowedOrigins:    stringsFromEnv("CORS_ALLOWED_ORIGINS", []string{"*"}),
 	}
 
 	if cfg.PostgresDSN == "" {
@@ -101,6 +106,22 @@ func durationFromEnv(key string, def time.Duration) time.Duration {
 	if val := os.Getenv(key); val != "" {
 		if out, err := time.ParseDuration(val); err == nil {
 			return out
+		}
+	}
+	return def
+}
+
+func stringsFromEnv(key string, def []string) []string {
+	if val := os.Getenv(key); val != "" {
+		var result []string
+		for _, s := range strings.Split(val, ",") {
+			trimmed := strings.TrimSpace(s)
+			if trimmed != "" {
+				result = append(result, trimmed)
+			}
+		}
+		if len(result) > 0 {
+			return result
 		}
 	}
 	return def

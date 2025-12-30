@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -33,6 +34,9 @@ type Config struct {
 
 	// Logging configuration
 	LogLevel string
+
+	// CORS configuration
+	CORSAllowedOrigins []string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -57,6 +61,8 @@ func Load() (Config, error) {
 		SchedulerInterval: valueOrDefault("SCHEDULER_INTERVAL", "*/2 * * * *"),
 
 		LogLevel: valueOrDefault("LOG_LEVEL", "debug"),
+
+		CORSAllowedOrigins: stringsFromEnv("CORS_ALLOWED_ORIGINS", []string{"*"}),
 	}
 
 	if cfg.PostgresDSN == "" {
@@ -103,6 +109,22 @@ func durationFromEnv(key string, def time.Duration) time.Duration {
 func boolFromEnv(key string, def bool) bool {
 	if val := os.Getenv(key); val != "" {
 		return val == "true" || val == "1"
+	}
+	return def
+}
+
+func stringsFromEnv(key string, def []string) []string {
+	if val := os.Getenv(key); val != "" {
+		var result []string
+		for _, s := range strings.Split(val, ",") {
+			trimmed := strings.TrimSpace(s)
+			if trimmed != "" {
+				result = append(result, trimmed)
+			}
+		}
+		if len(result) > 0 {
+			return result
+		}
 	}
 	return def
 }

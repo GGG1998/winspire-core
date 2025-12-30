@@ -140,6 +140,12 @@ variable "task_policy_json" {
   default     = null
 }
 
+variable "health_check_path" {
+  description = "Health check path for the target group"
+  type        = string
+  default     = "/healthz"
+}
+
 variable "tags" {
   description = "Additional tags for resources"
   type        = map(string)

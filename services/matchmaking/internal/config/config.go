@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -64,6 +65,9 @@ type Config struct {
 	// Limits
 	MaxConcurrentTournaments     int
 	MaxParticipantsPerTournament int
+
+	// CORS configuration
+	CORSAllowedOrigins []string
 }
 
 // Load loads configuration from environment variables
@@ -122,6 +126,9 @@ func Load() (*Config, error) {
 		// Limits
 		MaxConcurrentTournaments:     getEnvAsInt("MAX_CONCURRENT_TOURNAMENTS", 50),
 		MaxParticipantsPerTournament: getEnvAsInt("MAX_PARTICIPANTS_PER_TOURNAMENT", 256),
+
+		// CORS
+		CORSAllowedOrigins: getEnvAsStrings("CORS_ALLOWED_ORIGINS", []string{"*"}),
 	}
 
 	// Validate required fields
@@ -187,4 +194,22 @@ func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 		return defaultValue
 	}
 	return value
+}
+
+func getEnvAsStrings(key string, defaultValue []string) []string {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+	var result []string
+	for _, s := range strings.Split(valueStr, ",") {
+		trimmed := strings.TrimSpace(s)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	if len(result) > 0 {
+		return result
+	}
+	return defaultValue
 }

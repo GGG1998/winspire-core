@@ -37,6 +37,8 @@ func NewRouter(deps ServerDeps) *gin.Engine {
 	httpCfg := sharedhttp.DefaultConfig()
 	httpCfg.ServiceName = "game-management"
 	httpCfg.AllowHeaders = append(httpCfg.AllowHeaders, "X-Internal-Service-Key")
+	httpCfg.AllowOrigins = deps.Config.CORSAllowedOrigins
+	httpCfg.AllowCredentials = true
 
 	router.Use(
 		sharedhttp.Recovery(deps.Logger),

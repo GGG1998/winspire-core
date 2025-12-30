@@ -195,6 +195,8 @@ func main() {
 	// Configure shared middleware
 	httpxConfig := httpx.DefaultConfig()
 	httpxConfig.ServiceName = "matchmaking"
+	httpxConfig.AllowOrigins = cfg.CORSAllowedOrigins
+	httpxConfig.AllowCredentials = true
 
 	// Apply middleware (order matters!)
 	router.Use(httpx.Recovery(slogLogger))      // Recover from panics

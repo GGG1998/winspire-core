@@ -241,6 +241,7 @@ module "tournament" {
     SHUTDOWN_GRACE        = "10s"
     POSTGRES_DSN          = var.postgres_dsn
     HOST_JWT_SECRET       = var.jwt_secret
+    CORS_ALLOWED_ORIGINS  = "https://winspire-dev-s63lr.ondigitalocean.app,https://dev-api.gowinspire.com"
   }
 
   enable_execute_command = true
@@ -262,6 +263,7 @@ module "matchmaking" {
 
   container_image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/dev-winspire-matchmaking:latest"
   container_port  = 8081
+  health_check_path = "/health"
 
   task_cpu    = 256
   task_memory = 512
@@ -307,6 +309,7 @@ module "matchmaking" {
     SUPABASE_ANON_KEY                 = var.supabase_anon_key
     SUPABASE_SERVICE_KEY              = var.supabase_service_key
     GAME_API_KEY                      = var.game_api_key
+    CORS_ALLOWED_ORIGINS              = "https://winspire-dev-s63lr.ondigitalocean.app,https://dev-api.gowinspire.com"
   }
 
   enable_execute_command = true
@@ -345,6 +348,7 @@ module "game_management" {
     POSTGRES_DSN                     = var.postgres_dsn
     HOST_JWT_SECRET                  = var.jwt_secret
     GAME_MANAGEMENT_INTERNAL_API_KEY = "dev-internal-api-key-12345"
+    CORS_ALLOWED_ORIGINS             = "https://winspire-dev-s63lr.ondigitalocean.app,https://dev-api.gowinspire.com"
   }
 
   enable_execute_command = true
