@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
@@ -71,6 +72,8 @@ func main() {
 	}
 	dbConfig.MaxConns = cfg.DatabaseMaxConns
 	dbConfig.MinConns = cfg.DatabaseMaxIdle
+	// Use simple protocol for Supabase PgBouncer compatibility (avoids prepared statement conflicts)
+	dbConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	pool, err := pgxpool.NewWithConfig(ctx, dbConfig)
 	if err != nil {

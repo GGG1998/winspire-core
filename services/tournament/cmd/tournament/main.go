@@ -14,6 +14,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/winspire/tournament/internal/application"
@@ -53,6 +54,8 @@ func main() {
 		os.Exit(1)
 	}
 	poolCfg.MaxConns = 8
+	// Use simple protocol for Supabase PgBouncer compatibility (avoids prepared statement conflicts)
+	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
