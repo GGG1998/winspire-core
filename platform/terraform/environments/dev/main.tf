@@ -9,6 +9,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 
   # Backend configuration (uncomment and configure for your setup)
@@ -119,6 +123,49 @@ module "vpc" {
   tags = { Team = "Platform" }
 }
 
+# Self-signed TLS certificate for HTTPS (development only)
+resource "tls_private_key" "alb" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "tls_self_signed_cert" "alb" {
+  private_key_pem = tls_private_key.alb.private_key_pem
+
+  subject {
+    common_name  = "dev-winspire-alb.local"
+    organization = "Winspire Dev"
+  }
+
+  dns_names = [
+    "dev-winspire-alb.local",
+    "*.eu-central-1.elb.amazonaws.com",
+    "localhost"
+  ]
+
+  validity_period_hours = 8760 # 1 year
+
+  allowed_uses = [
+    "key_encipherment",
+    "digital_signature",
+    "server_auth",
+  ]
+}
+
+resource "aws_acm_certificate" "alb_self_signed" {
+  private_key      = tls_private_key.alb.private_key_pem
+  certificate_body = tls_self_signed_cert.alb.cert_pem
+
+  tags = {
+    Name        = "dev-winspire-alb-self-signed"
+    Environment = "dev"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # ECS Cluster
 resource "aws_ecs_cluster" "main" {
   name = "dev-winspire-cluster"
@@ -141,6 +188,7 @@ module "alb" {
   vpc_id                     = module.vpc.vpc_id
   public_subnet_ids          = module.vpc.public_subnet_ids
   enable_deletion_protection = false
+  certificate_arn            = aws_acm_certificate.alb_self_signed.arn
 
   tags = { Team = "Platform" }
 }
@@ -192,9 +240,9 @@ module "tournament" {
   task_cpu    = 256
   task_memory = 512
 
-  # Scale from 0 to 10 (cost savings for dev)
-  desired_count = 0
-  min_capacity  = 0
+  # Scale from 1 to 10 (min 1 required for ECS API compatibility)
+  desired_count = 1
+  min_capacity  = 1
   max_capacity  = 10
 
   enable_sticky_sessions = true
@@ -241,8 +289,8 @@ module "matchmaking" {
   task_cpu    = 256
   task_memory = 512
 
-  desired_count = 0
-  min_capacity  = 0
+  desired_count = 1
+  min_capacity  = 1
   max_capacity  = 10
 
   environment_variables = {
@@ -307,8 +355,8 @@ module "game_management" {
   task_cpu    = 256
   task_memory = 512
 
-  desired_count = 0
-  min_capacity  = 0
+  desired_count = 1
+  min_capacity  = 1
   max_capacity  = 10
 
   environment_variables = {
@@ -343,7 +391,7 @@ resource "aws_lb_listener_rule" "tournament_tournaments" {
 
   condition {
     path_pattern {
-      values = ["/v1/tournaments", "/v1/tournaments/*"]
+      values = ["/v1/*/tournaments", "/v1/*/tournaments/*"]
     }
   }
 }
@@ -359,7 +407,7 @@ resource "aws_lb_listener_rule" "tournament_hosts" {
 
   condition {
     path_pattern {
-      values = ["/v1/hosts", "/v1/hosts/*", "/v1/registrations", "/v1/registrations/*"]
+      values = ["/v1/hosts", "/v1/hosts/*", "/v1/*/registrations", "/v1/*/registrations/*"]
     }
   }
 }
@@ -398,6 +446,87 @@ resource "aws_lb_listener_rule" "matchmaking_matches" {
 
 resource "aws_lb_listener_rule" "game_management" {
   listener_arn = module.alb.http_listener_arn
+  priority     = 200
+
+  action {
+    type             = "forward"
+    target_group_arn = module.game_management.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/games", "/v1/games/*", "/v1/bundles", "/v1/bundles/*"]
+    }
+  }
+}
+
+# HTTPS Listener Rules (duplicates of HTTP rules for HTTPS listener)
+resource "aws_lb_listener_rule" "tournament_tournaments_https" {
+  listener_arn = module.alb.https_listener_arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = module.tournament.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/*/tournaments", "/v1/*/tournaments/*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "tournament_hosts_https" {
+  listener_arn = module.alb.https_listener_arn
+  priority     = 101
+
+  action {
+    type             = "forward"
+    target_group_arn = module.tournament.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/hosts", "/v1/hosts/*", "/v1/*/registrations", "/v1/*/registrations/*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "matchmaking_brackets_https" {
+  listener_arn = module.alb.https_listener_arn
+  priority     = 150
+
+  action {
+    type             = "forward"
+    target_group_arn = module.matchmaking.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/brackets", "/v1/brackets/*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "matchmaking_matches_https" {
+  listener_arn = module.alb.https_listener_arn
+  priority     = 151
+
+  action {
+    type             = "forward"
+    target_group_arn = module.matchmaking.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/matches", "/v1/matches/*", "/v1/lobbies", "/v1/lobbies/*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "game_management_https" {
+  listener_arn = module.alb.https_listener_arn
   priority     = 200
 
   action {
