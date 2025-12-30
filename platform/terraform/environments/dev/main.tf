@@ -9,10 +9,6 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    tls = {
-      source  = "hashicorp/tls"
-      version = "~> 4.0"
-    }
   }
 
   # Backend configuration (uncomment and configure for your setup)
@@ -123,46 +119,27 @@ module "vpc" {
   tags = { Team = "Platform" }
 }
 
-# Self-signed TLS certificate for HTTPS (development only)
-resource "tls_private_key" "alb" {
-  algorithm = "RSA"
-  rsa_bits  = 2048
-}
-
-resource "tls_self_signed_cert" "alb" {
-  private_key_pem = tls_private_key.alb.private_key_pem
-
-  subject {
-    common_name  = "dev-winspire-alb.local"
-    organization = "Winspire Dev"
-  }
-
-  dns_names = [
-    "dev-winspire-alb.local",
-    "*.eu-central-1.elb.amazonaws.com",
-    "localhost"
-  ]
-
-  validity_period_hours = 8760 # 1 year
-
-  allowed_uses = [
-    "key_encipherment",
-    "digital_signature",
-    "server_auth",
-  ]
-}
-
-resource "aws_acm_certificate" "alb_self_signed" {
-  private_key      = tls_private_key.alb.private_key_pem
-  certificate_body = tls_self_signed_cert.alb.cert_pem
+# ACM Certificate for custom domain (dev-api.gowinspire.com)
+resource "aws_acm_certificate" "alb" {
+  domain_name       = "dev-api.gowinspire.com"
+  validation_method = "DNS"
 
   tags = {
-    Name        = "dev-winspire-alb-self-signed"
+    Name        = "dev-api-gowinspire-com"
     Environment = "dev"
   }
 
   lifecycle {
     create_before_destroy = true
+  }
+}
+
+# Certificate validation waiter (will wait until DNS records are added)
+resource "aws_acm_certificate_validation" "alb" {
+  certificate_arn = aws_acm_certificate.alb.arn
+
+  timeouts {
+    create = "30m"
   }
 }
 
@@ -188,7 +165,7 @@ module "alb" {
   vpc_id                     = module.vpc.vpc_id
   public_subnet_ids          = module.vpc.public_subnet_ids
   enable_deletion_protection = false
-  certificate_arn            = aws_acm_certificate.alb_self_signed.arn
+  certificate_arn            = aws_acm_certificate_validation.alb.certificate_arn
 
   tags = { Team = "Platform" }
 }
@@ -545,6 +522,26 @@ resource "aws_lb_listener_rule" "game_management_https" {
 output "vpc_id" {
   description = "VPC ID"
   value       = module.vpc.vpc_id
+}
+
+output "acm_certificate_validation_records" {
+  description = "DNS records to add at your registrar for certificate validation"
+  value = {
+    for dvo in aws_acm_certificate.alb.domain_validation_options : dvo.domain_name => {
+      name  = dvo.resource_record_name
+      type  = dvo.resource_record_type
+      value = dvo.resource_record_value
+    }
+  }
+}
+
+output "alb_cname_record" {
+  description = "CNAME record to add at your registrar to point domain to ALB"
+  value = {
+    name  = "dev-api.gowinspire.com"
+    type  = "CNAME"
+    value = module.alb.alb_dns_name
+  }
 }
 
 output "alb_dns_name" {
