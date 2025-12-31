@@ -54,3 +54,32 @@ all-migrate:
 	@echo "Migrating game-management..."
 	@atlas migrate apply --dir file://services/game-management/migrations --url "$(DATABASE_URL)" --revisions-schema game_management_revisions --allow-dirty
 	@echo "All migrations completed!"
+
+# ============================================================================
+# OpenAPI
+# ============================================================================
+
+.PHONY: openapi-lint openapi-bundle openapi-codegen openapi-serve openapi-install
+
+openapi-install:
+	@echo "Installing OpenAPI tools..."
+	cd docs/openapi && make install
+
+openapi-lint:
+	@echo "Linting OpenAPI specifications..."
+	cd docs/openapi && make lint
+
+openapi-bundle:
+	@echo "Bundling OpenAPI specifications..."
+	cd docs/openapi && make bundle-all
+
+openapi-codegen:
+	@echo "Generating code from OpenAPI specifications..."
+	cd docs/openapi && make codegen-go codegen-ts
+
+openapi-serve:
+	@echo "Starting API documentation server..."
+	cd docs/openapi && make serve
+
+openapi-all: openapi-lint openapi-bundle openapi-codegen
+	@echo "OpenAPI pipeline complete!"

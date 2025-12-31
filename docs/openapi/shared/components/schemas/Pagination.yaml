@@ -1,0 +1,50 @@
+PaginationMeta:
+  type: object
+  description: Pagination metadata for list responses
+  properties:
+    total:
+      type: integer
+      format: int64
+      description: Total number of items available
+      example: 142
+    limit:
+      type: integer
+      format: int32
+      description: Maximum items returned per page
+      minimum: 1
+      maximum: 100
+      default: 50
+      example: 50
+    offset:
+      type: integer
+      format: int32
+      description: Number of items skipped
+      minimum: 0
+      default: 0
+      example: 0
+
+PaginatedList:
+  type: object
+  description: Generic paginated list response wrapper
+  required:
+    - items
+    - total
+    - limit
+    - offset
+  properties:
+    items:
+      type: array
+      items: {}
+      description: List of items for this page
+    total:
+      type: integer
+      format: int64
+      description: Total number of items available
+    limit:
+      type: integer
+      format: int32
+      description: Maximum items returned per page
+    offset:
+      type: integer
+      format: int32
+      description: Number of items skipped

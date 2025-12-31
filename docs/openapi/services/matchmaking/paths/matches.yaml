@@ -1,0 +1,110 @@
+ListTournamentMatches:
+  summary: List tournament matches
+  description: Returns all matches for a tournament
+  operationId: listTournamentMatches
+  tags:
+    - Matches
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/TournamentId"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/MatchStatusFilter"
+  responses:
+    "200":
+      description: List of matches
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              matches:
+                type: array
+                items:
+                  $ref: "../schemas/Match.yaml#/Match"
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+GetMatch:
+  summary: Get match
+  description: Returns match details
+  operationId: getMatch
+  tags:
+    - Matches
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/MatchId"
+  responses:
+    "200":
+      description: Match details
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              match:
+                $ref: "../schemas/Match.yaml#/Match"
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+MatchLobbyWebSocket:
+  summary: WebSocket lobby connection
+  description: |
+    Establishes WebSocket connection for real-time match lobby updates.
+
+    **Protocol**: WebSocket upgrade from HTTP
+
+    **Authentication**: Pass JWT token via `?token=` query parameter
+
+    **Events received**:
+    - `player_ready` - Player marked as ready
+    - `match_starting` - Match is about to start
+    - `match_started` - Match has started
+    - `score_update` - Score has been updated
+    - `match_completed` - Match has ended
+  operationId: matchLobbyWebSocket
+  tags:
+    - WebSocket
+  security:
+    - WebSocketToken: []
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/MatchId"
+    - name: token
+      in: query
+      required: true
+      description: JWT token for WebSocket authentication
+      schema:
+        type: string
+  responses:
+    "101":
+      description: Switching Protocols - WebSocket connection established
+    "401":
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+
+GetMyMatch:
+  summary: Get current user's active match
+  description: Returns the current match for the authenticated user, if any
+  operationId: getMyMatch
+  tags:
+    - Matches
+  responses:
+    "200":
+      description: Current match info
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              match:
+                $ref: "../schemas/Match.yaml#/MatchInfo"
+                nullable: true
+    "401":
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"

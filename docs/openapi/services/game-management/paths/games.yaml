@@ -1,0 +1,110 @@
+ListGames:
+  summary: List games
+  description: Returns all active games in the catalog
+  operationId: listGames
+  tags:
+    - Games
+  security: []
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/Limit"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/Offset"
+  responses:
+    "200":
+      description: List of games
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              games:
+                type: array
+                items:
+                  $ref: "../schemas/Game.yaml#/Game"
+              count:
+                type: integer
+                format: int32
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+GetGameById:
+  summary: Get game by ID
+  description: Returns a game by its unique identifier
+  operationId: getGameById
+  tags:
+    - Games
+  security: []
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/GameId"
+  responses:
+    "200":
+      description: Game details
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              game:
+                $ref: "../schemas/Game.yaml#/Game"
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+GetGameBySlug:
+  summary: Get game by slug
+  description: Returns a game by its URL-friendly slug
+  operationId: getGameBySlug
+  tags:
+    - Games
+  security: []
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/GameSlug"
+  responses:
+    "200":
+      description: Game details
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              game:
+                $ref: "../schemas/Game.yaml#/Game"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+ServeGameBundle:
+  summary: Serve game bundle file
+  description: |
+    Serves static files from the game bundle (HTML, JS, CSS, assets).
+
+    This endpoint is designed for iframe embedding and has relaxed
+    X-Frame-Options headers to allow embedding in the platform.
+  operationId: serveGameBundle
+  tags:
+    - Games
+  security: []
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/GameSlug"
+    - name: filepath
+      in: path
+      required: true
+      description: Path to the file within the game bundle
+      schema:
+        type: string
+      example: "index.html"
+  responses:
+    "200":
+      description: File content
+      content:
+        "*/*":
+          schema:
+            type: string
+            format: binary
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"

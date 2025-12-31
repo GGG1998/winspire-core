@@ -1,0 +1,22 @@
+securitySchemes:
+  BearerAuth:
+    type: http
+    scheme: bearer
+    bearerFormat: JWT
+    description: |
+      Supabase JWT authentication.
+
+      Include the token in the Authorization header:
+      ```
+      Authorization: Bearer <token>
+      ```
+
+  WebSocketToken:
+    type: apiKey
+    in: query
+    name: token
+    description: |
+      JWT token passed as query parameter for WebSocket connections.
+      Used when browser cannot set Authorization header for WebSocket upgrade.
+
+      Example: `wss://api.example.com/v1/matches/{id}/lobby?token=<jwt>`

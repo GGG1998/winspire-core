@@ -1,0 +1,240 @@
+Tournament:
+  type: object
+  description: Full tournament details
+  required:
+    - id
+    - hostId
+    - name
+    - status
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      format: uuid
+    hostId:
+      type: string
+      format: uuid
+    creatorId:
+      type: string
+      format: uuid
+      description: Same as hostId for frontend compatibility
+    name:
+      type: string
+      minLength: 3
+      maxLength: 100
+    status:
+      $ref: "#/TournamentStatus"
+    description:
+      type: string
+      maxLength: 4000
+      nullable: true
+    externalId:
+      type: string
+      nullable: true
+      description: External system identifier for idempotency
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    lastActivity:
+      type: string
+      format: date-time
+      nullable: true
+    game:
+      type: string
+      nullable: true
+      description: Game slug for display
+    gameLogoUrl:
+      type: string
+      format: uri
+      nullable: true
+    bannerUrl:
+      type: string
+      format: uri
+      nullable: true
+    roomLink:
+      type: string
+      nullable: true
+      description: Join link for participants
+    scheduledStartTimeAt:
+      type: string
+      format: date-time
+      nullable: true
+    registrationWindowOpenAt:
+      type: string
+      format: date-time
+      nullable: true
+    actualStartTimeAt:
+      type: string
+      format: date-time
+      nullable: true
+    completedAt:
+      type: string
+      format: date-time
+      nullable: true
+    cancelledAt:
+      type: string
+      format: date-time
+      nullable: true
+    minimumTeamCount:
+      type: integer
+      format: int32
+      default: 2
+    maximumTeamCount:
+      type: integer
+      format: int32
+      nullable: true
+    teamSize:
+      type: integer
+      format: int32
+    autoForceReady:
+      type: boolean
+      default: true
+    isCompleted:
+      type: boolean
+    gameId:
+      type: string
+      format: uuid
+      nullable: true
+    spaceId:
+      type: string
+      format: uuid
+      nullable: true
+    templateId:
+      type: string
+      format: uuid
+      nullable: true
+    organizer:
+      $ref: "#/TournamentOrganizer"
+    format:
+      $ref: "#/TournamentFormat"
+    readyWindow:
+      $ref: "#/TournamentReadyWindow"
+    prize:
+      $ref: "#/TournamentPrize"
+    me:
+      $ref: "#/TournamentMeInfo"
+    participantCount:
+      type: integer
+      format: int32
+
+TournamentListItem:
+  type: object
+  description: Tournament summary for list views
+  properties:
+    id:
+      type: string
+      format: uuid
+    hostId:
+      type: string
+      format: uuid
+    name:
+      type: string
+    status:
+      $ref: "#/TournamentStatus"
+    game:
+      type: string
+      nullable: true
+    gameLogoUrl:
+      type: string
+      format: uri
+      nullable: true
+    scheduledStartTimeAt:
+      type: string
+      format: date-time
+      nullable: true
+    participantCount:
+      type: integer
+      format: int32
+    maximumTeamCount:
+      type: integer
+      format: int32
+      nullable: true
+
+TournamentStatus:
+  type: string
+  enum:
+    - draft
+    - open
+    - scheduled
+    - registration_open
+    - started
+    - completed
+    - cancelled
+
+TournamentOrganizer:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    logoUrl:
+      type: string
+      format: uri
+      nullable: true
+
+TournamentFormat:
+  type: object
+  properties:
+    type:
+      type: string
+      enum:
+        - single_elimination
+        - double_elimination
+        - round_robin
+        - swiss
+    teamSize:
+      type: integer
+      format: int32
+    maxSlots:
+      type: integer
+      format: int32
+    bestOf:
+      type: integer
+      format: int32
+      nullable: true
+
+TournamentReadyWindow:
+  type: object
+  properties:
+    startsAt:
+      type: string
+      format: date-time
+    endsAt:
+      type: string
+      format: date-time
+
+TournamentPrize:
+  type: object
+  properties:
+    type:
+      type: string
+      enum:
+        - custom
+        - cash
+        - points
+    description:
+      type: string
+    value:
+      type: integer
+      nullable: true
+    currency:
+      type: string
+      nullable: true
+
+TournamentMeInfo:
+  type: object
+  description: User-specific tournament information
+  properties:
+    participationStatus:
+      type: string
+      enum:
+        - registered
+        - confirmed
+        - checked_in
+      nullable: true

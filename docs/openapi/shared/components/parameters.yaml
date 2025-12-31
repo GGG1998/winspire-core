@@ -1,0 +1,119 @@
+parameters:
+  # ==========================================================================
+  # Path Parameters
+  # ==========================================================================
+
+  HostId:
+    name: hostId
+    in: path
+    required: true
+    description: Unique identifier of the host/organization
+    schema:
+      type: string
+      format: uuid
+    example: "550e8400-e29b-41d4-a716-446655440000"
+
+  TournamentId:
+    name: tournamentId
+    in: path
+    required: true
+    description: Unique identifier of the tournament
+    schema:
+      type: string
+      format: uuid
+    example: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+
+  BracketId:
+    name: bracketId
+    in: path
+    required: true
+    description: Unique identifier of the bracket
+    schema:
+      type: string
+      format: uuid
+
+  MatchId:
+    name: matchId
+    in: path
+    required: true
+    description: Unique identifier of the match
+    schema:
+      type: string
+      format: uuid
+
+  GameId:
+    name: gameId
+    in: path
+    required: true
+    description: Unique identifier of the game
+    schema:
+      type: string
+      format: uuid
+
+  GameSlug:
+    name: slug
+    in: path
+    required: true
+    description: URL-friendly identifier of the game
+    schema:
+      type: string
+    example: "chess-masters"
+
+  # ==========================================================================
+  # Query Parameters - Pagination
+  # ==========================================================================
+
+  Limit:
+    name: limit
+    in: query
+    description: Maximum number of items to return
+    schema:
+      type: integer
+      format: int32
+      minimum: 1
+      maximum: 100
+      default: 50
+
+  Offset:
+    name: offset
+    in: query
+    description: Number of items to skip for pagination
+    schema:
+      type: integer
+      format: int32
+      minimum: 0
+      default: 0
+
+  # ==========================================================================
+  # Query Parameters - Filtering
+  # ==========================================================================
+
+  TournamentStatusFilter:
+    name: status
+    in: query
+    description: Filter tournaments by status
+    schema:
+      type: string
+      enum:
+        - draft
+        - open
+        - scheduled
+        - registration_open
+        - started
+        - completed
+        - cancelled
+
+  MatchStatusFilter:
+    name: status
+    in: query
+    description: Filter matches by status
+    schema:
+      type: string
+      enum:
+        - pending
+        - ready
+        - loading
+        - started
+        - paused
+        - completed
+        - cancelled

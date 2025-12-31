@@ -1,0 +1,21 @@
+Error:
+  type: object
+  description: Standard error response
+  required:
+    - error
+  properties:
+    error:
+      type: string
+      description: Human-readable error message
+      example: "tournament not found"
+    code:
+      type: string
+      description: Machine-readable error code for programmatic handling
+      example: "TOURNAMENT_NOT_FOUND"
+    details:
+      description: Additional error details or validation errors
+      oneOf:
+        - type: string
+        - type: object
+          additionalProperties: true
+      example: "invalid tournament ID format"

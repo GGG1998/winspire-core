@@ -1,0 +1,22 @@
+Host:
+  type: object
+  description: Host/organization that runs tournaments
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    slug:
+      type: string
+      description: URL-friendly identifier
+    logoUrl:
+      type: string
+      format: uri
+      nullable: true
+    description:
+      type: string
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time

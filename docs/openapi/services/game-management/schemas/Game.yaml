@@ -1,0 +1,154 @@
+Game:
+  type: object
+  description: Game in the catalog
+  properties:
+    id:
+      type: string
+      format: uuid
+    slug:
+      type: string
+      description: URL-friendly identifier
+      example: "chess-masters"
+    name:
+      type: string
+      description: Display name
+      example: "Chess Masters"
+    description:
+      type: string
+      nullable: true
+    version:
+      type: string
+      description: Game version
+      example: "1.0.0"
+    logoUrl:
+      type: string
+      format: uri
+      nullable: true
+    bannerUrl:
+      type: string
+      format: uri
+      nullable: true
+    storagePath:
+      type: string
+      description: S3 path to game bundle
+    isActive:
+      type: boolean
+      description: Whether the game is available in the catalog
+    minPlayers:
+      type: integer
+      format: int32
+      minimum: 1
+    maxPlayers:
+      type: integer
+      format: int32
+    supportedModes:
+      type: array
+      items:
+        type: string
+      description: Supported game modes
+    metadata:
+      type: object
+      additionalProperties: true
+      description: Additional game-specific metadata
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+CreateGameRequest:
+  type: object
+  description: Request body for creating a game
+  required:
+    - slug
+    - name
+    - storagePath
+  properties:
+    slug:
+      type: string
+      minLength: 2
+      maxLength: 50
+      pattern: "^[a-z0-9-]+$"
+      description: URL-friendly identifier (lowercase, numbers, hyphens only)
+    name:
+      type: string
+      minLength: 2
+      maxLength: 100
+    description:
+      type: string
+      maxLength: 2000
+      nullable: true
+    version:
+      type: string
+      default: "1.0.0"
+    logoUrl:
+      type: string
+      format: uri
+      nullable: true
+    bannerUrl:
+      type: string
+      format: uri
+      nullable: true
+    storagePath:
+      type: string
+      description: S3 path to game bundle
+    minPlayers:
+      type: integer
+      format: int32
+      minimum: 1
+      default: 2
+    maxPlayers:
+      type: integer
+      format: int32
+      minimum: 1
+      default: 2
+    supportedModes:
+      type: array
+      items:
+        type: string
+    metadata:
+      type: object
+      additionalProperties: true
+
+UpdateGameRequest:
+  type: object
+  description: Request body for updating a game
+  properties:
+    name:
+      type: string
+      minLength: 2
+      maxLength: 100
+    description:
+      type: string
+      maxLength: 2000
+      nullable: true
+    version:
+      type: string
+    logoUrl:
+      type: string
+      format: uri
+      nullable: true
+    bannerUrl:
+      type: string
+      format: uri
+      nullable: true
+    storagePath:
+      type: string
+    isActive:
+      type: boolean
+    minPlayers:
+      type: integer
+      format: int32
+      minimum: 1
+    maxPlayers:
+      type: integer
+      format: int32
+      minimum: 1
+    supportedModes:
+      type: array
+      items:
+        type: string
+    metadata:
+      type: object
+      additionalProperties: true

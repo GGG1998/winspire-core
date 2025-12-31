@@ -1,0 +1,22 @@
+ListHosts:
+  summary: List user's hosts
+  description: Returns all hosts/organizations that the authenticated user has access to
+  operationId: listHosts
+  tags:
+    - Hosts
+  responses:
+    "200":
+      description: List of hosts
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              hosts:
+                type: array
+                items:
+                  $ref: "../schemas/Host.yaml#/Host"
+    "401":
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"

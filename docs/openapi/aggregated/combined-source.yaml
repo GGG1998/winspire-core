@@ -1,0 +1,274 @@
+openapi: 3.1.0
+info:
+  title: Winspire Platform API
+  version: 1.0.0
+  description: |
+    Winspire is a tournament and competition management platform.
+
+    ## Authentication
+
+    All authenticated endpoints require a JWT Bearer token from Supabase.
+    Include the token in the Authorization header:
+
+    ```
+    Authorization: Bearer <your-jwt-token>
+    ```
+
+    WebSocket endpoints accept the token as a query parameter:
+    ```
+    wss://dev-api.gowinspire.com/v1/matches/{id}/lobby?token=<jwt>
+    ```
+
+    ## Services
+
+    This API combines the following microservices:
+    - **Tournament Service** (port 8089): Tournament lifecycle and participant management
+    - **Matchmaking Service** (port 8088): Brackets, matches, and real-time lobbies
+    - **Game Management Service** (port 8087): Game catalog and asset management
+
+  contact:
+    name: Winspire Team
+    url: https://github.com/winspire-core
+  license:
+    name: MIT
+
+servers:
+  - url: https://dev-api.gowinspire.com
+    description: Development
+  - url: http://localhost:8089
+    description: Local - Tournament Service
+  - url: http://localhost:8088
+    description: Local - Matchmaking Service
+  - url: http://localhost:8087
+    description: Local - Game Management Service
+
+tags:
+  # Tournament Service
+  - name: Hosts
+    description: Host/organization management
+  - name: Tournaments
+    description: Tournament CRUD and lifecycle
+  - name: Participants
+    description: Tournament participant management
+
+  # Matchmaking Service
+  - name: Brackets
+    description: Bracket and round management
+  - name: Matches
+    description: Match lifecycle and scoring
+  - name: WebSocket
+    description: Real-time match lobby connections
+
+  # Game Management Service
+  - name: Games
+    description: Game catalog (public)
+  - name: Admin
+    description: Admin-only game management
+
+  # Common
+  - name: System
+    description: Health checks and system endpoints
+
+security:
+  - BearerAuth: []
+
+paths:
+  # ==========================================================================
+  # Tournament Service
+  # ==========================================================================
+
+  /v1/hosts:
+    get:
+      $ref: "../services/tournament/paths/hosts.yaml#/ListHosts"
+
+  /v1/{hostId}/tournaments:
+    get:
+      $ref: "../services/tournament/paths/tournaments.yaml#/ListTournaments"
+    post:
+      $ref: "../services/tournament/paths/tournaments.yaml#/CreateTournament"
+
+  /v1/{hostId}/tournaments/{tournamentId}:
+    get:
+      $ref: "../services/tournament/paths/tournaments.yaml#/GetTournament"
+    put:
+      $ref: "../services/tournament/paths/tournaments.yaml#/UpdateTournament"
+
+  /v1/{hostId}/tournaments/{tournamentId}/join:
+    post:
+      $ref: "../services/tournament/paths/tournaments.yaml#/JoinTournament"
+
+  /v1/{hostId}/tournaments/{tournamentId}/leave:
+    post:
+      $ref: "../services/tournament/paths/tournaments.yaml#/LeaveTournament"
+
+  /v1/{hostId}/tournaments/{tournamentId}/confirm-participation:
+    post:
+      $ref: "../services/tournament/paths/tournaments.yaml#/ConfirmParticipation"
+
+  /v1/{hostId}/tournaments/{tournamentId}/participants:
+    get:
+      $ref: "../services/tournament/paths/participants.yaml#/ListParticipants"
+
+  # ==========================================================================
+  # Matchmaking Service
+  # ==========================================================================
+
+  /v1/brackets/{bracketId}:
+    get:
+      $ref: "../services/matchmaking/paths/brackets.yaml#/GetBracket"
+
+  /v1/tournaments/{tournamentId}/bracket:
+    get:
+      $ref: "../services/matchmaking/paths/brackets.yaml#/GetTournamentBracket"
+
+  /v1/tournaments/{tournamentId}/matches:
+    get:
+      $ref: "../services/matchmaking/paths/matches.yaml#/ListTournamentMatches"
+
+  /v1/matches/{matchId}:
+    get:
+      $ref: "../services/matchmaking/paths/matches.yaml#/GetMatch"
+
+  /v1/matches/{matchId}/score:
+    post:
+      $ref: "../services/matchmaking/paths/matches.yaml#/SubmitScore"
+
+  /v1/matches/{matchId}/lobby:
+    get:
+      $ref: "../services/matchmaking/paths/matches.yaml#/ConnectToLobby"
+
+  /v1/matchmaking/me:
+    get:
+      $ref: "../services/matchmaking/paths/matches.yaml#/GetMyMatches"
+
+  # ==========================================================================
+  # Game Management Service
+  # ==========================================================================
+
+  /v1/games:
+    get:
+      $ref: "../services/game-management/paths/games.yaml#/ListGames"
+
+  /v1/games/{gameId}:
+    get:
+      $ref: "../services/game-management/paths/games.yaml#/GetGameById"
+
+  /v1/g/{slug}:
+    get:
+      $ref: "../services/game-management/paths/games.yaml#/GetGameBySlug"
+
+  /v1/g/{slug}/bundle/{filepath}:
+    get:
+      $ref: "../services/game-management/paths/games.yaml#/ServeGameBundle"
+
+  /v1/admin/games:
+    get:
+      $ref: "../services/game-management/paths/admin.yaml#/AdminListGames"
+    post:
+      $ref: "../services/game-management/paths/admin.yaml#/CreateGame"
+
+  /v1/admin/games/{gameId}:
+    put:
+      $ref: "../services/game-management/paths/admin.yaml#/UpdateGame"
+    delete:
+      $ref: "../services/game-management/paths/admin.yaml#/DeleteGame"
+
+  # ==========================================================================
+  # Health Checks
+  # ==========================================================================
+
+  /healthz:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags:
+        - System
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      $ref: "@/shared/security/schemes.yaml#/securitySchemes/BearerAuth"
+    WebSocketToken:
+      $ref: "@/shared/security/schemes.yaml#/securitySchemes/WebSocketToken"
+
+  parameters:
+    # Path parameters
+    HostId:
+      $ref: "@/shared/components/parameters.yaml#/parameters/HostId"
+    TournamentId:
+      $ref: "@/shared/components/parameters.yaml#/parameters/TournamentId"
+    BracketId:
+      $ref: "@/shared/components/parameters.yaml#/parameters/BracketId"
+    MatchId:
+      $ref: "@/shared/components/parameters.yaml#/parameters/MatchId"
+    GameId:
+      $ref: "@/shared/components/parameters.yaml#/parameters/GameId"
+    GameSlug:
+      $ref: "@/shared/components/parameters.yaml#/parameters/GameSlug"
+
+    # Query parameters
+    Limit:
+      $ref: "@/shared/components/parameters.yaml#/parameters/Limit"
+    Offset:
+      $ref: "@/shared/components/parameters.yaml#/parameters/Offset"
+
+  responses:
+    BadRequest:
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    Unauthorized:
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    Forbidden:
+      $ref: "@/shared/components/responses.yaml#/responses/Forbidden"
+    NotFound:
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    Conflict:
+      $ref: "@/shared/components/responses.yaml#/responses/Conflict"
+    InternalError:
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+  schemas:
+    # Shared schemas
+    Error:
+      $ref: "@/shared/components/schemas/Error.yaml#/Error"
+    PaginationMeta:
+      $ref: "@/shared/components/schemas/Pagination.yaml#/PaginationMeta"
+    UserContext:
+      $ref: "@/shared/components/schemas/UserContext.yaml#/UserContext"
+
+    # Tournament schemas
+    Tournament:
+      $ref: "../services/tournament/schemas/Tournament.yaml#/Tournament"
+    TournamentListItem:
+      $ref: "../services/tournament/schemas/Tournament.yaml#/TournamentListItem"
+    TournamentStatus:
+      $ref: "../services/tournament/schemas/Tournament.yaml#/TournamentStatus"
+    Participant:
+      $ref: "../services/tournament/schemas/Participant.yaml#/Participant"
+    Host:
+      $ref: "../services/tournament/schemas/Host.yaml#/Host"
+
+    # Matchmaking schemas
+    Bracket:
+      $ref: "../services/matchmaking/schemas/Bracket.yaml#/Bracket"
+    Round:
+      $ref: "../services/matchmaking/schemas/Round.yaml#/Round"
+    Match:
+      $ref: "../services/matchmaking/schemas/Match.yaml#/Match"
+    MatchStatus:
+      $ref: "../services/matchmaking/schemas/Match.yaml#/MatchStatus"
+
+    # Game schemas
+    Game:
+      $ref: "../services/game-management/schemas/Game.yaml#/Game"

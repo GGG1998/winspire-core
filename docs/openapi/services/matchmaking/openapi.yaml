@@ -1,0 +1,108 @@
+openapi: 3.1.0
+info:
+  title: Matchmaking Service API
+  version: 1.0.0
+  description: |
+    Matchmaking and bracket management API.
+
+    Handles bracket generation, match lifecycle, and real-time lobby connections.
+
+servers:
+  - url: http://localhost:8088
+    description: Local development
+  - url: https://dev-api.gowinspire.com
+    description: Development
+
+tags:
+  - name: Brackets
+    description: Bracket and round management
+  - name: Matches
+    description: Match lifecycle and scoring
+  - name: WebSocket
+    description: Real-time match lobby connections
+
+security:
+  - BearerAuth: []
+
+paths:
+  /v1/brackets/{bracketId}:
+    get:
+      $ref: "./paths/brackets.yaml#/GetBracket"
+
+  /v1/tournaments/{tournamentId}/bracket:
+    get:
+      $ref: "./paths/brackets.yaml#/GetTournamentBracket"
+
+  /v1/tournaments/{tournamentId}/matches:
+    get:
+      $ref: "./paths/matches.yaml#/ListTournamentMatches"
+
+  /v1/matches/{matchId}:
+    get:
+      $ref: "./paths/matches.yaml#/GetMatch"
+
+  /v1/matches/{matchId}/lobby:
+    get:
+      $ref: "./paths/matches.yaml#/MatchLobbyWebSocket"
+
+  /v1/matchmaking/me:
+    get:
+      $ref: "./paths/matches.yaml#/GetMyMatch"
+
+  /healthz:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags:
+        - System
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      $ref: "@/shared/security/schemes.yaml#/securitySchemes/BearerAuth"
+    WebSocketToken:
+      $ref: "@/shared/security/schemes.yaml#/securitySchemes/WebSocketToken"
+
+  parameters:
+    BracketId:
+      $ref: "@/shared/components/parameters.yaml#/parameters/BracketId"
+    MatchId:
+      $ref: "@/shared/components/parameters.yaml#/parameters/MatchId"
+    TournamentId:
+      $ref: "@/shared/components/parameters.yaml#/parameters/TournamentId"
+
+  responses:
+    BadRequest:
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    Unauthorized:
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    Forbidden:
+      $ref: "@/shared/components/responses.yaml#/responses/Forbidden"
+    NotFound:
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    InternalError:
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+  schemas:
+    Error:
+      $ref: "@/shared/components/schemas/Error.yaml#/Error"
+    Bracket:
+      $ref: "./schemas/Bracket.yaml#/Bracket"
+    Round:
+      $ref: "./schemas/Round.yaml#/Round"
+    Match:
+      $ref: "./schemas/Match.yaml#/Match"
+    MatchStatus:
+      $ref: "./schemas/Match.yaml#/MatchStatus"

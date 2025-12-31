@@ -1,0 +1,103 @@
+CreateTournamentRequest:
+  type: object
+  description: Request body for creating a tournament
+  required:
+    - name
+  properties:
+    name:
+      type: string
+      minLength: 3
+      maxLength: 100
+      description: Tournament name
+    description:
+      type: string
+      maxLength: 4000
+      nullable: true
+    externalId:
+      type: string
+      nullable: true
+      description: External system identifier for idempotency
+    scheduledStartTimeAt:
+      type: string
+      format: date-time
+      nullable: true
+    registrationWindowOpenAt:
+      type: string
+      format: date-time
+      nullable: true
+    minimumTeamCount:
+      type: integer
+      format: int32
+      minimum: 2
+      default: 2
+    maximumTeamCount:
+      type: integer
+      format: int32
+      nullable: true
+    teamSize:
+      type: integer
+      format: int32
+      minimum: 1
+      default: 1
+    autoForceReady:
+      type: boolean
+      default: true
+    format:
+      $ref: "../Tournament.yaml#/TournamentFormat"
+    prize:
+      $ref: "../Tournament.yaml#/TournamentPrize"
+    gameSnapshot:
+      $ref: "#/GameSnapshotInput"
+
+UpdateTournamentRequest:
+  type: object
+  description: Request body for updating a tournament
+  properties:
+    name:
+      type: string
+      minLength: 3
+      maxLength: 100
+    description:
+      type: string
+      maxLength: 4000
+      nullable: true
+    status:
+      $ref: "../Tournament.yaml#/TournamentStatus"
+    scheduledStartTimeAt:
+      type: string
+      format: date-time
+      nullable: true
+    registrationWindowOpenAt:
+      type: string
+      format: date-time
+      nullable: true
+    minimumTeamCount:
+      type: integer
+      format: int32
+      minimum: 2
+    maximumTeamCount:
+      type: integer
+      format: int32
+      nullable: true
+    autoForceReady:
+      type: boolean
+    format:
+      $ref: "../Tournament.yaml#/TournamentFormat"
+    prize:
+      $ref: "../Tournament.yaml#/TournamentPrize"
+
+GameSnapshotInput:
+  type: object
+  description: Game metadata snapshot from frontend
+  properties:
+    gameId:
+      type: string
+      format: uuid
+    slug:
+      type: string
+    name:
+      type: string
+    logoUrl:
+      type: string
+      format: uri
+      nullable: true

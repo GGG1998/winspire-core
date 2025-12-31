@@ -1,0 +1,215 @@
+ListTournaments:
+  summary: List tournaments
+  description: Returns all tournaments for a host
+  operationId: listTournaments
+  tags:
+    - Tournaments
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/HostId"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/Limit"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/Offset"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/TournamentStatusFilter"
+  responses:
+    "200":
+      description: List of tournaments
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              tournaments:
+                type: array
+                items:
+                  $ref: "../schemas/Tournament.yaml#/TournamentListItem"
+              count:
+                type: integer
+                format: int32
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "401":
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+CreateTournament:
+  summary: Create tournament
+  description: Creates a new tournament for a host
+  operationId: createTournament
+  tags:
+    - Tournaments
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/HostId"
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../schemas/requests/CreateTournament.yaml#/CreateTournamentRequest"
+  responses:
+    "201":
+      description: Tournament created
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              tournament:
+                $ref: "../schemas/Tournament.yaml#/Tournament"
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "401":
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    "403":
+      $ref: "@/shared/components/responses.yaml#/responses/Forbidden"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+GetTournament:
+  summary: Get tournament
+  description: Returns a single tournament by ID
+  operationId: getTournament
+  tags:
+    - Tournaments
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/HostId"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/TournamentId"
+  responses:
+    "200":
+      description: Tournament details
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              tournament:
+                $ref: "../schemas/Tournament.yaml#/Tournament"
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+UpdateTournament:
+  summary: Update tournament
+  description: Updates an existing tournament
+  operationId: updateTournament
+  tags:
+    - Tournaments
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/HostId"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/TournamentId"
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../schemas/requests/CreateTournament.yaml#/UpdateTournamentRequest"
+  responses:
+    "200":
+      description: Tournament updated
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              tournament:
+                $ref: "../schemas/Tournament.yaml#/Tournament"
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "401":
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    "403":
+      $ref: "@/shared/components/responses.yaml#/responses/Forbidden"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+JoinTournament:
+  summary: Join tournament
+  description: Register the authenticated user as a participant
+  operationId: joinTournament
+  tags:
+    - Participants
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/HostId"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/TournamentId"
+  responses:
+    "200":
+      description: Successfully joined
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "401":
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    "403":
+      $ref: "@/shared/components/responses.yaml#/responses/Forbidden"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+LeaveTournament:
+  summary: Leave tournament
+  description: Remove the authenticated user from the tournament
+  operationId: leaveTournament
+  tags:
+    - Participants
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/HostId"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/TournamentId"
+  responses:
+    "200":
+      description: Successfully left
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "401":
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+ConfirmParticipation:
+  summary: Confirm participation
+  description: Confirm readiness to participate in the tournament
+  operationId: confirmParticipation
+  tags:
+    - Participants
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/HostId"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/TournamentId"
+  responses:
+    "200":
+      description: Participation confirmed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "401":
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    "403":
+      $ref: "@/shared/components/responses.yaml#/responses/Forbidden"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"

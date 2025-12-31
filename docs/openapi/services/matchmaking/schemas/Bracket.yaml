@@ -1,0 +1,48 @@
+Bracket:
+  type: object
+  description: Tournament bracket with rounds and matches
+  properties:
+    id:
+      type: string
+      format: uuid
+    tournamentId:
+      type: string
+      format: uuid
+    type:
+      $ref: "#/BracketType"
+    totalRounds:
+      type: integer
+      format: int32
+    totalMatches:
+      type: integer
+      format: int32
+    currentRound:
+      type: integer
+      format: int32
+    status:
+      $ref: "#/BracketStatus"
+    rounds:
+      type: array
+      items:
+        $ref: "./Round.yaml#/Round"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+BracketType:
+  type: string
+  enum:
+    - single_elimination
+    - double_elimination
+    - round_robin
+    - swiss
+
+BracketStatus:
+  type: string
+  enum:
+    - pending
+    - in_progress
+    - completed

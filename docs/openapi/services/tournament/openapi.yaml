@@ -1,0 +1,116 @@
+openapi: 3.1.0
+info:
+  title: Tournament Service API
+  version: 1.0.0
+  description: |
+    Tournament lifecycle management API.
+
+    Handles tournament creation, registration, status transitions, and participant management.
+
+servers:
+  - url: http://localhost:8089
+    description: Local development
+  - url: https://dev-api.gowinspire.com
+    description: Development
+
+tags:
+  - name: Hosts
+    description: Host/organization management
+  - name: Tournaments
+    description: Tournament CRUD and lifecycle
+  - name: Participants
+    description: Tournament participant management
+
+security:
+  - BearerAuth: []
+
+paths:
+  /v1/hosts:
+    get:
+      $ref: "./paths/hosts.yaml#/ListHosts"
+
+  /v1/{hostId}/tournaments:
+    get:
+      $ref: "./paths/tournaments.yaml#/ListTournaments"
+    post:
+      $ref: "./paths/tournaments.yaml#/CreateTournament"
+
+  /v1/{hostId}/tournaments/{tournamentId}:
+    get:
+      $ref: "./paths/tournaments.yaml#/GetTournament"
+    put:
+      $ref: "./paths/tournaments.yaml#/UpdateTournament"
+
+  /v1/{hostId}/tournaments/{tournamentId}/join:
+    post:
+      $ref: "./paths/tournaments.yaml#/JoinTournament"
+
+  /v1/{hostId}/tournaments/{tournamentId}/leave:
+    post:
+      $ref: "./paths/tournaments.yaml#/LeaveTournament"
+
+  /v1/{hostId}/tournaments/{tournamentId}/confirm-participation:
+    post:
+      $ref: "./paths/tournaments.yaml#/ConfirmParticipation"
+
+  /v1/{hostId}/tournaments/{tournamentId}/participants:
+    get:
+      $ref: "./paths/participants.yaml#/ListParticipants"
+
+  /healthz:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags:
+        - System
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      $ref: "@/shared/security/schemes.yaml#/securitySchemes/BearerAuth"
+
+  parameters:
+    HostId:
+      $ref: "@/shared/components/parameters.yaml#/parameters/HostId"
+    TournamentId:
+      $ref: "@/shared/components/parameters.yaml#/parameters/TournamentId"
+    Limit:
+      $ref: "@/shared/components/parameters.yaml#/parameters/Limit"
+    Offset:
+      $ref: "@/shared/components/parameters.yaml#/parameters/Offset"
+
+  responses:
+    BadRequest:
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    Unauthorized:
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    Forbidden:
+      $ref: "@/shared/components/responses.yaml#/responses/Forbidden"
+    NotFound:
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    InternalError:
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+  schemas:
+    Error:
+      $ref: "@/shared/components/schemas/Error.yaml#/Error"
+    PaginationMeta:
+      $ref: "@/shared/components/schemas/Pagination.yaml#/PaginationMeta"
+    Tournament:
+      $ref: "./schemas/Tournament.yaml#/Tournament"
+    TournamentStatus:
+      $ref: "./schemas/Tournament.yaml#/TournamentStatus"
+    Participant:
+      $ref: "./schemas/Participant.yaml#/Participant"

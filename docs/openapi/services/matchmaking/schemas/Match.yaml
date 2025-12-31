@@ -1,0 +1,133 @@
+Match:
+  type: object
+  description: A match between participants
+  properties:
+    id:
+      type: string
+      format: uuid
+    roundId:
+      type: string
+      format: uuid
+    matchNumber:
+      type: integer
+      format: int32
+    participant1Id:
+      type: string
+      format: uuid
+    participant2Id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Null for bye matches
+    participant1:
+      $ref: "#/MatchParticipant"
+    participant2:
+      $ref: "#/MatchParticipant"
+    nextMatchId:
+      type: string
+      format: uuid
+      nullable: true
+    status:
+      $ref: "#/MatchStatus"
+    participant1Ready:
+      type: boolean
+    participant2Ready:
+      type: boolean
+    winnerId:
+      type: string
+      format: uuid
+      nullable: true
+    scorePlayer1:
+      type: integer
+      nullable: true
+    scorePlayer2:
+      type: integer
+      nullable: true
+    resultSource:
+      $ref: "#/ResultSource"
+    gameApiMatchId:
+      type: string
+      nullable: true
+      description: External game API match identifier
+    disconnectedPlayerId:
+      type: string
+      format: uuid
+      nullable: true
+    disconnectedAt:
+      type: string
+      format: date-time
+      nullable: true
+    startedAt:
+      type: string
+      format: date-time
+      nullable: true
+    completedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+MatchInfo:
+  type: object
+  description: Abbreviated match info for embedding
+  properties:
+    matchId:
+      type: string
+      format: uuid
+    tournamentId:
+      type: string
+      format: uuid
+    status:
+      $ref: "#/MatchStatus"
+    round:
+      type: integer
+      format: int32
+    table:
+      type: integer
+      format: int32
+    startedAt:
+      type: string
+      format: date-time
+      nullable: true
+    updatedAt:
+      type: string
+      format: date-time
+
+MatchParticipant:
+  type: object
+  description: Participant info within a match context
+  properties:
+    id:
+      type: string
+      format: uuid
+    name:
+      type: string
+    avatarUrl:
+      type: string
+      format: uri
+      nullable: true
+    isReady:
+      type: boolean
+
+MatchStatus:
+  type: string
+  enum:
+    - pending
+    - ready
+    - loading
+    - started
+    - paused
+    - completed
+    - cancelled
+
+ResultSource:
+  type: string
+  enum:
+    - game_api
+    - manual_host
+    - walkover

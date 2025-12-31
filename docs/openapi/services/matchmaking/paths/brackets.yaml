@@ -1,0 +1,49 @@
+GetBracket:
+  summary: Get bracket
+  description: Returns bracket with all rounds and matches
+  operationId: getBracket
+  tags:
+    - Brackets
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/BracketId"
+  responses:
+    "200":
+      description: Bracket details
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              bracket:
+                $ref: "../schemas/Bracket.yaml#/Bracket"
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+GetTournamentBracket:
+  summary: Get tournament bracket
+  description: Returns the bracket for a specific tournament
+  operationId: getTournamentBracket
+  tags:
+    - Brackets
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/TournamentId"
+  responses:
+    "200":
+      description: Tournament bracket
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              bracket:
+                $ref: "../schemas/Bracket.yaml#/Bracket"
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"

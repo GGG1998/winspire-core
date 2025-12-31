@@ -1,0 +1,32 @@
+ListParticipants:
+  summary: List participants
+  description: Returns all participants in a tournament
+  operationId: listParticipants
+  tags:
+    - Participants
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/HostId"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/TournamentId"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/Limit"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/Offset"
+  responses:
+    "200":
+      description: List of participants
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              participants:
+                type: array
+                items:
+                  $ref: "../schemas/Participant.yaml#/Participant"
+              count:
+                type: integer
+                format: int32
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"

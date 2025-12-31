@@ -1,0 +1,122 @@
+AdminListGames:
+  summary: List all games (admin)
+  description: Returns all games including inactive ones
+  operationId: adminListGames
+  tags:
+    - Admin
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/Limit"
+    - $ref: "@/shared/components/parameters.yaml#/parameters/Offset"
+    - name: includeInactive
+      in: query
+      description: Include inactive games
+      schema:
+        type: boolean
+        default: false
+  responses:
+    "200":
+      description: List of games
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              games:
+                type: array
+                items:
+                  $ref: "../schemas/Game.yaml#/Game"
+              count:
+                type: integer
+                format: int32
+    "401":
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    "403":
+      $ref: "@/shared/components/responses.yaml#/responses/Forbidden"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+CreateGame:
+  summary: Create game
+  description: Creates a new game in the catalog
+  operationId: createGame
+  tags:
+    - Admin
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../schemas/Game.yaml#/CreateGameRequest"
+  responses:
+    "201":
+      description: Game created
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              game:
+                $ref: "../schemas/Game.yaml#/Game"
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "401":
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    "403":
+      $ref: "@/shared/components/responses.yaml#/responses/Forbidden"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+UpdateGame:
+  summary: Update game
+  description: Updates an existing game
+  operationId: updateGame
+  tags:
+    - Admin
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/GameId"
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "../schemas/Game.yaml#/UpdateGameRequest"
+  responses:
+    "200":
+      description: Game updated
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              game:
+                $ref: "../schemas/Game.yaml#/Game"
+    "400":
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    "401":
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    "403":
+      $ref: "@/shared/components/responses.yaml#/responses/Forbidden"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+DeleteGame:
+  summary: Delete game
+  description: Soft-deletes a game (marks as inactive)
+  operationId: deleteGame
+  tags:
+    - Admin
+  parameters:
+    - $ref: "@/shared/components/parameters.yaml#/parameters/GameId"
+  responses:
+    "204":
+      description: Game deleted
+    "401":
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    "403":
+      $ref: "@/shared/components/responses.yaml#/responses/Forbidden"
+    "404":
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    "500":
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"

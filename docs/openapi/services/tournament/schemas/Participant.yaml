@@ -1,0 +1,41 @@
+Participant:
+  type: object
+  description: Tournament participant
+  properties:
+    id:
+      type: string
+      format: uuid
+    tournamentId:
+      type: string
+      format: uuid
+    userId:
+      type: string
+      format: uuid
+    name:
+      type: string
+      description: Display name
+    avatarUrl:
+      type: string
+      format: uri
+      nullable: true
+    status:
+      $ref: "#/ParticipantStatus"
+    isReady:
+      type: boolean
+      description: Whether participant has confirmed readiness
+    joinedAt:
+      type: string
+      format: date-time
+    confirmedAt:
+      type: string
+      format: date-time
+      nullable: true
+
+ParticipantStatus:
+  type: string
+  enum:
+    - registered
+    - confirmed
+    - checked_in
+    - eliminated
+    - disqualified

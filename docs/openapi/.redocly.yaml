@@ -1,0 +1,55 @@
+extends:
+  - recommended
+
+apis:
+  tournament:
+    root: services/tournament/openapi.yaml
+  matchmaking:
+    root: services/matchmaking/openapi.yaml
+  game-management:
+    root: services/game-management/openapi.yaml
+  combined:
+    root: aggregated/combined-source.yaml
+
+rules:
+  # Operation validation
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-operationId-url-safe: error
+  operation-summary: warn
+
+  # Security requirements
+  security-defined: error
+
+  # Schema validation
+  no-undefined-refs: error
+  spec-components-invalid-map-name: error
+
+  # Response validation
+  operation-4xx-response: warn
+  operation-2xx-response: error
+
+  # Path/parameter validation
+  path-parameters-defined: error
+  no-path-trailing-slash: error
+  path-declaration-must-exist: error
+
+  # Tag validation
+  operation-tag-defined: error
+
+  # Best practices
+  no-ambiguous-paths: error
+  no-identical-paths: error
+
+theme:
+  openapi:
+    generateCodeSamples:
+      languages:
+        - lang: curl
+        - lang: JavaScript
+        - lang: Python
+
+resolve:
+  doNotResolveExamples: false
+  aliases:
+    "@": .

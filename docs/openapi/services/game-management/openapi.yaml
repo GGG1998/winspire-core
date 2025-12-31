@@ -1,0 +1,100 @@
+openapi: 3.1.0
+info:
+  title: Game Management Service API
+  version: 1.0.0
+  description: |
+    Game catalog and asset management API.
+
+    Handles game registration, metadata management, and game bundle serving.
+
+servers:
+  - url: http://localhost:8087
+    description: Local development
+  - url: https://dev-api.gowinspire.com
+    description: Development
+
+tags:
+  - name: Games
+    description: Public game catalog
+  - name: Admin
+    description: Admin-only game management
+
+security:
+  - BearerAuth: []
+
+paths:
+  /v1/games:
+    get:
+      $ref: "./paths/games.yaml#/ListGames"
+
+  /v1/games/{gameId}:
+    get:
+      $ref: "./paths/games.yaml#/GetGameById"
+
+  /v1/g/{slug}:
+    get:
+      $ref: "./paths/games.yaml#/GetGameBySlug"
+
+  /v1/g/{slug}/bundle/{filepath}:
+    get:
+      $ref: "./paths/games.yaml#/ServeGameBundle"
+
+  /v1/admin/games:
+    get:
+      $ref: "./paths/admin.yaml#/AdminListGames"
+    post:
+      $ref: "./paths/admin.yaml#/CreateGame"
+
+  /v1/admin/games/{gameId}:
+    put:
+      $ref: "./paths/admin.yaml#/UpdateGame"
+    delete:
+      $ref: "./paths/admin.yaml#/DeleteGame"
+
+  /healthz:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags:
+        - System
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      $ref: "@/shared/security/schemes.yaml#/securitySchemes/BearerAuth"
+
+  parameters:
+    GameId:
+      $ref: "@/shared/components/parameters.yaml#/parameters/GameId"
+    GameSlug:
+      $ref: "@/shared/components/parameters.yaml#/parameters/GameSlug"
+
+  responses:
+    BadRequest:
+      $ref: "@/shared/components/responses.yaml#/responses/BadRequest"
+    Unauthorized:
+      $ref: "@/shared/components/responses.yaml#/responses/Unauthorized"
+    Forbidden:
+      $ref: "@/shared/components/responses.yaml#/responses/Forbidden"
+    NotFound:
+      $ref: "@/shared/components/responses.yaml#/responses/NotFound"
+    InternalError:
+      $ref: "@/shared/components/responses.yaml#/responses/InternalError"
+
+  schemas:
+    Error:
+      $ref: "@/shared/components/schemas/Error.yaml#/Error"
+    Game:
+      $ref: "./schemas/Game.yaml#/Game"

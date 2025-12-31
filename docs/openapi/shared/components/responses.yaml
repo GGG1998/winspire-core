@@ -1,0 +1,87 @@
+responses:
+  # ==========================================================================
+  # Success Responses
+  # ==========================================================================
+
+  NoContent:
+    description: Request successful, no content returned
+
+  # ==========================================================================
+  # Client Error Responses (4xx)
+  # ==========================================================================
+
+  BadRequest:
+    description: Invalid request parameters or body
+    content:
+      application/json:
+        schema:
+          $ref: "./schemas/Error.yaml#/Error"
+        example:
+          error: "invalid request body"
+          code: "VALIDATION_ERROR"
+          details: "name: required field missing"
+
+  Unauthorized:
+    description: Missing or invalid authentication token
+    content:
+      application/json:
+        schema:
+          $ref: "./schemas/Error.yaml#/Error"
+        example:
+          error: "invalid token"
+          code: "AUTH_INVALID_TOKEN"
+          details: "token expired"
+
+  Forbidden:
+    description: Insufficient permissions for this operation
+    content:
+      application/json:
+        schema:
+          $ref: "./schemas/Error.yaml#/Error"
+        example:
+          error: "insufficient permissions"
+          code: "NOT_HOST_ADMIN"
+
+  NotFound:
+    description: Requested resource not found
+    content:
+      application/json:
+        schema:
+          $ref: "./schemas/Error.yaml#/Error"
+        example:
+          error: "tournament not found"
+          code: "RESOURCE_NOT_FOUND"
+
+  Conflict:
+    description: Request conflicts with current state
+    content:
+      application/json:
+        schema:
+          $ref: "./schemas/Error.yaml#/Error"
+        example:
+          error: "tournament already started"
+          code: "INVALID_STATE_TRANSITION"
+
+  # ==========================================================================
+  # Server Error Responses (5xx)
+  # ==========================================================================
+
+  InternalError:
+    description: Unexpected server error
+    content:
+      application/json:
+        schema:
+          $ref: "./schemas/Error.yaml#/Error"
+        example:
+          error: "internal server error"
+          code: "INTERNAL_ERROR"
+
+  ServiceUnavailable:
+    description: Service temporarily unavailable
+    content:
+      application/json:
+        schema:
+          $ref: "./schemas/Error.yaml#/Error"
+        example:
+          error: "service temporarily unavailable"
+          code: "SERVICE_UNAVAILABLE"
