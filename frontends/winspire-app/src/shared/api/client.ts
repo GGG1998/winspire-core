@@ -3,6 +3,38 @@ import { supabase } from './supabase';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
+/**
+ * Determine which service should handle a request based on the endpoint path.
+ * This is used for header-based routing at the ALB level.
+ */
+function getServiceForEndpoint(endpoint: string): 'tournament' | 'matchmaking' | 'game-management' | null {
+  // Matchmaking service endpoints (check first - more specific)
+  if (endpoint.startsWith('/v1/matchmaking')) {
+    return 'matchmaking';
+  }
+  if (endpoint.startsWith('/v1/matches') || endpoint.startsWith('/v1/lobbies') || endpoint.startsWith('/v1/brackets')) {
+    return 'matchmaking';
+  }
+
+  // Game management service endpoints
+  if (endpoint.startsWith('/v1/games') || endpoint.startsWith('/v1/bundles') ||
+      endpoint.startsWith('/v1/g/') || endpoint.startsWith('/v1/admin/games')) {
+    return 'game-management';
+  }
+
+  // Tournament service endpoints (hosts, registrations, and dynamic host paths)
+  if (endpoint.startsWith('/v1/hosts')) {
+    return 'tournament';
+  }
+  // Matches pattern like /v1/{hostId}/tournaments or /v1/{hostId}/registrations
+  const dynamicHostPattern = /^\/v1\/[0-9a-f-]+\/(tournaments|registrations)/;
+  if (dynamicHostPattern.test(endpoint)) {
+    return 'tournament';
+  }
+
+  return null;
+}
+
 class ApiClient {
   private async getAuthToken(): Promise<string | null> {
     const { data: { session } } = await supabase.auth.getSession();
@@ -21,6 +53,12 @@ class ApiClient {
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // Add X-Service header for ALB routing
+    const service = getServiceForEndpoint(endpoint);
+    if (service) {
+      headers['X-Service'] = service;
     }
 
     try {

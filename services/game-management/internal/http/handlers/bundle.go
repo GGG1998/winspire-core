@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -75,6 +76,14 @@ func RegisterBundleRoutes(group *gin.RouterGroup, deps BundleDeps) {
 			return
 		}
 		defer stream.Body.Close()
+
+		// Disable write deadline for streaming large files (Go 1.20+)
+		// The server's WriteTimeout would otherwise kill the connection during large file transfers
+		rc := http.NewResponseController(c.Writer)
+		if err := rc.SetWriteDeadline(time.Time{}); err != nil {
+			// Log but continue - some response writers may not support this
+			_ = err
+		}
 
 		// Set cache headers for better performance
 		c.Header("Cache-Control", "public, max-age=3600")

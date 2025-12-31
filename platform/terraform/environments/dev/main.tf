@@ -422,9 +422,72 @@ variable "environment" {
 }
 
 # ALB Listener Rules for path-based routing
-# Note: ALB limits 5 values per rule, so we split into multiple rules
+# =============================================================================
+# Header-Based Routing (Primary Strategy)
+# Frontend adds X-Service header to route requests to correct service
+# =============================================================================
 
-resource "aws_lb_listener_rule" "tournament_tournaments" {
+# Tournament Service - Header routing
+resource "aws_lb_listener_rule" "tournament_header" {
+  listener_arn = module.alb.http_listener_arn
+  priority     = 10
+
+  action {
+    type             = "forward"
+    target_group_arn = module.tournament.target_group_arn
+  }
+
+  condition {
+    http_header {
+      http_header_name = "X-Service"
+      values           = ["tournament"]
+    }
+  }
+}
+
+# Matchmaking Service - Header routing
+resource "aws_lb_listener_rule" "matchmaking_header" {
+  listener_arn = module.alb.http_listener_arn
+  priority     = 11
+
+  action {
+    type             = "forward"
+    target_group_arn = module.matchmaking.target_group_arn
+  }
+
+  condition {
+    http_header {
+      http_header_name = "X-Service"
+      values           = ["matchmaking"]
+    }
+  }
+}
+
+# Game Management Service - Header routing
+resource "aws_lb_listener_rule" "game_management_header" {
+  listener_arn = module.alb.http_listener_arn
+  priority     = 12
+
+  action {
+    type             = "forward"
+    target_group_arn = module.game_management.target_group_arn
+  }
+
+  condition {
+    http_header {
+      http_header_name = "X-Service"
+      values           = ["game-management"]
+    }
+  }
+}
+
+# =============================================================================
+# Path-Based Routing (Fallback for health checks and legacy clients)
+# Lower priority than header-based routing
+# =============================================================================
+
+# Tournament - explicit paths (no wildcards)
+resource "aws_lb_listener_rule" "tournament_paths" {
   listener_arn = module.alb.http_listener_arn
   priority     = 100
 
@@ -435,62 +498,15 @@ resource "aws_lb_listener_rule" "tournament_tournaments" {
 
   condition {
     path_pattern {
-      values = ["/v1/*/tournaments", "/v1/*/tournaments/*"]
+      values = ["/v1/hosts", "/v1/hosts/*"]
     }
   }
 }
 
-resource "aws_lb_listener_rule" "tournament_hosts" {
+# Matchmaking - explicit paths
+resource "aws_lb_listener_rule" "matchmaking_paths" {
   listener_arn = module.alb.http_listener_arn
-  priority     = 101
-
-  action {
-    type             = "forward"
-    target_group_arn = module.tournament.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/hosts", "/v1/hosts/*", "/v1/*/registrations", "/v1/*/registrations/*"]
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "matchmaking_brackets" {
-  listener_arn = module.alb.http_listener_arn
-  priority     = 150
-
-  action {
-    type             = "forward"
-    target_group_arn = module.matchmaking.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/brackets", "/v1/brackets/*"]
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "matchmaking_matches" {
-  listener_arn = module.alb.http_listener_arn
-  priority     = 151
-
-  action {
-    type             = "forward"
-    target_group_arn = module.matchmaking.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/matches", "/v1/matches/*", "/v1/lobbies", "/v1/lobbies/*"]
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "matchmaking_api" {
-  listener_arn = module.alb.http_listener_arn
-  priority     = 152
+  priority     = 110
 
   action {
     type             = "forward"
@@ -504,9 +520,10 @@ resource "aws_lb_listener_rule" "matchmaking_api" {
   }
 }
 
-resource "aws_lb_listener_rule" "game_management" {
+# Game Management - explicit paths
+resource "aws_lb_listener_rule" "game_management_paths" {
   listener_arn = module.alb.http_listener_arn
-  priority     = 200
+  priority     = 120
 
   action {
     type             = "forward"
@@ -515,30 +532,14 @@ resource "aws_lb_listener_rule" "game_management" {
 
   condition {
     path_pattern {
-      values = ["/v1/games", "/v1/games/*", "/v1/bundles", "/v1/bundles/*"]
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "game_management_bundles" {
-  listener_arn = module.alb.http_listener_arn
-  priority     = 198
-
-  action {
-    type             = "forward"
-    target_group_arn = module.game_management.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/g/*"]
+      values = ["/v1/games", "/v1/games/*", "/v1/bundles", "/v1/bundles/*", "/v1/g/*"]
     }
   }
 }
 
 resource "aws_lb_listener_rule" "game_management_admin" {
   listener_arn = module.alb.http_listener_arn
-  priority     = 199
+  priority     = 121
 
   action {
     type             = "forward"
@@ -552,8 +553,70 @@ resource "aws_lb_listener_rule" "game_management_admin" {
   }
 }
 
-# HTTPS Listener Rules (duplicates of HTTP rules for HTTPS listener)
-resource "aws_lb_listener_rule" "tournament_tournaments_https" {
+# =============================================================================
+# HTTPS Listener Rules - Header-Based Routing (Primary Strategy)
+# =============================================================================
+
+# Tournament Service - Header routing (HTTPS)
+resource "aws_lb_listener_rule" "tournament_header_https" {
+  listener_arn = module.alb.https_listener_arn
+  priority     = 10
+
+  action {
+    type             = "forward"
+    target_group_arn = module.tournament.target_group_arn
+  }
+
+  condition {
+    http_header {
+      http_header_name = "X-Service"
+      values           = ["tournament"]
+    }
+  }
+}
+
+# Matchmaking Service - Header routing (HTTPS)
+resource "aws_lb_listener_rule" "matchmaking_header_https" {
+  listener_arn = module.alb.https_listener_arn
+  priority     = 11
+
+  action {
+    type             = "forward"
+    target_group_arn = module.matchmaking.target_group_arn
+  }
+
+  condition {
+    http_header {
+      http_header_name = "X-Service"
+      values           = ["matchmaking"]
+    }
+  }
+}
+
+# Game Management Service - Header routing (HTTPS)
+resource "aws_lb_listener_rule" "game_management_header_https" {
+  listener_arn = module.alb.https_listener_arn
+  priority     = 12
+
+  action {
+    type             = "forward"
+    target_group_arn = module.game_management.target_group_arn
+  }
+
+  condition {
+    http_header {
+      http_header_name = "X-Service"
+      values           = ["game-management"]
+    }
+  }
+}
+
+# =============================================================================
+# HTTPS Listener Rules - Path-Based Routing (Fallback)
+# =============================================================================
+
+# Tournament - explicit paths (HTTPS)
+resource "aws_lb_listener_rule" "tournament_paths_https" {
   listener_arn = module.alb.https_listener_arn
   priority     = 100
 
@@ -564,62 +627,15 @@ resource "aws_lb_listener_rule" "tournament_tournaments_https" {
 
   condition {
     path_pattern {
-      values = ["/v1/*/tournaments", "/v1/*/tournaments/*"]
+      values = ["/v1/hosts", "/v1/hosts/*"]
     }
   }
 }
 
-resource "aws_lb_listener_rule" "tournament_hosts_https" {
+# Matchmaking - explicit paths (HTTPS)
+resource "aws_lb_listener_rule" "matchmaking_paths_https" {
   listener_arn = module.alb.https_listener_arn
-  priority     = 101
-
-  action {
-    type             = "forward"
-    target_group_arn = module.tournament.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/hosts", "/v1/hosts/*", "/v1/*/registrations", "/v1/*/registrations/*"]
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "matchmaking_brackets_https" {
-  listener_arn = module.alb.https_listener_arn
-  priority     = 150
-
-  action {
-    type             = "forward"
-    target_group_arn = module.matchmaking.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/brackets", "/v1/brackets/*"]
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "matchmaking_matches_https" {
-  listener_arn = module.alb.https_listener_arn
-  priority     = 151
-
-  action {
-    type             = "forward"
-    target_group_arn = module.matchmaking.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/matches", "/v1/matches/*", "/v1/lobbies", "/v1/lobbies/*"]
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "matchmaking_api_https" {
-  listener_arn = module.alb.https_listener_arn
-  priority     = 152
+  priority     = 110
 
   action {
     type             = "forward"
@@ -633,9 +649,10 @@ resource "aws_lb_listener_rule" "matchmaking_api_https" {
   }
 }
 
-resource "aws_lb_listener_rule" "game_management_https" {
+# Game Management - explicit paths (HTTPS)
+resource "aws_lb_listener_rule" "game_management_paths_https" {
   listener_arn = module.alb.https_listener_arn
-  priority     = 200
+  priority     = 120
 
   action {
     type             = "forward"
@@ -644,30 +661,14 @@ resource "aws_lb_listener_rule" "game_management_https" {
 
   condition {
     path_pattern {
-      values = ["/v1/games", "/v1/games/*", "/v1/bundles", "/v1/bundles/*"]
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "game_management_bundles_https" {
-  listener_arn = module.alb.https_listener_arn
-  priority     = 198
-
-  action {
-    type             = "forward"
-    target_group_arn = module.game_management.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/g/*"]
+      values = ["/v1/games", "/v1/games/*", "/v1/bundles", "/v1/bundles/*", "/v1/g/*"]
     }
   }
 }
 
 resource "aws_lb_listener_rule" "game_management_admin_https" {
   listener_arn = module.alb.https_listener_arn
-  priority     = 199
+  priority     = 121
 
   action {
     type             = "forward"
