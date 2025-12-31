@@ -13,6 +13,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { tournamentApi } from '../api/tournamentApi';
 import { useWebSocket } from '../../../shared/hooks/useWebSocket';
+import { WS_BASE_URL } from '../../../shared/config/websocket';
 import { LoadingSpinner } from '../../../shared/components/common/LoadingSpinner';
 import { ErrorMessage } from '../../../shared/components/common/ErrorMessage';
 import { ConnectionIndicator } from '../../../shared/components/ConnectionIndicator';
@@ -32,7 +33,7 @@ export function BracketView({ tournament }: BracketViewProps) {
   const [playerCache, setPlayerCache] = useState<Map<string, MatchPlayer>>(new Map());
 
   // WebSocket connection for real-time bracket updates
-  const wsUrl = `:8088/v1/matchmaking/tournaments/${tournament.id}/bracket/ws`;
+  const wsUrl = `${WS_BASE_URL}/v1/matchmaking/tournaments/${tournament.id}/bracket/ws`;
   
   const handleWebSocketMessage = useCallback((event: MessageEvent) => {
     try {

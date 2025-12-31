@@ -112,16 +112,15 @@ export const ERROR_MESSAGES = {
 
 export const API_ENDPOINTS = {
   // Tournament Pre-Lobby (Matchmaking Service)
-  // REST calls use Vite proxy, WebSocket calls use direct port
   GET_PRE_LOBBY_STATE: (tournamentId: string) => `/v1/matchmaking/tournaments/${tournamentId}/lobby`,
-  WS_PRE_LOBBY: (tournamentId: string) => `:8088/v1/matchmaking/tournaments/${tournamentId}/lobby/ws`,
+  WS_PRE_LOBBY: (tournamentId: string) => `/v1/matchmaking/tournaments/${tournamentId}/lobby/ws`,
 
   // Match Lobby (Matchmaking Service)
   GET_MATCH: (matchId: string) => `/v1/matchmaking/matches/${matchId}`,
   MARK_READY: (matchId: string) => `/v1/matchmaking/matches/${matchId}/ready`,
   MARK_GAME_LOADED: (matchId: string) => `/v1/matchmaking/matches/${matchId}/game-loaded`,
   CLAIM_WALKOVER: (matchId: string) => `/v1/matchmaking/matches/${matchId}/claim-walkover`,
-  WS_MATCH_LOBBY: (matchId: string) => `:8088/v1/matchmaking/matches/${matchId}/lobby`,
+  WS_MATCH_LOBBY: (matchId: string) => `/v1/matchmaking/matches/${matchId}/lobby`,
 
   // Bracket (Matchmaking Service)
   GET_BRACKET: (tournamentId: string) => `/v1/matchmaking/tournaments/${tournamentId}/bracket`,
