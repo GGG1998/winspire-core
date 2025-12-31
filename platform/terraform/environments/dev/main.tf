@@ -280,7 +280,7 @@ module "matchmaking" {
     REDIS_ADDR                        = "${module.redis.redis_endpoint}:6379"
     REDIS_URL                         = "redis://${module.redis.redis_endpoint}:6379/0"
     REDIS_DB                          = "0"
-    TOURNAMENT_SERVICE_URL            = "http://tournament.internal:8089"
+    TOURNAMENT_SERVICE_URL            = "https://dev-api.gowinspire.com"
     GAME_MANAGEMENT_URL               = "http://game-management.internal:8087"
     HOST_JWT_ISSUER                   = var.jwt_issuer
     HOST_JWT_AUDIENCE                 = var.jwt_audience
@@ -553,6 +553,23 @@ resource "aws_lb_listener_rule" "game_management_admin" {
   }
 }
 
+# Tournament internal API (for service-to-service communication)
+resource "aws_lb_listener_rule" "tournament_internal" {
+  listener_arn = module.alb.http_listener_arn
+  priority     = 130
+
+  action {
+    type             = "forward"
+    target_group_arn = module.tournament.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/internal/*"]
+    }
+  }
+}
+
 # =============================================================================
 # HTTPS Listener Rules - Header-Based Routing (Primary Strategy)
 # =============================================================================
@@ -678,6 +695,23 @@ resource "aws_lb_listener_rule" "game_management_admin_https" {
   condition {
     path_pattern {
       values = ["/v1/admin/games", "/v1/admin/games/*"]
+    }
+  }
+}
+
+# Tournament internal API (for service-to-service communication) - HTTPS
+resource "aws_lb_listener_rule" "tournament_internal_https" {
+  listener_arn = module.alb.https_listener_arn
+  priority     = 130
+
+  action {
+    type             = "forward"
+    target_group_arn = module.tournament.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/internal/*"]
     }
   }
 }

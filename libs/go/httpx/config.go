@@ -30,7 +30,7 @@ func DefaultConfig() Config {
 	return Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Service"},
 		ExposeHeaders:    []string{},
 		AllowCredentials: false,
 		MaxAge:           86400,
@@ -48,7 +48,7 @@ func ProductionConfig() Config {
 	return Config{
 		AllowOrigins:     []string{}, // Must be explicitly set
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Request-ID"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Request-ID", "X-Service"},
 		ExposeHeaders:    []string{"X-Request-ID"},
 		AllowCredentials: true,
 		MaxAge:           86400,
