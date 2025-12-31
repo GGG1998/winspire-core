@@ -22,6 +22,9 @@ resource "aws_lb" "main" {
   enable_http2               = true
   enable_cross_zone_load_balancing = true
 
+  # Increase idle timeout for streaming large files (game assets)
+  idle_timeout = 120
+
   tags = merge(
     var.tags,
     {

@@ -44,6 +44,12 @@ variable "tags" {
   default     = {}
 }
 
+variable "enable_public_access" {
+  description = "Enable public access and bucket policy. Set to false when using CloudFront with OAC"
+  type        = bool
+  default     = true
+}
+
 
 
 

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -66,11 +68,13 @@ func RegisterBundleRoutes(group *gin.RouterGroup, deps BundleDeps) {
 			return
 		}
 
-		bundleFile, err := deps.Storage.GetBundleFile(c.Request.Context(), game.StoragePath, filePath)
+		// Stream file from S3
+		stream, err := deps.Storage.GetBundleFileStream(c.Request.Context(), game.StoragePath, filePath)
 		if err != nil {
 			c.JSON(http.StatusNotFound, ErrorResponse{Error: "file not found", Details: err.Error()})
 			return
 		}
+		defer stream.Body.Close()
 
 		// Set cache headers for better performance
 		c.Header("Cache-Control", "public, max-age=3600")
@@ -79,6 +83,39 @@ func RegisterBundleRoutes(group *gin.RouterGroup, deps BundleDeps) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, OPTIONS")
 
-		c.Data(http.StatusOK, bundleFile.ContentType, bundleFile.Content)
+		// Set content type
+		c.Header("Content-Type", stream.ContentType)
+
+		// Set content length for proper streaming
+		if stream.ContentLength > 0 {
+			c.Header("Content-Length", strconv.FormatInt(stream.ContentLength, 10))
+		}
+
+		// Write status before streaming
+		c.Status(http.StatusOK)
+
+		// Stream with explicit flushing for better HTTP/2 compatibility
+		// Use 32KB buffer to balance memory usage and throughput
+		buf := make([]byte, 32*1024)
+		flusher, canFlush := c.Writer.(http.Flusher)
+
+		for {
+			n, readErr := stream.Body.Read(buf)
+			if n > 0 {
+				if _, writeErr := c.Writer.Write(buf[:n]); writeErr != nil {
+					return
+				}
+				// Flush periodically to prevent HTTP/2 stream stalls
+				if canFlush {
+					flusher.Flush()
+				}
+			}
+			if readErr == io.EOF {
+				break
+			}
+			if readErr != nil {
+				return
+			}
+		}
 	})
 }

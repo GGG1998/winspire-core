@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -398,7 +399,7 @@ type CreateTournamentParams struct {
 	MaximumTeamCount *int32
 	TeamSize         int32
 	AutoForceReady   *bool
-	GameSnapshot     *[]byte
+	GameSnapshot     json.RawMessage
 	GameID           *uuid.UUID
 	SpaceID          *uuid.UUID
 	TemplateID       *uuid.UUID
@@ -406,11 +407,6 @@ type CreateTournamentParams struct {
 
 // Create creates a new tournament.
 func (r *TournamentRepository) Create(ctx context.Context, params CreateTournamentParams) (*Tournament, error) {
-	var gameSnapshot []byte
-	if params.GameSnapshot != nil {
-		gameSnapshot = *params.GameSnapshot
-	}
-
 	sqlcParams := sqlc.CreateTournamentParams{
 		HostID:                   pgtypeconv.UUIDToPgtype(params.HostID),
 		Name:                     params.Name,
@@ -424,7 +420,7 @@ func (r *TournamentRepository) Create(ctx context.Context, params CreateTourname
 		TeamSize:                 params.TeamSize,
 		AutoForceReady:           pgtypeconv.BoolPtrToPgtype(params.AutoForceReady),
 		GameID:                   pgtypeconv.UUIDPtrToPgtype(params.GameID),
-		GameSnapshot:             gameSnapshot,
+		GameSnapshot:             params.GameSnapshot,
 		SpaceID:                  pgtypeconv.UUIDPtrToPgtype(params.SpaceID),
 		TemplateID:               pgtypeconv.UUIDPtrToPgtype(params.TemplateID),
 	}

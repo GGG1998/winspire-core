@@ -99,6 +99,8 @@ services:
     container_name: game-management
     env_file:
       - .env
+    ports:
+      - "8087:8085"  # Direct access for local development (8087 externally -> 8085 internally)
     environment:
       - GAME_MANAGEMENT_INTERNAL_API_KEY=IlikeCookies
       - SERVICE_PORT=8085

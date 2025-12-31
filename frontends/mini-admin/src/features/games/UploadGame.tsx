@@ -17,6 +17,9 @@ function UploadGame() {
   const [isDragging, setIsDragging] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<Record<number, number>>({})
+  const [uploadStatus, setUploadStatus] = useState<Record<number, 'pending' | 'uploading' | 'done' | 'error'>>({})
+  const [uploadErrors, setUploadErrors] = useState<Record<number, string>>({})
 
   // Load existing games when mode is 'existing'
   useEffect(() => {
@@ -44,17 +47,62 @@ function UploadGame() {
     setIsDragging(false)
   }
 
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     setIsDragging(false)
 
-    const droppedFiles = Array.from(e.dataTransfer.files)
-    setFiles((prev) => [...prev, ...droppedFiles])
+    const items = e.dataTransfer.items
+    const allFiles: File[] = []
+
+    // Process all dropped items (files and folders)
+    const processEntry = async (entry: FileSystemEntry, path: string = ''): Promise<void> => {
+      if (entry.isFile) {
+        const fileEntry = entry as FileSystemFileEntry
+        return new Promise((resolve) => {
+          fileEntry.file((file) => {
+            // Create a new file with the relative path as name
+            const relativePath = path ? `${path}/${file.name}` : file.name
+            const newFile = new File([file], relativePath, { type: file.type })
+            allFiles.push(newFile)
+            resolve()
+          })
+        })
+      } else if (entry.isDirectory) {
+        const dirEntry = entry as FileSystemDirectoryEntry
+        const dirReader = dirEntry.createReader()
+        return new Promise((resolve) => {
+          dirReader.readEntries(async (entries) => {
+            const newPath = path ? `${path}/${entry.name}` : entry.name
+            await Promise.all(entries.map((e) => processEntry(e, newPath)))
+            resolve()
+          })
+        })
+      }
+    }
+
+    // Process each dropped item
+    const promises: Promise<void>[] = []
+    for (let i = 0; i < items.length; i++) {
+      const entry = items[i].webkitGetAsEntry()
+      if (entry) {
+        promises.push(processEntry(entry))
+      }
+    }
+
+    await Promise.all(promises)
+    setFiles((prev) => [...prev, ...allFiles])
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const selectedFiles = Array.from(e.target.files)
+      const selectedFiles = Array.from(e.target.files).map((file) => {
+        // Preserve relative path from webkitRelativePath if available
+        const relativePath = (file as any).webkitRelativePath || file.name
+        if (relativePath !== file.name) {
+          return new File([file], relativePath, { type: file.type })
+        }
+        return file
+      })
       setFiles((prev) => [...prev, ...selectedFiles])
     }
   }
@@ -90,16 +138,66 @@ function UploadGame() {
         return
       }
 
-      // New game workflow: upload files first, then create the game
-      const uploadResult = await gamesApi.uploadNewGameFiles(
-        formData.slug,
-        formData.version,
-        files
-      )
+      // New game workflow: upload files individually, then create the game
+      const CONCURRENCY = 3
+      const uploadedPaths: string[] = []
+      let hasErrors = false
 
+      // Reset progress states
+      setUploadProgress({})
+      setUploadStatus(
+        files.reduce((acc, _, idx) => ({ ...acc, [idx]: 'pending' as const }), {})
+      )
+      setUploadErrors({})
+
+      // Upload files in batches with concurrency limit
+      for (let i = 0; i < files.length; i += CONCURRENCY) {
+        const batch = files.slice(i, i + CONCURRENCY)
+        const promises = batch.map((file, batchIdx) => {
+          const fileIdx = i + batchIdx
+
+          // Mark as uploading
+          setUploadStatus((prev) => ({ ...prev, [fileIdx]: 'uploading' }))
+
+          return gamesApi
+            .uploadSingleFile(formData.slug, formData.version, file, (progress) =>
+              setUploadProgress((prev) => ({ ...prev, [fileIdx]: progress }))
+            )
+            .then((res) => {
+              uploadedPaths.push(res.path)
+              setUploadStatus((prev) => ({ ...prev, [fileIdx]: 'done' }))
+              setUploadProgress((prev) => ({ ...prev, [fileIdx]: 100 }))
+              return res
+            })
+            .catch((err) => {
+              hasErrors = true
+              setUploadStatus((prev) => ({ ...prev, [fileIdx]: 'error' }))
+              setUploadErrors((prev) => ({
+                ...prev,
+                [fileIdx]: err.response?.data?.error || err.message || 'Upload failed',
+              }))
+              return null
+            })
+        })
+
+        await Promise.allSettled(promises)
+      }
+
+      // Check if all files uploaded successfully
+      if (hasErrors) {
+        setMessage({
+          type: 'error',
+          text: `Uploaded ${uploadedPaths.length}/${files.length} file(s). Some files failed.`,
+        })
+        setLoading(false)
+        return
+      }
+
+      // Create the game after all files are uploaded
       const createRequest: CreateGameRequest = {
         slug: formData.slug,
         name: formData.name,
+        storagePath: `${formData.slug}/${formData.version}`,
         description: formData.description || undefined,
         logoUrl: formData.logoUrl || undefined,
         version: formData.version,
@@ -109,9 +207,12 @@ function UploadGame() {
 
       setMessage({
         type: 'success',
-        text: `Uploaded ${uploadResult.uploadedCount} file(s) and created "${newGame.name}".`,
+        text: `Uploaded ${uploadedPaths.length} file(s) and created "${newGame.name}".`,
       })
       setFiles([])
+      setUploadProgress({})
+      setUploadStatus({})
+      setUploadErrors({})
       setFormData({
         slug: '',
         name: '',
@@ -276,8 +377,19 @@ function UploadGame() {
                 style={{ display: 'none' }}
                 id="fileInput"
               />
+              <input
+                type="file"
+                // @ts-expect-error webkitdirectory is not in types
+                webkitdirectory=""
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+                id="folderInput"
+              />
               <label htmlFor="fileInput" className="file-button">
                 Choose Files
+              </label>
+              <label htmlFor="folderInput" className="file-button" style={{ marginLeft: '8px' }}>
+                Choose Folder
               </label>
             </div>
           </div>
@@ -289,18 +401,38 @@ function UploadGame() {
             <h4>Selected Files ({files.length})</h4>
             <ul>
               {files.map((file, index) => (
-                <li key={index}>
-                  <span className="file-name">{file.name}</span>
-                  <span className="file-size">
-                    {(file.size / 1024).toFixed(2)} KB
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removeFile(index)}
-                    className="remove-button"
-                  >
-                    ✕
-                  </button>
+                <li key={index} className={`file-item ${uploadStatus[index] || ''}`}>
+                  <div className="file-info">
+                    <span className="file-status-icon">
+                      {uploadStatus[index] === 'done' && '✓'}
+                      {uploadStatus[index] === 'error' && '✗'}
+                      {uploadStatus[index] === 'uploading' && '⟳'}
+                    </span>
+                    <span className="file-name">{file.name}</span>
+                    <span className="file-size">
+                      {(file.size / 1024).toFixed(2)} KB
+                    </span>
+                    {!loading && (
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="remove-button"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  {(uploadStatus[index] === 'uploading' || uploadProgress[index] !== undefined) && (
+                    <div className="progress-bar-container">
+                      <div
+                        className="progress-bar"
+                        style={{ width: `${uploadProgress[index] || 0}%` }}
+                      />
+                    </div>
+                  )}
+                  {uploadErrors[index] && (
+                    <div className="file-error">{uploadErrors[index]}</div>
+                  )}
                 </li>
               ))}
             </ul>

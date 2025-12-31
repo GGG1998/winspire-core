@@ -753,16 +753,26 @@ export async function seedMatchInLoadingState(
 
 const TOURNAMENT_API_URL = process.env.TOURNAMENT_API_URL ?? 'http://localhost:8089';
 
+// Detect if we're running against a remote environment (internal API not accessible)
+const isRemoteEnv = !!process.env.BASE_URL && !process.env.BASE_URL.includes('localhost');
+
 /**
- * Verifies that a tournament exists in the tournament service via internal API.
- * Useful for debugging 404 errors in E2E tests.
+ * Verifies that a tournament exists.
+ * Uses database directly for remote environments (where internal API is not exposed).
+ * Uses internal API for local environments.
  */
 export async function verifyTournamentExists(
   request: APIRequestContext,
   tournamentId: Id
 ): Promise<{ exists: boolean; data?: Record<string, unknown>; error?: string }> {
+  // For remote environments, use database directly
+  if (isRemoteEnv) {
+    return verifyTournamentExistsViaDb(tournamentId);
+  }
+
+  // For local environments, use internal API
   const url = `${TOURNAMENT_API_URL}/internal/tournaments/${tournamentId}`;
-  console.log(`[verifyTournamentExists] Checking: ${url}`);
+  console.log(`[verifyTournamentExists] Checking via API: ${url}`);
 
   try {
     const response = await request.get(url);
@@ -786,6 +796,34 @@ export async function verifyTournamentExists(
   } catch (err) {
     console.log(`[verifyTournamentExists] Request failed:`, err);
     return { exists: false, error: `Request failed: ${err}` };
+  }
+}
+
+/**
+ * Verifies tournament exists by querying database directly.
+ * Used for remote environments where internal API is not exposed.
+ */
+async function verifyTournamentExistsViaDb(
+  tournamentId: Id
+): Promise<{ exists: boolean; data?: Record<string, unknown>; error?: string }> {
+  console.log(`[verifyTournamentExists] Checking via DB: ${tournamentId}`);
+  const pool = getPool();
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, status, host_id FROM tournaments WHERE id = $1`,
+      [tournamentId]
+    );
+
+    if (rows.length > 0) {
+      console.log(`[verifyTournamentExists] Tournament found in DB:`, rows[0]);
+      return { exists: true, data: rows[0] };
+    }
+
+    return { exists: false, error: `Tournament ${tournamentId} not found in database` };
+  } catch (err) {
+    console.log(`[verifyTournamentExists] DB query failed:`, err);
+    return { exists: false, error: `DB query failed: ${err}` };
   }
 }
 

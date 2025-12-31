@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -265,7 +266,7 @@ type CreateTournamentParams struct {
 	GameID                   pgtype.UUID        `json:"game_id"`
 	SpaceID                  pgtype.UUID        `json:"space_id"`
 	TemplateID               pgtype.UUID        `json:"template_id"`
-	GameSnapshot             []byte             `json:"game_snapshot"`
+	GameSnapshot             json.RawMessage    `json:"game_snapshot"`
 }
 
 type CreateTournamentRow struct {
@@ -287,9 +288,9 @@ type CreateTournamentRow struct {
 	GameID                   pgtype.UUID        `json:"game_id"`
 	SpaceID                  pgtype.UUID        `json:"space_id"`
 	TemplateID               pgtype.UUID        `json:"template_id"`
-	ReadyWindow              []byte             `json:"ready_window"`
-	Prize                    []byte             `json:"prize"`
-	GameSnapshot             []byte             `json:"game_snapshot"`
+	ReadyWindow              json.RawMessage    `json:"ready_window"`
+	Prize                    json.RawMessage    `json:"prize"`
+	GameSnapshot             json.RawMessage    `json:"game_snapshot"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }
@@ -539,9 +540,9 @@ type GetTournamentByExternalIDRow struct {
 	GameID                   pgtype.UUID        `json:"game_id"`
 	SpaceID                  pgtype.UUID        `json:"space_id"`
 	TemplateID               pgtype.UUID        `json:"template_id"`
-	ReadyWindow              []byte             `json:"ready_window"`
-	Prize                    []byte             `json:"prize"`
-	GameSnapshot             []byte             `json:"game_snapshot"`
+	ReadyWindow              json.RawMessage    `json:"ready_window"`
+	Prize                    json.RawMessage    `json:"prize"`
+	GameSnapshot             json.RawMessage    `json:"game_snapshot"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }
@@ -615,9 +616,9 @@ type GetTournamentByHostAndIDRow struct {
 	GameID                   pgtype.UUID        `json:"game_id"`
 	SpaceID                  pgtype.UUID        `json:"space_id"`
 	TemplateID               pgtype.UUID        `json:"template_id"`
-	ReadyWindow              []byte             `json:"ready_window"`
-	Prize                    []byte             `json:"prize"`
-	GameSnapshot             []byte             `json:"game_snapshot"`
+	ReadyWindow              json.RawMessage    `json:"ready_window"`
+	Prize                    json.RawMessage    `json:"prize"`
+	GameSnapshot             json.RawMessage    `json:"game_snapshot"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }
@@ -687,9 +688,9 @@ type GetTournamentByIDRow struct {
 	GameID                   pgtype.UUID        `json:"game_id"`
 	SpaceID                  pgtype.UUID        `json:"space_id"`
 	TemplateID               pgtype.UUID        `json:"template_id"`
-	ReadyWindow              []byte             `json:"ready_window"`
-	Prize                    []byte             `json:"prize"`
-	GameSnapshot             []byte             `json:"game_snapshot"`
+	ReadyWindow              json.RawMessage    `json:"ready_window"`
+	Prize                    json.RawMessage    `json:"prize"`
+	GameSnapshot             json.RawMessage    `json:"game_snapshot"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }
@@ -1255,9 +1256,9 @@ type ListTournamentsByStatusRow struct {
 	GameID                   pgtype.UUID        `json:"game_id"`
 	SpaceID                  pgtype.UUID        `json:"space_id"`
 	TemplateID               pgtype.UUID        `json:"template_id"`
-	ReadyWindow              []byte             `json:"ready_window"`
-	Prize                    []byte             `json:"prize"`
-	GameSnapshot             []byte             `json:"game_snapshot"`
+	ReadyWindow              json.RawMessage    `json:"ready_window"`
+	Prize                    json.RawMessage    `json:"prize"`
+	GameSnapshot             json.RawMessage    `json:"game_snapshot"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }
@@ -1361,9 +1362,9 @@ type SaveTournamentParams struct {
 	CancelledAt          pgtype.Timestamptz `json:"cancelled_at"`
 	MinimumTeamCount     pgtype.Int4        `json:"minimum_team_count"`
 	MaximumTeamCount     pgtype.Int4        `json:"maximum_team_count"`
-	ReadyWindow          []byte             `json:"ready_window"`
-	Prize                []byte             `json:"prize"`
-	GameSnapshot         []byte             `json:"game_snapshot"`
+	ReadyWindow          json.RawMessage    `json:"ready_window"`
+	Prize                json.RawMessage    `json:"prize"`
+	GameSnapshot         json.RawMessage    `json:"game_snapshot"`
 }
 
 type SaveTournamentRow struct {
@@ -1385,9 +1386,9 @@ type SaveTournamentRow struct {
 	GameID                   pgtype.UUID        `json:"game_id"`
 	SpaceID                  pgtype.UUID        `json:"space_id"`
 	TemplateID               pgtype.UUID        `json:"template_id"`
-	ReadyWindow              []byte             `json:"ready_window"`
-	Prize                    []byte             `json:"prize"`
-	GameSnapshot             []byte             `json:"game_snapshot"`
+	ReadyWindow              json.RawMessage    `json:"ready_window"`
+	Prize                    json.RawMessage    `json:"prize"`
+	GameSnapshot             json.RawMessage    `json:"game_snapshot"`
 	CreatedAt                pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }

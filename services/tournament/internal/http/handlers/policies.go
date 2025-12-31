@@ -88,10 +88,10 @@ func ApplyCreateTournamentPolicy(hostID uuid.UUID, req CreateTournamentRequest) 
 				StoragePath: req.GameSnapshot.StoragePath,
 			}
 
-			// Marshal to JSONB
+			// Marshal to JSON - json.RawMessage is []byte under the hood
 			snapshotJSON, err := json.Marshal(snapshot)
 			if err == nil {
-				params.GameSnapshot = &snapshotJSON
+				params.GameSnapshot = snapshotJSON
 			}
 			// If marshaling fails, params.GameSnapshot remains nil (graceful degradation)
 		}

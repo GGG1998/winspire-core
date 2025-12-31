@@ -421,7 +421,7 @@ export const tournamentApi = {
   async getBracket(tournamentId: string): Promise<Bracket> {
     try {
       const response = await apiClient.get<{ bracket: Bracket }>(
-        `:8088/v1/matchmaking/tournaments/${tournamentId}/bracket`
+        `/v1/matchmaking/tournaments/${tournamentId}/bracket`
       )
 
       if (response.error) {
@@ -453,7 +453,7 @@ export const tournamentApi = {
           roundNumber: number
           roundName: string
         }>
-      }>(`:8088/v1/matchmaking/tournaments/${tournamentId}/matches`)
+      }>(`/v1/matchmaking/tournaments/${tournamentId}/matches`)
 
       if (response.error) {
         throw new Error(response.error.message)

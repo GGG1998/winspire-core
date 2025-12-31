@@ -18,6 +18,7 @@ export interface CreateGameRequest {
   gameIntegrationId?: string
   slug: string
   name: string
+  storagePath: string
   description?: string
   logoUrl?: string
   version: string
@@ -85,7 +86,7 @@ export const gamesApi = {
     return response.data
   },
 
-  // Upload files for a new game before creation
+  // Upload files for a new game before creation (batch - deprecated)
   uploadNewGameFiles: async (slug: string, version: string, files: File[]): Promise<UploadFilesResponse> => {
     const formData = new FormData()
     formData.append('slug', slug)
@@ -102,9 +103,36 @@ export const gamesApi = {
     return response.data
   },
 
-  // Get public URL for a game
+  // Upload a single file for a new game (async approach)
+  uploadSingleFile: async (
+    slug: string,
+    version: string,
+    file: File,
+    onProgress?: (progress: number) => void
+  ): Promise<{ path: string }> => {
+    const formData = new FormData()
+    formData.append('slug', slug)
+    formData.append('version', version)
+    // Send the relative path separately since browsers strip directory paths from filenames
+    formData.append('filePath', file.name)
+    formData.append('files', file)
+
+    const response = await apiClient.post<UploadFilesResponse>('/admin/games/uploads', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) {
+          onProgress(Math.round((e.loaded * 100) / e.total))
+        }
+      },
+    })
+    return { path: response.data.uploadedPaths[0] }
+  },
+
+  // Get public URL for a game (constructed from game data)
   getGameUrl: async (gameId: string): Promise<{ publicUrl: string; storagePath: string }> => {
-    const response = await apiClient.get(`/games/${gameId}/url`)
-    return response.data
+    const game = await gamesApi.getGame(gameId)
+    const baseUrl = (import.meta as ImportMeta).env.VITE_API_URL || 'http://localhost/v1'
+    const publicUrl = `${baseUrl}/g/${game.slug}/bundle/index.html`
+    return { publicUrl, storagePath: game.storagePath }
   },
 }

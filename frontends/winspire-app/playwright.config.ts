@@ -1,4 +1,21 @@
 import { defineConfig, devices } from '@playwright/test';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+/**
+ * Load environment-specific config.
+ * Usage:
+ *   E2E_ENV=dev yarn test:e2e:ui   # loads e2e/.env.dev
+ *   E2E_ENV=local yarn test:e2e:ui # loads e2e/.env.local (default)
+ */
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const e2eEnv = process.env.E2E_ENV ?? 'local';
+dotenv.config({ path: path.resolve(__dirname, `e2e/.env.${e2eEnv}`) });
+
+// Determine if we're running against a remote environment
+const isRemote = !!process.env.BASE_URL && !process.env.BASE_URL.includes('localhost');
+const baseURL = process.env.BASE_URL ?? 'http://localhost:5173';
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -18,7 +35,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:5173',
+    baseURL,
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
   },
@@ -51,16 +68,11 @@ export default defineConfig({
     // },
   ],
 
-  /* Run your local dev server before starting the tests */
-  webServer: {
+  /* Run your local dev server before starting the tests - only for local env */
+  webServer: isRemote ? undefined : {
     command: 'yarn dev',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
 });
-
-
-
-
-

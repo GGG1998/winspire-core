@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -31,9 +32,10 @@ type s3API interface {
 
 // S3Client provides access to AWS S3 for game file storage.
 type S3Client struct {
-	client s3API
-	bucket string
-	region string
+	client        s3API
+	presignClient *s3.PresignClient
+	bucket        string
+	region        string
 }
 
 // BundleFile represents a static asset stored in S3.
@@ -67,13 +69,16 @@ func NewS3Client(region, bucket, accessKeyID, secretAccessKey string) (*S3Client
 		return nil, fmt.Errorf("load AWS config: %w", err)
 	}
 
+	s3Client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		// Allow buckets provided as access point ARNs
+		o.UseARNRegion = true
+	})
+
 	return &S3Client{
-		client: s3.NewFromConfig(cfg, func(o *s3.Options) {
-			// Allow buckets provided as access point ARNs
-			o.UseARNRegion = true
-		}),
-		bucket: bucket,
-		region: region,
+		client:        s3Client,
+		presignClient: s3.NewPresignClient(s3Client),
+		bucket:        bucket,
+		region:        region,
 	}, nil
 }
 
@@ -129,8 +134,69 @@ func (c *S3Client) UploadMultipleFiles(ctx context.Context, baseS3Path string, f
 	return uploadedPaths, nil
 }
 
+// UploadMultipleFilesWithPath uploads files using a provided relative path instead of the filename.
+// This is needed because browsers strip directory paths from filenames when uploading.
+func (c *S3Client) UploadMultipleFilesWithPath(ctx context.Context, baseS3Path string, files []*multipart.FileHeader, relativePath string) ([]string, error) {
+	uploadedPaths := make([]string, 0, len(files))
+
+	for _, fileHeader := range files {
+		file, err := fileHeader.Open()
+		if err != nil {
+			return uploadedPaths, fmt.Errorf("open file %s: %w", fileHeader.Filename, err)
+		}
+
+		data, err := io.ReadAll(file)
+		file.Close()
+		if err != nil {
+			return uploadedPaths, fmt.Errorf("read file %s: %w", fileHeader.Filename, err)
+		}
+
+		// Use the provided relativePath instead of fileHeader.Filename
+		// This preserves directory structure (e.g., "Build/game.js")
+		s3Path := path.Join(baseS3Path, relativePath)
+		contentType := fileHeader.Header.Get("Content-Type")
+		if contentType == "" {
+			contentType = detectContentType(relativePath)
+		}
+
+		if err := c.UploadFile(ctx, s3Path, data, contentType); err != nil {
+			return uploadedPaths, fmt.Errorf("upload %s: %w", relativePath, err)
+		}
+
+		uploadedPaths = append(uploadedPaths, s3Path)
+	}
+
+	return uploadedPaths, nil
+}
+
+// BundleFileStream represents a streamable bundle asset from S3.
+type BundleFileStream struct {
+	ContentType   string
+	ContentLength int64
+	Body          io.ReadCloser
+}
+
 // GetBundleFile retrieves a specific bundle asset from S3.
 func (c *S3Client) GetBundleFile(ctx context.Context, basePath, relativePath string) (*BundleFile, error) {
+	stream, err := c.GetBundleFileStream(ctx, basePath, relativePath)
+	if err != nil {
+		return nil, err
+	}
+	defer stream.Body.Close()
+
+	data, err := io.ReadAll(stream.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read bundle file from S3: %w", err)
+	}
+
+	return &BundleFile{
+		ContentType: stream.ContentType,
+		Content:     data,
+	}, nil
+}
+
+// GetBundleFileStream retrieves a bundle asset as a stream for large files.
+func (c *S3Client) GetBundleFileStream(ctx context.Context, basePath, relativePath string) (*BundleFileStream, error) {
 	if basePath == "" {
 		return nil, fmt.Errorf("base path is required")
 	}
@@ -159,22 +225,52 @@ func (c *S3Client) GetBundleFile(ctx context.Context, basePath, relativePath str
 	if err != nil {
 		return nil, fmt.Errorf("get bundle file from S3: %w", err)
 	}
-	defer out.Body.Close()
-
-	data, err := io.ReadAll(out.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read bundle file from S3: %w", err)
-	}
 
 	contentType := aws.ToString(out.ContentType)
 	if contentType == "" {
 		contentType = detectContentType(relativePath)
 	}
 
-	return &BundleFile{
-		ContentType: contentType,
-		Content:     data,
+	return &BundleFileStream{
+		ContentType:   contentType,
+		ContentLength: aws.ToInt64(out.ContentLength),
+		Body:          out.Body,
 	}, nil
+}
+
+// GetBundleFilePresignedURL generates a presigned URL for direct S3 access.
+// This is useful for large files to avoid streaming through the backend.
+func (c *S3Client) GetBundleFilePresignedURL(ctx context.Context, basePath, relativePath string, expiry time.Duration) (string, error) {
+	if basePath == "" {
+		return "", fmt.Errorf("base path is required")
+	}
+
+	trimmedBase := strings.Trim(basePath, "/")
+	if trimmedBase == "" {
+		return "", fmt.Errorf("base path is required")
+	}
+	if strings.HasSuffix(strings.ToLower(trimmedBase), ".zip") {
+		dir := path.Dir(trimmedBase)
+		if dir == "." {
+			return "", fmt.Errorf("invalid storage path: %s", basePath)
+		}
+		trimmedBase = dir
+	}
+	trimmedRel := strings.Trim(relativePath, "/")
+	s3Path := trimmedBase
+	if trimmedRel != "" {
+		s3Path = path.Join(trimmedBase, trimmedRel)
+	}
+
+	presignResult, err := c.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(s3Path),
+	}, s3.WithPresignExpires(expiry))
+	if err != nil {
+		return "", fmt.Errorf("generate presigned URL: %w", err)
+	}
+
+	return presignResult.URL, nil
 }
 
 // DeleteFile removes a file from S3.

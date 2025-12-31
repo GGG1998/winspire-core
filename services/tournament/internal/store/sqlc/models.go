@@ -5,6 +5,8 @@
 package sqlc
 
 import (
+	"encoding/json"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -78,11 +80,11 @@ type Tournament struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 	// JSONB configuration for tournament ready/check-in window
-	ReadyWindow []byte `json:"ready_window"`
+	ReadyWindow json.RawMessage `json:"ready_window"`
 	// JSONB configuration for tournament prize structure
-	Prize []byte `json:"prize"`
+	Prize json.RawMessage `json:"prize"`
 	// Snapshot of game data at tournament creation (slug, name, version, logo, etc.). Used for event-driven flows to avoid synchronous HTTP calls to game-management service.
-	GameSnapshot []byte `json:"game_snapshot"`
+	GameSnapshot json.RawMessage `json:"game_snapshot"`
 }
 
 // Participant registrations for tournaments

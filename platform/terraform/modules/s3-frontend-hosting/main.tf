@@ -26,17 +26,19 @@ resource "aws_s3_bucket" "frontend" {
 }
 
 # Bucket Public Access Block Configuration
+# When using CloudFront, block public access (CloudFront uses OAC)
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
-  block_public_acls       = false
-  block_public_policy     = false
-  ignore_public_acls      = false
-  restrict_public_buckets = false
+  block_public_acls       = var.enable_public_access ? false : true
+  block_public_policy     = var.enable_public_access ? false : true
+  ignore_public_acls      = var.enable_public_access ? false : true
+  restrict_public_buckets = var.enable_public_access ? false : true
 }
 
-# Bucket Policy for Public Read Access
+# Bucket Policy for Public Read Access (only when not using CloudFront)
 resource "aws_s3_bucket_policy" "frontend" {
+  count  = var.enable_public_access ? 1 : 0
   bucket = aws_s3_bucket.frontend.id
 
   policy = jsonencode({
@@ -112,6 +114,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "frontend" {
   rule {
     id     = "delete-incomplete-uploads"
     status = "Enabled"
+
+    filter {}  # Apply to all objects
 
     abort_incomplete_multipart_upload {
       days_after_initiation = 7

@@ -21,8 +21,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     // Persist session across page refreshes
     persistSession: true,
-    // Enable debug logging in development
-    debug: import.meta.env.DEV,
+    // Disable debug logging (set to true for troubleshooting auth issues)
+    debug: false,
   },
 });
 

@@ -241,7 +241,7 @@ module "tournament" {
     SHUTDOWN_GRACE        = "10s"
     POSTGRES_DSN          = var.postgres_dsn
     HOST_JWT_SECRET       = var.jwt_secret
-    CORS_ALLOWED_ORIGINS  = "https://winspire-dev-s63lr.ondigitalocean.app,https://dev-api.gowinspire.com"
+    CORS_ALLOWED_ORIGINS  = "https://winspire-dev-s63lr.ondigitalocean.app,https://dev-api.gowinspire.com,https://d2mjyl2e92t3yg.cloudfront.net"
   }
 
   enable_execute_command = true
@@ -309,7 +309,7 @@ module "matchmaking" {
     SUPABASE_ANON_KEY                 = var.supabase_anon_key
     SUPABASE_SERVICE_KEY              = var.supabase_service_key
     GAME_API_KEY                      = var.game_api_key
-    CORS_ALLOWED_ORIGINS              = "https://winspire-dev-s63lr.ondigitalocean.app,https://dev-api.gowinspire.com"
+    CORS_ALLOWED_ORIGINS              = "https://winspire-dev-s63lr.ondigitalocean.app,https://dev-api.gowinspire.com,https://d2mjyl2e92t3yg.cloudfront.net"
   }
 
   enable_execute_command = true
@@ -348,8 +348,30 @@ module "game_management" {
     POSTGRES_DSN                     = var.postgres_dsn
     HOST_JWT_SECRET                  = var.jwt_secret
     GAME_MANAGEMENT_INTERNAL_API_KEY = "dev-internal-api-key-12345"
-    CORS_ALLOWED_ORIGINS             = "https://winspire-dev-s63lr.ondigitalocean.app,https://dev-api.gowinspire.com"
+    CORS_ALLOWED_ORIGINS             = "https://winspire-dev-s63lr.ondigitalocean.app,https://dev-api.gowinspire.com,https://d2mjyl2e92t3yg.cloudfront.net"
+    AWS_REGION                       = var.aws_region
+    AWS_S3_BUCKET                    = "gowinspire-game"
   }
+
+  # S3 permissions for game assets
+  task_policy_json = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::gowinspire-game",
+          "arn:aws:s3:::gowinspire-game/*"
+        ]
+      }
+    ]
+  })
 
   enable_execute_command = true
   tags = { Team = "Platform" }
@@ -357,6 +379,47 @@ module "game_management" {
 
 # Data source for AWS account ID
 data "aws_caller_identity" "current" {}
+
+# =============================================================================
+# Mini-Admin Frontend (S3 + CloudFront)
+# =============================================================================
+
+# S3 bucket for mini-admin static files
+module "mini_admin_bucket" {
+  source = "../../modules/s3-frontend-hosting"
+
+  bucket_name          = "winspire-mini-admin-${var.environment}"
+  environment          = var.environment
+  spa_mode             = true
+  enable_public_access = false  # CloudFront will handle access via OAC
+
+  tags = {
+    Service = "mini-admin"
+    Team    = "Platform"
+  }
+}
+
+# CloudFront distribution for mini-admin
+module "mini_admin_cdn" {
+  source = "../../modules/cloudfront"
+
+  bucket_id                   = module.mini_admin_bucket.bucket_id
+  bucket_arn                  = module.mini_admin_bucket.bucket_arn
+  bucket_regional_domain_name = module.mini_admin_bucket.bucket_regional_domain_name
+  environment                 = var.environment
+  comment                     = "Mini-Admin Dashboard CDN"
+
+  tags = {
+    Service = "mini-admin"
+    Team    = "Platform"
+  }
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+  default     = "dev"
+}
 
 # ALB Listener Rules for path-based routing
 # Note: ALB limits 5 values per rule, so we split into multiple rules
@@ -453,6 +516,38 @@ resource "aws_lb_listener_rule" "game_management" {
   condition {
     path_pattern {
       values = ["/v1/games", "/v1/games/*", "/v1/bundles", "/v1/bundles/*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "game_management_bundles" {
+  listener_arn = module.alb.http_listener_arn
+  priority     = 198
+
+  action {
+    type             = "forward"
+    target_group_arn = module.game_management.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/g/*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "game_management_admin" {
+  listener_arn = module.alb.http_listener_arn
+  priority     = 199
+
+  action {
+    type             = "forward"
+    target_group_arn = module.game_management.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/admin/games", "/v1/admin/games/*"]
     }
   }
 }
@@ -554,6 +649,38 @@ resource "aws_lb_listener_rule" "game_management_https" {
   }
 }
 
+resource "aws_lb_listener_rule" "game_management_bundles_https" {
+  listener_arn = module.alb.https_listener_arn
+  priority     = 198
+
+  action {
+    type             = "forward"
+    target_group_arn = module.game_management.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/g/*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "game_management_admin_https" {
+  listener_arn = module.alb.https_listener_arn
+  priority     = 199
+
+  action {
+    type             = "forward"
+    target_group_arn = module.game_management.target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/v1/admin/games", "/v1/admin/games/*"]
+    }
+  }
+}
+
 # Outputs
 output "vpc_id" {
   description = "VPC ID"
@@ -603,5 +730,21 @@ output "service_log_groups" {
     matchmaking     = module.matchmaking.log_group_name
     game_management = module.game_management.log_group_name
   }
+}
+
+# Mini-Admin Frontend Outputs
+output "mini_admin_url" {
+  description = "Mini-Admin Dashboard URL (CloudFront)"
+  value       = module.mini_admin_cdn.distribution_url
+}
+
+output "mini_admin_bucket" {
+  description = "Mini-Admin S3 bucket name for deployment"
+  value       = module.mini_admin_bucket.bucket_id
+}
+
+output "mini_admin_distribution_id" {
+  description = "Mini-Admin CloudFront distribution ID (for cache invalidation)"
+  value       = module.mini_admin_cdn.distribution_id
 }
 

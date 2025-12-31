@@ -17,6 +17,11 @@ dist-ssr
 .env.local
 .env.*.local
 
+# E2E test environments (contain secrets)
+e2e/.env.dev
+e2e/.env.staging
+e2e/.env.prod
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

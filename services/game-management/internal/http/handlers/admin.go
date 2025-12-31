@@ -167,6 +167,8 @@ func RegisterAdminRoutes(group *gin.RouterGroup, deps AdminDeps) {
 
 		slug := strings.TrimSpace(c.PostForm("slug"))
 		version := strings.TrimSpace(c.PostForm("version"))
+		// filePath contains the relative path (e.g., "Build/game.js") since browsers strip paths from filenames
+		filePath := strings.TrimSpace(c.PostForm("filePath"))
 
 		if slug == "" || version == "" {
 			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "slug and version are required"})
@@ -186,7 +188,15 @@ func RegisterAdminRoutes(group *gin.RouterGroup, deps AdminDeps) {
 		}
 
 		basePath := normalizeStoragePath(path.Join(slug, version))
-		uploaded, err := deps.Storage.UploadMultipleFiles(c.Request.Context(), basePath, files)
+
+		// If filePath is provided (single file upload with path), use it
+		// Otherwise fall back to UploadMultipleFiles for batch uploads
+		var uploaded []string
+		if filePath != "" && len(files) == 1 {
+			uploaded, err = deps.Storage.UploadMultipleFilesWithPath(c.Request.Context(), basePath, files, filePath)
+		} else {
+			uploaded, err = deps.Storage.UploadMultipleFiles(c.Request.Context(), basePath, files)
+		}
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to upload files", Details: err.Error()})
 			return

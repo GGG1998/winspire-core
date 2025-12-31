@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
@@ -49,6 +50,8 @@ func main() {
 		os.Exit(1)
 	}
 	poolCfg.MaxConns = 8
+	// Use simple protocol to avoid prepared statement issues with connection poolers (e.g., Supabase/PgBouncer)
+	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
