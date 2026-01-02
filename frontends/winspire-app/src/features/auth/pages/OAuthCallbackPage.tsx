@@ -7,6 +7,18 @@ import { AuthLayout } from '../../../shared/components/ui/auth-layout';
 import { Heading } from '../../../shared/components/ui/heading';
 import { Text } from '../../../shared/components/ui/text';
 
+/**
+ * Returns the appropriate login URL based on OAuth provider or profile type.
+ * - Twitch/Discord providers → streamer login
+ * - Google/unknown providers → user login
+ */
+function getLoginUrl(providerOrProfileType: string | undefined): string {
+  if (providerOrProfileType === 'twitch' || providerOrProfileType === 'discord' || providerOrProfileType === 'streamer') {
+    return '/auth/streamer/login';
+  }
+  return '/auth/user/login';
+}
+
 export function OAuthCallbackPage() {
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
@@ -25,11 +37,14 @@ export function OAuthCallbackPage() {
     const handleCallback = async () => {
       try {
         // Set a timeout in case Supabase never fires the auth event
-        timeoutId = setTimeout(() => {
+        timeoutId = setTimeout(async () => {
           console.error('[OAuthCallbackPage] Timeout waiting for session establishment');
           setError('Authentication timeout. Please try again.');
+          // Try to determine the login URL from any existing session
+          const { data: { session } } = await supabase.auth.getSession();
+          const provider = session?.user?.app_metadata?.provider;
           setTimeout(() => {
-            navigate('/auth/login');
+            navigate(getLoginUrl(provider));
           }, 3000);
         }, 15000); // 15 second timeout
 
@@ -47,8 +62,9 @@ export function OAuthCallbackPage() {
               if (result.error || !result.user) {
                 console.error('[OAuthCallbackPage] Profile processing failed:', result.error);
                 setError(result.error?.message || 'Authentication failed');
+                const loginUrl = getLoginUrl(result.user?.profileType || session?.user?.app_metadata?.provider);
                 setTimeout(() => {
-                  navigate('/auth/login');
+                  navigate(loginUrl);
                 }, 3000);
                 return;
               }
@@ -67,8 +83,9 @@ export function OAuthCallbackPage() {
             } catch (err) {
               console.error('[OAuthCallbackPage] Error during profile processing:', err);
               setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+              const loginUrl = getLoginUrl(session?.user?.app_metadata?.provider);
               setTimeout(() => {
-                navigate('/auth/login');
+                navigate(loginUrl);
               }, 3000);
             }
           }
@@ -89,8 +106,10 @@ export function OAuthCallbackPage() {
             console.error('[OAuthCallbackPage] Failed to exchange code for session:', exchangeError);
             clearTimeout(timeoutId);
             setError('Authentication failed. Please try again.');
+            // When exchange fails, we don't have session data to determine provider
+            // Default to user login (most common case for Google OAuth)
             setTimeout(() => {
-              navigate('/auth/login');
+              navigate(getLoginUrl(undefined));
             }, 3000);
             return;
           }
@@ -110,8 +129,9 @@ export function OAuthCallbackPage() {
           if (result.error || !result.user) {
             console.error('[OAuthCallbackPage] Profile processing failed:', result.error);
             setError(result.error?.message || 'Authentication failed');
+            const loginUrl = getLoginUrl(result.user?.profileType || session?.user?.app_metadata?.provider);
             setTimeout(() => {
-              navigate('/auth/login');
+              navigate(loginUrl);
             }, 3000);
             return;
           }
@@ -128,8 +148,11 @@ export function OAuthCallbackPage() {
       } catch (err) {
         console.error('[OAuthCallbackPage] Unexpected error:', err);
         setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+        // Try to get session to determine the right login URL
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        const loginUrl = getLoginUrl(currentSession?.user?.app_metadata?.provider);
         setTimeout(() => {
-          navigate('/auth/login');
+          navigate(loginUrl);
         }, 3000);
       }
     };
