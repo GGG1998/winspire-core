@@ -42,7 +42,8 @@ sqlc:
 migrate:
 	atlas migrate apply \
 		--dir file://$(SERVICE_DIR)/migrations \
-		--url "$${POSTGRES_DSN:-postgres://postgres:postgres@localhost:54322/postgres?sslmode=disable}"
+		--url "$${POSTGRES_DSN:-postgres://postgres:postgres@localhost:54322/postgres?sslmode=disable}" \
+		--allow-dirty
 
 # Create a new migration
 migrate-new:
