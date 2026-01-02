@@ -49,21 +49,21 @@ CREATE TABLE IF NOT EXISTS tournaments (
 -- ============================================================================
 
 -- Primary lookup indexes
-CREATE INDEX idx_tournaments_host_id ON tournaments(host_id);
-CREATE INDEX idx_tournaments_status ON tournaments(status);
-CREATE INDEX idx_tournaments_external_id ON tournaments(external_id) WHERE external_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_tournaments_host_id ON tournaments(host_id);
+CREATE INDEX IF NOT EXISTS idx_tournaments_status ON tournaments(status);
+CREATE INDEX IF NOT EXISTS idx_tournaments_external_id ON tournaments(external_id) WHERE external_id IS NOT NULL;
 
 -- Composite indexes for common queries
-CREATE INDEX idx_tournaments_host_status ON tournaments(host_id, status);
-CREATE INDEX idx_tournaments_host_created ON tournaments(host_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tournaments_host_status ON tournaments(host_id, status);
+CREATE INDEX IF NOT EXISTS idx_tournaments_host_created ON tournaments(host_id, created_at DESC);
 
 -- Timing indexes
-CREATE INDEX idx_tournaments_scheduled_start ON tournaments(scheduled_start_time_at) WHERE scheduled_start_time_at IS NOT NULL;
-CREATE INDEX idx_tournaments_registration_open ON tournaments(registration_window_open_at) WHERE registration_window_open_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_tournaments_scheduled_start ON tournaments(scheduled_start_time_at) WHERE scheduled_start_time_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_tournaments_registration_open ON tournaments(registration_window_open_at) WHERE registration_window_open_at IS NOT NULL;
 
 -- Optional references
-CREATE INDEX idx_tournaments_game_id ON tournaments(game_id) WHERE game_id IS NOT NULL;
-CREATE INDEX idx_tournaments_space_id ON tournaments(space_id) WHERE space_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_tournaments_game_id ON tournaments(game_id) WHERE game_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_tournaments_space_id ON tournaments(space_id) WHERE space_id IS NOT NULL;
 
 -- ============================================================================
 -- TRIGGER: Update updated_at timestamp
