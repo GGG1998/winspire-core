@@ -48,7 +48,7 @@ export function TournamentSuccessModal({
   const fullUrl = getFullUrl(tournamentDetailsLink)
 
   const handleCopyLink = async () => {
-    await copy(tournamentDetailsLink)
+    await copy(fullUrl)
   }
 
   const handleGoToRoom = () => {
