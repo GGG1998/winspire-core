@@ -45,31 +45,32 @@ CREATE TABLE IF NOT EXISTS tournament_registrations (
 -- ============================================================================
 
 -- Primary lookup: Get all participants for a tournament (with pagination)
-CREATE INDEX idx_tournament_registrations_tournament_id 
+CREATE INDEX IF NOT EXISTS idx_tournament_registrations_tournament_id
     ON tournament_registrations(tournament_id, registered_at DESC);
 
 -- Find all tournaments a user is registered in
-CREATE INDEX idx_tournament_registrations_user_id 
+CREATE INDEX IF NOT EXISTS idx_tournament_registrations_user_id
     ON tournament_registrations(user_id, registered_at DESC);
 
 -- Filter by status within a tournament
-CREATE INDEX idx_tournament_registrations_tournament_status 
+CREATE INDEX IF NOT EXISTS idx_tournament_registrations_tournament_status
     ON tournament_registrations(tournament_id, status);
 
 -- Find ready participants
-CREATE INDEX idx_tournament_registrations_tournament_ready 
-    ON tournament_registrations(tournament_id, is_ready) 
+CREATE INDEX IF NOT EXISTS idx_tournament_registrations_tournament_ready
+    ON tournament_registrations(tournament_id, is_ready)
     WHERE is_ready = true;
 
 -- Team-based lookups
-CREATE INDEX idx_tournament_registrations_team_id 
-    ON tournament_registrations(team_id) 
+CREATE INDEX IF NOT EXISTS idx_tournament_registrations_team_id
+    ON tournament_registrations(team_id)
     WHERE team_id IS NOT NULL;
 
 -- ============================================================================
 -- TRIGGER: Update updated_at timestamp
 -- ============================================================================
 
+DROP TRIGGER IF EXISTS update_tournament_registrations_updated_at ON tournament_registrations;
 CREATE TRIGGER update_tournament_registrations_updated_at
     BEFORE UPDATE ON tournament_registrations
     FOR EACH ROW

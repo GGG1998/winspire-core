@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -10,14 +11,20 @@ import (
 	sharedhttp "github.com/winspire/winspire-core/libs/go/httpx"
 
 	"github.com/winspire/tournament/internal/application"
+	"github.com/winspire/tournament/internal/domain"
+	"github.com/winspire/tournament/internal/repository"
 )
 
 // TournamentUserDeps contains dependencies for tournament user handlers.
 type TournamentUserDeps struct {
 	Pool                   *pgxpool.Pool
 	Logger                 *slog.Logger
+	TournamentRepo         *repository.TournamentRepository
+	ParticipantRepo        domain.ParticipantRepository
+	RegistrationRepo       *repository.RegistrationRepository
 	ConfirmParticipationUC *application.ConfirmParticipationUseCase
 	JoinTournamentUC       *application.JoinTournamentUseCase
+	MatchmakingBaseURL     string
 }
 
 // RegisterTournamentUserRoutes registers player-facing tournament routes.
@@ -28,6 +35,191 @@ func RegisterTournamentUserRoutes(group *gin.RouterGroup, deps TournamentUserDep
 
 	tournaments := hostGroup.Group("/tournaments")
 	{
+		// GET /v1/:hostId/tournaments/:tournamentId - Get tournament details (any authenticated user)
+		// Authorization: Draft tournaments only visible to owner, all others are public
+		tournaments.GET("/:tournamentId", func(c *gin.Context) {
+			tournamentID, err := uuid.Parse(c.Param("tournamentId"))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid tournament ID"})
+				return
+			}
+
+			// Use GetByID to allow viewing tournaments from any host
+			tournament, err := deps.TournamentRepo.GetByID(c.Request.Context(), tournamentID)
+			if err != nil {
+				if errors.Is(err, repository.ErrTournamentNotFound) {
+					c.JSON(http.StatusNotFound, ErrorResponse{Error: "tournament not found"})
+					return
+				}
+
+				deps.Logger.Error("failed to get tournament detail",
+					"error", err,
+					"tournamentId", tournamentID,
+				)
+				c.JSON(http.StatusInternalServerError, ErrorResponse{
+					Error: "failed to retrieve tournament",
+				})
+				return
+			}
+
+			// Check if user can view this tournament (draft tournaments are private)
+			user, _ := sharedhttp.GetUser(c)
+			userID, _ := uuid.Parse(string(user.ID))
+			if !CanViewTournament(userID, tournament) {
+				c.JSON(http.StatusForbidden, ErrorResponse{
+					Error: "You do not have permission to view this tournament",
+					Code:  "FORBIDDEN",
+				})
+				return
+			}
+
+			// Get participant count
+			registeredCount, err := deps.ParticipantRepo.CountByTournamentAndStatus(c.Request.Context(), tournamentID, "registered")
+			if err != nil {
+				deps.Logger.Warn("failed to count registered participants", "error", err, "tournamentId", tournamentID)
+				registeredCount = 0
+			}
+
+			detail := newTournamentDetail(tournament)
+			detail.ParticipantCount = int32(registeredCount)
+
+			// Get user's participation status
+			if user.ID != "" {
+				participant, err := deps.ParticipantRepo.GetByTournamentAndUser(c.Request.Context(), tournamentID, userID)
+				if err != nil {
+					if !errors.Is(err, repository.ErrRegistrationNotFound) {
+						deps.Logger.Warn("failed to get user participation status", "error", err, "tournamentId", tournamentID, "userId", userID)
+					}
+					// User is not a participant - leave Me as nil
+				} else {
+					// User is a participant - set participation status
+					status := string(participant.Status)
+					detail.Me = &TournamentMeInfo{
+						ParticipationStatus: &status,
+					}
+				}
+			}
+
+			// Fetch current/active match from matchmaking service to enrich me.match
+			authHeader := c.GetHeader("Authorization")
+			matchmakingBaseURL := deps.MatchmakingBaseURL
+			if matchmakingBaseURL == "" {
+				// Fallback to local docker-compose service URL
+				matchmakingBaseURL = "http://matchmaking:8081"
+			}
+
+			if matchmakingBaseURL != "" && authHeader != "" {
+				matchInfo, err := fetchCurrentMatch(c.Request.Context(), matchmakingBaseURL, authHeader, deps.Logger)
+				if err != nil {
+					deps.Logger.Warn("failed to fetch current match from matchmaking", "error", err, "tournamentId", tournamentID)
+				} else if matchInfo != nil {
+					if detail.Me == nil {
+						detail.Me = &TournamentMeInfo{}
+					}
+					detail.Me.Match = matchInfo
+				}
+			}
+
+			c.JSON(http.StatusOK, TournamentDetailResponse{
+				Tournament: detail,
+			})
+		})
+
+		// GET /v1/:hostId/tournaments/:tournamentId/participants - List tournament participants (paginated)
+		// Any authenticated user can view participants of a public tournament
+		tournaments.GET("/:tournamentId/participants", func(c *gin.Context) {
+			tournamentID, err := uuid.Parse(c.Param("tournamentId"))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid tournament ID"})
+				return
+			}
+
+			// Parse pagination params
+			limit := int32(50) // Default limit
+			offset := int32(0) // Default offset
+
+			if limitStr := c.Query("limit"); limitStr != "" {
+				if l, err := parsePositiveInt32(limitStr); err == nil && l > 0 && l <= 100 {
+					limit = l
+				}
+			}
+			if offsetStr := c.Query("offset"); offsetStr != "" {
+				if o, err := parsePositiveInt32(offsetStr); err == nil && o >= 0 {
+					offset = o
+				}
+			}
+
+			// Verify tournament exists and user can view it
+			tournament, err := deps.TournamentRepo.GetByID(c.Request.Context(), tournamentID)
+			if err != nil {
+				if errors.Is(err, repository.ErrTournamentNotFound) {
+					c.JSON(http.StatusNotFound, ErrorResponse{Error: "tournament not found"})
+					return
+				}
+				deps.Logger.Error("failed to verify tournament",
+					"error", err,
+					"tournamentId", tournamentID,
+				)
+				c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to retrieve tournament"})
+				return
+			}
+
+			// Check if user can view this tournament
+			user, _ := sharedhttp.GetUser(c)
+			userID, _ := uuid.Parse(string(user.ID))
+			if !CanViewTournament(userID, tournament) {
+				c.JSON(http.StatusForbidden, ErrorResponse{
+					Error: "You do not have permission to view this tournament",
+					Code:  "FORBIDDEN",
+				})
+				return
+			}
+
+			// Get participants
+			registrations, err := deps.RegistrationRepo.ListByTournament(c.Request.Context(), tournamentID, limit, offset)
+			if err != nil {
+				deps.Logger.Error("failed to list participants",
+					"error", err,
+					"tournamentId", tournamentID,
+				)
+				c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to retrieve participants"})
+				return
+			}
+
+			// Get total count
+			total, err := deps.RegistrationRepo.CountByTournament(c.Request.Context(), tournamentID)
+			if err != nil {
+				deps.Logger.Error("failed to count participants",
+					"error", err,
+					"tournamentId", tournamentID,
+				)
+				c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to count participants"})
+				return
+			}
+
+			// Convert to response format
+			participants := make([]TournamentParticipant, len(registrations))
+			for i, reg := range registrations {
+				participants[i] = TournamentParticipant{
+					ID:           reg.ID.String(),
+					UserID:       reg.UserID.String(),
+					Name:         reg.DisplayName,
+					AvatarURL:    reg.AvatarURL,
+					IsReady:      reg.IsReady,
+					Status:       reg.Status,
+					RegisteredAt: reg.RegisteredAt,
+					CheckedInAt:  reg.CheckedInAt,
+				}
+			}
+
+			c.JSON(http.StatusOK, ListParticipantsResponse{
+				Participants: participants,
+				Total:        total,
+				Limit:        limit,
+				Offset:       offset,
+			})
+		})
+
 		// POST /v1/:hostId/tournaments/:tournamentId/join - Join a tournament (requires confirmed participation)
 		tournaments.POST("/:tournamentId/join", func(c *gin.Context) {
 			hostID, err := uuid.Parse(c.Param("hostId"))

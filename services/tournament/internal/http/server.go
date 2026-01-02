@@ -84,13 +84,18 @@ func NewRouter(deps ServerDeps) *gin.Engine {
 	}
 
 	// Register tournament user routes (player-facing endpoints)
-	// Routes: /v1/:hostId/tournaments/:tournamentId/join, leave, confirm-participation
+	// Routes: /v1/:hostId/tournaments/:tournamentId (view), /participants
+	//         /v1/:hostId/tournaments/:tournamentId/join, leave, confirm-participation
 	//         /v1/:hostId/matches/:matchId/confirm-participation
 	handlers.RegisterTournamentUserRoutes(api, handlers.TournamentUserDeps{
 		Pool:                   deps.Pool,
 		Logger:                 deps.Logger,
+		TournamentRepo:         tournamentPersistenceRepo,
+		ParticipantRepo:        deps.ParticipantRepo,
+		RegistrationRepo:       registrationPersistenceRepo,
 		ConfirmParticipationUC: deps.ConfirmParticipationUC,
 		JoinTournamentUC:       deps.JoinTournamentUC,
+		MatchmakingBaseURL:     deps.Config.MatchmakingBaseURL,
 	})
 
 	// Register tournament host routes (host/admin endpoints)

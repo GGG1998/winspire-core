@@ -167,10 +167,11 @@ export const tournamentApi = {
 
   /**
    * Get a single tournament by ID
+   * @param tournamentId - The tournament ID to fetch
+   * @param hostId - The host/streamer ID (from URL path, not current user)
    */
-  async getTournament(tournamentId: string): Promise<Tournament> {
+  async getTournament(tournamentId: string, hostId: string): Promise<Tournament> {
     try {
-      const hostId = await getCurrentHostId()
       const response = await apiClient.get<{ tournament: TournamentApiData }>(
         `/v1/${hostId}/tournaments/${tournamentId}`
       )
@@ -321,10 +322,11 @@ export const tournamentApi = {
   /**
    * Confirm participation in a tournament
    * User confirms they have a spot/place in the tournament
+   * @param tournamentId - The tournament ID
+   * @param hostId - The host/streamer ID (from URL path, not current user)
    */
-  async confirmParticipation(tournamentId: string): Promise<void> {
+  async confirmParticipation(tournamentId: string, hostId: string): Promise<void> {
     try {
-      const hostId = await getCurrentHostId()
       const response = await apiClient.post<{ success: boolean }>(
         `/v1/${hostId}/tournaments/${tournamentId}/confirm-participation`,
         {}
@@ -346,10 +348,11 @@ export const tournamentApi = {
   /**
    * Join a tournament (requires confirmed participation)
    * Returns the room link for the tournament
+   * @param tournamentId - The tournament ID
+   * @param hostId - The host/streamer ID (from URL path, not current user)
    */
-  async joinTournament(tournamentId: string): Promise<string> {
+  async joinTournament(tournamentId: string, hostId: string): Promise<string> {
     try {
-      const hostId = await getCurrentHostId()
       const response = await apiClient.post<{ success: boolean; roomLink?: string }>(
         `/v1/${hostId}/tournaments/${tournamentId}/join`,
         {}
@@ -373,10 +376,13 @@ export const tournamentApi = {
   /**
    * Get participants list for a tournament
    * Fetches paginated list of tournament participants
+   * @param tournamentId - The tournament ID
+   * @param hostId - The host/streamer ID (from URL path, not current user)
+   * @param limit - Number of participants to return (default 50)
+   * @param offset - Offset for pagination (default 0)
    */
-  async getParticipants(tournamentId: string, limit: number = 50, offset: number = 0): Promise<TournamentParticipant[]> {
+  async getParticipants(tournamentId: string, hostId: string, limit: number = 50, offset: number = 0): Promise<TournamentParticipant[]> {
     try {
-      const hostId = await getCurrentHostId()
       const response = await apiClient.get<{
         participants: Array<{
           id: string

@@ -41,8 +41,8 @@ export function TournamentDetailPage() {
 
   // Fetch tournament data
   useEffect(() => {
-    if (!tournamentId) {
-      setError({ type: 'validation', message: 'Tournament ID is required' })
+    if (!tournamentId || !streamerId) {
+      setError({ type: 'validation', message: 'Tournament ID and Streamer ID are required' })
       setIsLoading(false)
       return
     }
@@ -51,7 +51,7 @@ export function TournamentDetailPage() {
       try {
         setIsLoading(true)
         setError(null)
-        const data = await tournamentApi.getTournament(tournamentId)
+        const data = await tournamentApi.getTournament(tournamentId, streamerId)
         setTournament(data)
       } catch (err) {
         // Check if it's a 403 Forbidden error
@@ -71,15 +71,15 @@ export function TournamentDetailPage() {
     }
 
     fetchTournament()
-  }, [tournamentId])
+  }, [tournamentId, streamerId])
 
   // Fetch participants list
   useEffect(() => {
-    if (!tournamentId) return
+    if (!tournamentId || !streamerId) return
 
     const fetchParticipants = async () => {
       try {
-        const data = await tournamentApi.getParticipants(tournamentId)
+        const data = await tournamentApi.getParticipants(tournamentId, streamerId)
         setParticipants(data)
       } catch (err) {
         console.error('Failed to fetch participants:', err)
@@ -89,25 +89,25 @@ export function TournamentDetailPage() {
     }
 
     fetchParticipants()
-  }, [tournamentId, tournament?.participantCount]) // Reload when count changes
+  }, [tournamentId, streamerId, tournament?.participantCount]) // Reload when count changes
 
   // Refetch tournament data
   const refetchTournament = useCallback(async () => {
-    if (!tournamentId) return
+    if (!tournamentId || !streamerId) return
     try {
-      const data = await tournamentApi.getTournament(tournamentId)
+      const data = await tournamentApi.getTournament(tournamentId, streamerId)
       setTournament(data)
     } catch (err) {
       console.error('Failed to refetch tournament:', err)
     }
-  }, [tournamentId])
+  }, [tournamentId, streamerId])
 
   // Handle registration for tournament (take a spot)
   const handleConfirmParticipation = async () => {
-    if (!tournamentId) return
-    
+    if (!tournamentId || !streamerId) return
+
     try {
-      await tournamentApi.confirmParticipation(tournamentId)
+      await tournamentApi.confirmParticipation(tournamentId, streamerId)
       // Refetch tournament to update participation status (will be 'registered')
       await refetchTournament()
     } catch (err) {
@@ -122,10 +122,10 @@ export function TournamentDetailPage() {
 
   // Handle join tournament
   const handleJoin = async () => {
-    if (!tournamentId) return
-    
+    if (!tournamentId || !streamerId) return
+
     try {
-      const roomLink = await tournamentApi.joinTournament(tournamentId)
+      const roomLink = await tournamentApi.joinTournament(tournamentId, streamerId)
       // Navigate to room
       if (roomLink.startsWith('http')) {
         window.location.href = roomLink
