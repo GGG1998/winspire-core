@@ -540,19 +540,34 @@ export async function signInWithDiscord(): Promise<{ error: AuthError | null }> 
 
 // Handle OAuth callback and create/fetch profile
 export async function handleOAuthCallback(): Promise<{ user: User | null; error: AuthError | null }> {
-  try {    
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+  try {
+    // Use getSession() instead of getUser() - getSession() reads from localStorage cache
+    // while getUser() makes a network request that can hang with JWT hook issues
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-    if (authError || !authUser) {
-      console.error('[handleOAuthCallback] Failed to get authenticated user:', authError);
+    if (sessionError) {
+      console.error('[handleOAuthCallback] Session error:', sessionError);
       return {
         user: null,
         error: {
-          message: authError?.message || 'Failed to authenticate',
-          code: authError?.status?.toString(),
+          message: sessionError.message || 'Failed to get session',
+          code: sessionError.status?.toString(),
         },
       };
     }
+
+    if (!session?.user) {
+      console.error('[handleOAuthCallback] No session found');
+      return {
+        user: null,
+        error: {
+          message: 'No active session',
+          code: 'NO_SESSION',
+        },
+      };
+    }
+
+    const authUser = session.user;
 
     // Determine profile type based on OAuth provider
     const provider = authUser.app_metadata.provider;
