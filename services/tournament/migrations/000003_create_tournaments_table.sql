@@ -69,6 +69,7 @@ CREATE INDEX IF NOT EXISTS idx_tournaments_space_id ON tournaments(space_id) WHE
 -- TRIGGER: Update updated_at timestamp
 -- ============================================================================
 
+DROP TRIGGER IF EXISTS update_tournaments_updated_at ON tournaments;
 CREATE TRIGGER update_tournaments_updated_at
     BEFORE UPDATE ON tournaments
     FOR EACH ROW
