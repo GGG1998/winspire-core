@@ -34,6 +34,7 @@ export function OAuthCallbackPage() {
         }, 15000); // 15 second timeout
 
         // Listen for auth state changes from Supabase
+        // Set up listener BEFORE exchanging code so we don't miss the SIGNED_IN event
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
           // Only process SIGNED_IN event (when OAuth callback is processed)
           if (event === 'SIGNED_IN' && session && !handledRef.current) {
@@ -75,7 +76,30 @@ export function OAuthCallbackPage() {
 
         unsubscribe = subscription.unsubscribe;
 
-        // Check if session already exists (in case event already fired)
+        // PKCE flow: Extract auth code from URL query parameter and exchange it for a session
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+
+        if (code) {
+          // Clean up URL to prevent issues on refresh (code can only be used once)
+          window.history.replaceState({}, '', window.location.pathname);
+
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) {
+            console.error('[OAuthCallbackPage] Failed to exchange code for session:', exchangeError);
+            clearTimeout(timeoutId);
+            setError('Authentication failed. Please try again.');
+            setTimeout(() => {
+              navigate('/auth/login');
+            }, 3000);
+            return;
+          }
+          // After successful exchange, the onAuthStateChange listener will fire SIGNED_IN
+          // and handle the rest of the flow, so we can return here
+          return;
+        }
+
+        // Check if session already exists (in case event already fired, e.g., hash fragment flow)
         const { data: { session } } = await supabase.auth.getSession();
         if (session && !handledRef.current) {
           handledRef.current = true;
