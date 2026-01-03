@@ -31,5 +31,3 @@ sql:
             go_type: "github.com/winspire-core/services/matchmaking/internal/domain.GameSnapshot"
           - column: "prelobby_participant_snapshots.participants"
             go_type: "github.com/winspire-core/services/matchmaking/internal/domain.ParticipantsJSON"
-
-
