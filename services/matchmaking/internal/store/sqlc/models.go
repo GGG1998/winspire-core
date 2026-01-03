@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/winspire-core/services/matchmaking/internal/domain"
 )
 
 type Prelobby struct {
@@ -31,22 +32,22 @@ type PrelobbyActivityFeed struct {
 }
 
 type PrelobbyParticipantSnapshot struct {
-	ID               pgtype.UUID `json:"id"`
-	TournamentID     pgtype.UUID `json:"tournament_id"`
-	Participants     []byte      `json:"participants"`
-	ParticipantCount int32       `json:"participant_count"`
-	CreatedAt        time.Time   `json:"created_at"`
+	ID               pgtype.UUID             `json:"id"`
+	TournamentID     pgtype.UUID             `json:"tournament_id"`
+	Participants     domain.ParticipantsJSON `json:"participants"`
+	ParticipantCount int32                   `json:"participant_count"`
+	CreatedAt        time.Time               `json:"created_at"`
 }
 
 type TournamentBracket struct {
-	ID           pgtype.UUID      `json:"id"`
-	TournamentID pgtype.UUID      `json:"tournament_id"`
-	GameSnapshot []byte           `json:"game_snapshot"`
-	TotalRounds  int32            `json:"total_rounds"`
-	TotalMatches int32            `json:"total_matches"`
-	ByesCount    int32            `json:"byes_count"`
-	GeneratedAt  time.Time        `json:"generated_at"`
-	CompletedAt  pgtype.Timestamp `json:"completed_at"`
+	ID           pgtype.UUID         `json:"id"`
+	TournamentID pgtype.UUID         `json:"tournament_id"`
+	GameSnapshot domain.GameSnapshot `json:"game_snapshot"`
+	TotalRounds  int32               `json:"total_rounds"`
+	TotalMatches int32               `json:"total_matches"`
+	ByesCount    int32               `json:"byes_count"`
+	GeneratedAt  time.Time           `json:"generated_at"`
+	CompletedAt  pgtype.Timestamp    `json:"completed_at"`
 }
 
 type TournamentMatch struct {

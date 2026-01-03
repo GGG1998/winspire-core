@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/winspire-core/services/matchmaking/internal/domain"
 )
 
 const AddActivityFeedEvent = `-- name: AddActivityFeedEvent :one
@@ -59,9 +60,9 @@ RETURNING id, tournament_id, participants, participant_count, created_at
 `
 
 type CreateParticipantSnapshotParams struct {
-	TournamentID     pgtype.UUID `json:"tournament_id"`
-	Participants     []byte      `json:"participants"`
-	ParticipantCount int32       `json:"participant_count"`
+	TournamentID     pgtype.UUID             `json:"tournament_id"`
+	Participants     domain.ParticipantsJSON `json:"participants"`
+	ParticipantCount int32                   `json:"participant_count"`
 }
 
 // ============================================================================
