@@ -3,7 +3,6 @@ package domain
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -25,16 +24,22 @@ func (p ParticipantsJSON) Value() (driver.Value, error) {
 }
 
 // Scan implements sql.Scanner for JSONB deserialization
+// Handles both []byte and string since pgx may return either depending on protocol mode
 func (p *ParticipantsJSON) Scan(value interface{}) error {
 	if value == nil {
 		*p = nil
 		return nil
 	}
-	b, ok := value.([]byte)
-	if !ok {
-		return errors.New("type assertion to []byte failed")
+	var data []byte
+	switch v := value.(type) {
+	case []byte:
+		data = v
+	case string:
+		data = []byte(v)
+	default:
+		return fmt.Errorf("unsupported type for ParticipantsJSON: %T", value)
 	}
-	return json.Unmarshal(b, p)
+	return json.Unmarshal(data, p)
 }
 
 // PreLobbyStatus represents the current state of a pre-lobby
