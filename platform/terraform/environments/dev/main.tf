@@ -281,7 +281,7 @@ module "matchmaking" {
     REDIS_URL                         = "redis://${module.redis.redis_endpoint}:6379/0"
     REDIS_DB                          = "0"
     TOURNAMENT_SERVICE_URL            = "https://dev-api.gowinspire.com"
-    GAME_MANAGEMENT_URL               = "http://game-management.internal:8087"
+    GAME_MANAGEMENT_URL               = "https://dev-api.gowinspire.com"
     HOST_JWT_ISSUER                   = var.jwt_issuer
     HOST_JWT_AUDIENCE                 = var.jwt_audience
     SUPABASE_URL                      = var.supabase_url
