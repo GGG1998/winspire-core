@@ -25,5 +25,11 @@ sql:
             go_type: "time.Time"
           - db_type: "pg_catalog.timestamp"
             go_type: "time.Time"
+          # Custom types with driver.Valuer/sql.Scanner for QueryExecModeSimpleProtocol JSONB compatibility
+          # See: https://github.com/jackc/pgx/issues/2231
+          - column: "tournament_brackets.game_snapshot"
+            go_type: "github.com/winspire-core/services/matchmaking/internal/domain.GameSnapshot"
+          - column: "prelobby_participant_snapshots.participants"
+            go_type: "github.com/winspire-core/services/matchmaking/internal/domain.ParticipantsJSON"
 
 

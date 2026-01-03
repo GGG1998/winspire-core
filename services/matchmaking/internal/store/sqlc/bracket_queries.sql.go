@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/winspire-core/services/matchmaking/internal/domain"
 )
 
 const CreateBracket = `-- name: CreateBracket :one
@@ -28,12 +29,12 @@ INSERT INTO tournament_brackets (
 `
 
 type CreateBracketParams struct {
-	ID           pgtype.UUID `json:"id"`
-	TournamentID pgtype.UUID `json:"tournament_id"`
-	GameSnapshot []byte      `json:"game_snapshot"`
-	TotalRounds  int32       `json:"total_rounds"`
-	TotalMatches int32       `json:"total_matches"`
-	ByesCount    int32       `json:"byes_count"`
+	ID           pgtype.UUID         `json:"id"`
+	TournamentID pgtype.UUID         `json:"tournament_id"`
+	GameSnapshot domain.GameSnapshot `json:"game_snapshot"`
+	TotalRounds  int32               `json:"total_rounds"`
+	TotalMatches int32               `json:"total_matches"`
+	ByesCount    int32               `json:"byes_count"`
 }
 
 // ============================================================================
@@ -153,35 +154,35 @@ ORDER BY r.round_number ASC, m.match_number ASC
 `
 
 type GetBracketWithRoundsAndMatchesRow struct {
-	BracketID           pgtype.UUID      `json:"bracket_id"`
-	TournamentID        pgtype.UUID      `json:"tournament_id"`
-	GameSnapshot        []byte           `json:"game_snapshot"`
-	BracketTotalRounds  int32            `json:"bracket_total_rounds"`
-	BracketTotalMatches int32            `json:"bracket_total_matches"`
-	ByesCount           int32            `json:"byes_count"`
-	BracketGeneratedAt  time.Time        `json:"bracket_generated_at"`
-	RoundID             pgtype.UUID      `json:"round_id"`
-	RoundNumber         pgtype.Int4      `json:"round_number"`
-	RoundName           pgtype.Text      `json:"round_name"`
-	RoundMatchesCount   pgtype.Int4      `json:"round_matches_count"`
-	RoundStatus         pgtype.Text      `json:"round_status"`
-	RoundStartedAt      pgtype.Timestamp `json:"round_started_at"`
-	RoundCompletedAt    pgtype.Timestamp `json:"round_completed_at"`
-	MatchID             pgtype.UUID      `json:"match_id"`
-	MatchNumber         pgtype.Int4      `json:"match_number"`
-	Participant1ID      pgtype.UUID      `json:"participant1_id"`
-	Participant2ID      pgtype.UUID      `json:"participant2_id"`
-	MatchStatus         pgtype.Text      `json:"match_status"`
-	Participant1Ready   pgtype.Bool      `json:"participant1_ready"`
-	Participant2Ready   pgtype.Bool      `json:"participant2_ready"`
-	WinnerID            pgtype.UUID      `json:"winner_id"`
-	ScorePlayer1        pgtype.Int4      `json:"score_player1"`
-	ScorePlayer2        pgtype.Int4      `json:"score_player2"`
-	ResultSource        pgtype.Text      `json:"result_source"`
-	NextMatchID         pgtype.UUID      `json:"next_match_id"`
-	MatchCreatedAt      pgtype.Timestamp `json:"match_created_at"`
-	MatchStartedAt      pgtype.Timestamp `json:"match_started_at"`
-	MatchCompletedAt    pgtype.Timestamp `json:"match_completed_at"`
+	BracketID           pgtype.UUID         `json:"bracket_id"`
+	TournamentID        pgtype.UUID         `json:"tournament_id"`
+	GameSnapshot        domain.GameSnapshot `json:"game_snapshot"`
+	BracketTotalRounds  int32               `json:"bracket_total_rounds"`
+	BracketTotalMatches int32               `json:"bracket_total_matches"`
+	ByesCount           int32               `json:"byes_count"`
+	BracketGeneratedAt  time.Time           `json:"bracket_generated_at"`
+	RoundID             pgtype.UUID         `json:"round_id"`
+	RoundNumber         pgtype.Int4         `json:"round_number"`
+	RoundName           pgtype.Text         `json:"round_name"`
+	RoundMatchesCount   pgtype.Int4         `json:"round_matches_count"`
+	RoundStatus         pgtype.Text         `json:"round_status"`
+	RoundStartedAt      pgtype.Timestamp    `json:"round_started_at"`
+	RoundCompletedAt    pgtype.Timestamp    `json:"round_completed_at"`
+	MatchID             pgtype.UUID         `json:"match_id"`
+	MatchNumber         pgtype.Int4         `json:"match_number"`
+	Participant1ID      pgtype.UUID         `json:"participant1_id"`
+	Participant2ID      pgtype.UUID         `json:"participant2_id"`
+	MatchStatus         pgtype.Text         `json:"match_status"`
+	Participant1Ready   pgtype.Bool         `json:"participant1_ready"`
+	Participant2Ready   pgtype.Bool         `json:"participant2_ready"`
+	WinnerID            pgtype.UUID         `json:"winner_id"`
+	ScorePlayer1        pgtype.Int4         `json:"score_player1"`
+	ScorePlayer2        pgtype.Int4         `json:"score_player2"`
+	ResultSource        pgtype.Text         `json:"result_source"`
+	NextMatchID         pgtype.UUID         `json:"next_match_id"`
+	MatchCreatedAt      pgtype.Timestamp    `json:"match_created_at"`
+	MatchStartedAt      pgtype.Timestamp    `json:"match_started_at"`
+	MatchCompletedAt    pgtype.Timestamp    `json:"match_completed_at"`
 }
 
 // Complex join query for bracket visualization

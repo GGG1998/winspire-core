@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -169,15 +168,10 @@ func (r *preLobbyRepository) Delete(ctx context.Context, tournamentID uuid.UUID)
 
 // CreateParticipantSnapshot creates an immutable participant snapshot
 func (r *preLobbyRepository) CreateParticipantSnapshot(ctx context.Context, snapshot *domain.ParticipantSnapshot) error {
-	// Serialize participants to JSON
-	participantsJSON, err := json.Marshal(snapshot.Participants)
-	if err != nil {
-		return fmt.Errorf("marshal participants: %w", err)
-	}
-
+	// ParticipantsJSON implements driver.Valuer so pgx serializes it as JSONB automatically
 	result, err := r.queries.CreateParticipantSnapshot(ctx, sqlc.CreateParticipantSnapshotParams{
 		TournamentID:     pgtypeconv.UUIDToPgtype(snapshot.TournamentID),
-		Participants:     participantsJSON,
+		Participants:     domain.ParticipantsJSON(snapshot.Participants),
 		ParticipantCount: int32(snapshot.ParticipantCount),
 	})
 	if err != nil {
@@ -200,16 +194,11 @@ func (r *preLobbyRepository) GetParticipantSnapshot(ctx context.Context, tournam
 		return nil, fmt.Errorf("get participant snapshot: %w", err)
 	}
 
-	// Deserialize participants from JSON
-	var participants []domain.PreLobbyParticipant
-	if err := json.Unmarshal(result.Participants, &participants); err != nil {
-		return nil, fmt.Errorf("unmarshal participants: %w", err)
-	}
-
+	// ParticipantsJSON implements sql.Scanner so it's automatically deserialized
 	return &domain.ParticipantSnapshot{
 		ID:               pgtypeconv.PgtypeToUUID(result.ID),
 		TournamentID:     pgtypeconv.PgtypeToUUID(result.TournamentID),
-		Participants:     participants,
+		Participants:     []domain.PreLobbyParticipant(result.Participants),
 		ParticipantCount: int(result.ParticipantCount),
 		CreatedAt:        result.CreatedAt,
 	}, nil
