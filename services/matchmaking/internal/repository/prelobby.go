@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -13,6 +14,9 @@ import (
 	"github.com/winspire-core/services/matchmaking/internal/store/sqlc"
 	pgtypeconv "github.com/winspire/winspire-core/libs/go/pgtype"
 )
+
+// ErrGracePeriodAlreadyStarted indicates the grace period was started by another instance
+var ErrGracePeriodAlreadyStarted = errors.New("grace period already started by another instance")
 
 // UpdatePreLobbyParams contains optional fields for flexible pre-lobby updates
 type UpdatePreLobbyParams struct {
@@ -134,6 +138,13 @@ func (r *preLobbyRepository) StartGracePeriod(ctx context.Context, tournamentID 
 	result, err := r.queries.StartGracePeriod(ctx, pgtypeconv.UUIDToPgtype(tournamentID))
 	if err != nil {
 		if err == pgx.ErrNoRows {
+			// Check if grace period is already active (concurrent start by another instance)
+			existing, checkErr := r.GetByTournamentID(ctx, tournamentID)
+			if checkErr == nil && existing != nil && existing.Status == domain.PreLobbyStatusGracePeriod {
+				// Another instance already started the grace period - this is not an error
+				return existing, ErrGracePeriodAlreadyStarted
+			}
+			// Pre-lobby doesn't exist or is in an unexpected status
 			return nil, fmt.Errorf("pre-lobby not found or not in waiting status")
 		}
 		return nil, fmt.Errorf("start grace period: %w", err)
