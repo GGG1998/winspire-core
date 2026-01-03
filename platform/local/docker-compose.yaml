@@ -105,6 +105,7 @@ services:
       - GAME_MANAGEMENT_INTERNAL_API_KEY=IlikeCookies
       - SERVICE_PORT=8085
       - REDIS_ADDR=redis:6379
+      - POSTGRES_DSN=${POSTGRES_DSN:-postgresql://postgres:postgres@host.docker.internal:54322/postgres?sslmode=disable}
     depends_on:
       redis:
         condition: service_healthy
