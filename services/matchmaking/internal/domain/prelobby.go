@@ -1,11 +1,35 @@
 package domain
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+// ParticipantsJSON wraps []PreLobbyParticipant for JSONB storage
+type ParticipantsJSON []PreLobbyParticipant
+
+// Value implements driver.Valuer for JSONB serialization
+func (p ParticipantsJSON) Value() (driver.Value, error) {
+	return json.Marshal(p)
+}
+
+// Scan implements sql.Scanner for JSONB deserialization
+func (p *ParticipantsJSON) Scan(value interface{}) error {
+	if value == nil {
+		*p = nil
+		return nil
+	}
+	b, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(b, p)
+}
 
 // PreLobbyStatus represents the current state of a pre-lobby
 type PreLobbyStatus string

@@ -2,6 +2,9 @@
 package domain
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -30,6 +33,24 @@ type GameSnapshot struct {
 	LogoURL     *string   `json:"logoUrl,omitempty"`
 	Description *string   `json:"description,omitempty"`
 	StoragePath string    `json:"storagePath"`
+}
+
+// Value implements driver.Valuer for JSONB serialization
+// This allows GameSnapshot to be used directly in SQL queries with QueryExecModeSimpleProtocol
+func (gs GameSnapshot) Value() (driver.Value, error) {
+	return json.Marshal(gs)
+}
+
+// Scan implements sql.Scanner for JSONB deserialization
+func (gs *GameSnapshot) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+	b, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(b, gs)
 }
 
 // NewBracket creates a new bracket for a tournament
