@@ -3,6 +3,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -539,6 +540,14 @@ func (s *PreLobbyService) StartGracePeriod(ctx context.Context, tournamentID uui
 	// Update pre-lobby status in database
 	preLobby, err := s.repo.StartGracePeriod(ctx, tournamentID)
 	if err != nil {
+		// Check if another instance already started the grace period (rolling deployment scenario)
+		if errors.Is(err, repository.ErrGracePeriodAlreadyStarted) {
+			s.logger.Info("grace period already started by another instance (idempotent)", map[string]interface{}{
+				"tournament_id": tournamentID.String(),
+			})
+			// Grace period is active - skip setup, another instance handles timer
+			return nil
+		}
 		return fmt.Errorf("start grace period in database: %w", err)
 	}
 
