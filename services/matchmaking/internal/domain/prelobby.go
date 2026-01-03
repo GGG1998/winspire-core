@@ -14,8 +14,14 @@ import (
 type ParticipantsJSON []PreLobbyParticipant
 
 // Value implements driver.Valuer for JSONB serialization
+// IMPORTANT: Must return string, not []byte - pgx treats []byte as bytea (hex encoded)
+// which PostgreSQL cannot parse as JSON. See: https://github.com/jackc/pgx/issues/2231
 func (p ParticipantsJSON) Value() (driver.Value, error) {
-	return json.Marshal(p)
+	bytes, err := json.Marshal(p)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
 }
 
 // Scan implements sql.Scanner for JSONB deserialization

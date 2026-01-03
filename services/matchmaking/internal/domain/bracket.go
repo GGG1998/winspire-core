@@ -37,8 +37,14 @@ type GameSnapshot struct {
 
 // Value implements driver.Valuer for JSONB serialization
 // This allows GameSnapshot to be used directly in SQL queries with QueryExecModeSimpleProtocol
+// IMPORTANT: Must return string, not []byte - pgx treats []byte as bytea (hex encoded)
+// which PostgreSQL cannot parse as JSON. See: https://github.com/jackc/pgx/issues/2231
 func (gs GameSnapshot) Value() (driver.Value, error) {
-	return json.Marshal(gs)
+	bytes, err := json.Marshal(gs)
+	if err != nil {
+		return nil, err
+	}
+	return string(bytes), nil
 }
 
 // Scan implements sql.Scanner for JSONB deserialization
