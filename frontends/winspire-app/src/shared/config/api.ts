@@ -21,5 +21,5 @@
  * Set via VITE_GAME_MANAGEMENT_URL environment variable.
  * Defaults to local development URL through Traefik if not set.
  */
-export const GAME_MANAGEMENT_URL = import.meta.env.VITE_GAME_MANAGEMENT_URL || 'http://localhost';
+export const GAME_MANAGEMENT_URL = import.meta.env.VITE_GAME_MANAGEMENT_URL || 'http://localhost:8087';
 

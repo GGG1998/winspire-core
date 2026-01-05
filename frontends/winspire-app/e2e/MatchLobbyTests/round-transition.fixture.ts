@@ -649,6 +649,7 @@ export async function seedMatchLobby1v1(options: {
   participant1: SeededAccount;
   participant2?: SeededAccount;
   attachSecond?: boolean;
+  gameSlug?: string;
 }): Promise<MatchLobbySeed> {
   const pool = getPool();
   const tournamentId = randomUUID();
@@ -662,7 +663,7 @@ export async function seedMatchLobby1v1(options: {
   await registerPlayers(pool, tournamentId, players);
 
   // === Matchmaking Service Data ===
-  const bracketId = await createBracket(pool, { tournamentId });
+  const bracketId = await createBracket(pool, { tournamentId, gameSlug: options.gameSlug });
 
   const roundId = await createRound(pool, {
     bracketId,

@@ -5,7 +5,6 @@ import { LoadingSpinner } from '../../../shared/components/common/LoadingSpinner
 import { ErrorMessage } from '../../../shared/components/common/ErrorMessage';
 import { ConnectionIndicator } from '../../../shared/components/ConnectionIndicator';
 import { PlayerVsDisplay } from '../components/PlayerVsDisplay';
-import { ReadyButton } from '../components/ReadyButton';
 import { MatchStartCountdown } from '../components/MatchStartCountdown';
 import { GameFrame } from '../components/GameFrame';
 import { MatchResult } from '../components/MatchResult';
@@ -299,26 +298,7 @@ export function MatchLobbyPage() {
           player2Ready={matchState.match.participant2Ready}
         />
 
-        {/* Ready Button Section - Show only in pending status */}
-        {matchState.status === 'pending' && matchState.player1 && matchState.player2 && (
-          <div className="mt-8 flex flex-col items-center">
-            <ReadyButton
-              isReady={localReadyState}
-              isLoading={isReadyLoading}
-              disabled={!matchState.player2} // Disable if opponent not present
-              onClick={toggleReady}
-            />
-
-            {/* Both Players Ready Message */}
-            {matchState.match.participant1Ready && matchState.match.participant2Ready && (
-              <div className="mt-4 rounded-lg border-2 border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-4">
-                <p className="text-center text-green-800 dark:text-green-200 font-semibold">
-                  🎉 Obaj gracze gotowi! Ładowanie gry...
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Ready Button is now shown as overlay inside GameFrame */}
 
         {/* Loading Status - Show when match is in loading state */}
         {matchState.status === 'loading' && (
@@ -377,15 +357,15 @@ export function MatchLobbyPage() {
           </div>
         )}
 
-        {/* Game Iframe - Show when match is loading or started */}
-        {(matchState.status === 'loading' || matchState.status === 'started') && (
+        {/* Game Iframe - Show when both players present (pending, loading, or started) */}
+        {matchState.player1 && matchState.player2 &&
+         (matchState.status === 'pending' || matchState.status === 'loading' || matchState.status === 'started') && (
           <div className="mt-8">
             <GameFrame
               gameUrl={
-                matchState.match.gameUrl ||
-                (matchState.gameSnapshot?.slug 
+                matchState.gameSnapshot?.slug
                   ? `${GAME_MANAGEMENT_URL}/v1/g/${matchState.gameSnapshot.slug}/bundle/`
-                  : '')
+                  : ''
               }
               matchId={matchState.match.id}
               sessionToken={undefined} // TODO: Get session token from auth context
@@ -407,6 +387,16 @@ export function MatchLobbyPage() {
               onGameError={(error) => {
                 console.error('[MatchLobbyPage] Game error:', error);
               }}
+              // Ready overlay props - show only in pending status
+              showReadyOverlay={matchState.status === 'pending'}
+              isPlayerReady={localReadyState}
+              isOpponentReady={
+                user?.id === matchState.player1?.id
+                  ? matchState.match.participant2Ready
+                  : matchState.match.participant1Ready
+              }
+              onReadyClick={toggleReady}
+              isReadyLoading={isReadyLoading}
             />
           </div>
         )}

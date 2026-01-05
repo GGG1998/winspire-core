@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { LoadingSpinner } from '../../../shared/components/common/LoadingSpinner';
+import { ReadyButton } from './ReadyButton';
 import { GAME_IFRAME_CONFIG } from '../constants';
 
 interface GameFrameProps {
@@ -9,6 +10,12 @@ interface GameFrameProps {
   onGameLoaded?: () => void; // Called when game finishes loading
   onGameComplete?: (result: { winnerId: string; score?: number }) => void;
   onGameError?: (error: string) => void;
+  // Ready overlay props
+  showReadyOverlay?: boolean;      // Show ready button overlay when game loaded
+  isPlayerReady?: boolean;         // Current player's ready state
+  isOpponentReady?: boolean;       // Opponent's ready state
+  onReadyClick?: () => void;       // Callback when ready clicked
+  isReadyLoading?: boolean;        // Loading state for ready button
 }
 
 /**
@@ -23,13 +30,18 @@ interface GameFrameProps {
  * - Session token passing via URL parameters
  * - 30-second timeout for load failure
  */
-export function GameFrame({ 
-  gameUrl, 
-  matchId, 
+export function GameFrame({
+  gameUrl,
+  matchId,
   sessionToken,
   onGameLoaded,
-  onGameComplete, 
-  onGameError 
+  onGameComplete,
+  onGameError,
+  showReadyOverlay = false,
+  isPlayerReady = false,
+  isOpponentReady = false,
+  onReadyClick,
+  isReadyLoading = false,
 }: GameFrameProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -234,6 +246,34 @@ export function GameFrame({
             >
               Spróbuj ponownie
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Ready Button Overlay - Show when game loaded but player not ready */}
+      {!isLoading && !error && fullGameUrl && showReadyOverlay && !isPlayerReady && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg z-20">
+          <div className="text-center">
+            <ReadyButton
+              isReady={false}
+              isLoading={isReadyLoading}
+              disabled={false}
+              onClick={onReadyClick}
+            />
+            <p className="mt-4 text-sm text-white/80">
+              Gra załadowana! Kliknij gdy będziesz gotowy.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Waiting for opponent overlay - Show when current player ready but opponent not */}
+      {!isLoading && !error && fullGameUrl && showReadyOverlay && isPlayerReady && !isOpponentReady && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-lg z-20">
+          <div className="text-center">
+            <div className="text-6xl mb-4">✅</div>
+            <p className="text-xl font-semibold text-white mb-2">Jesteś gotowy!</p>
+            <p className="text-sm text-white/80">Oczekiwanie na przeciwnika...</p>
           </div>
         </div>
       )}

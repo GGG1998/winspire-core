@@ -30,11 +30,12 @@ test.describe('Match Lobby websocket readiness', () => {
 
     const context1 = await browser.newContext();
     const page1 = await context1.newPage();
-    
+
     await setupAuth(page1, streamer);
     await page1.goto(seed.lobbyUrl, { waitUntil: 'networkidle' });
 
     // Should show waiting placeholder for opponent and no ready button
+    // GameFrame (and its ready overlay) only appears when both players are present
     await expect(page1.getByRole('heading', { name: 'Czekanie na przeciwnika' })).toBeVisible();
     await expect(page1.getByRole('button', { name: 'Jestem gotowy' })).toHaveCount(0);
 
@@ -62,14 +63,15 @@ test.describe('Match Lobby websocket readiness', () => {
     await expect(page1.getByText('VS')).toBeVisible({ timeout: 10000 });
     await expect(page2.getByText('VS')).toBeVisible({ timeout: 10000 });
 
-    // Both should see "Jestem gotowy!" button when both players are present
-    await expect(page1.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 10000 });
-    await expect(page2.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 10000 });
+    // Both should see "Jestem gotowy!" button as overlay after game loads
+    // Increased timeout since button appears AFTER game iframe loads
+    await expect(page1.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 20000 });
+    await expect(page2.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 20000 });
 
     await Promise.all([ctx1.close(), ctx2.close()]);
   });
 
-  test('clicking ready changes button to cancel ready', async ({ browser }) => {
+  test('clicking ready shows waiting for opponent overlay', async ({ browser }) => {
     const streamer = await getStreamer(2);
     const user = await getUser(2);
     const seed = await seedMatchLobby1v1({ participant1: streamer, participant2: user, attachSecond: true });
@@ -85,27 +87,27 @@ test.describe('Match Lobby websocket readiness', () => {
     await setupAuth(page2, user);
     await page2.goto(seed.lobbyUrl, { waitUntil: 'networkidle' });
 
-    // Wait for lobby to be ready
-    await expect(page1.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 10000 });
-    await expect(page2.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 10000 });
+    // Wait for Ready button overlay to appear (after game loads)
+    await expect(page1.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 20000 });
+    await expect(page2.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 20000 });
 
-    // Player 1 clicks ready - button should change to "Anuluj gotowość"
+    // Player 1 clicks ready - should show "Waiting for opponent" overlay
     await page1.getByRole('button', { name: /Jestem gotowy/i }).click();
-    await expect(page1.getByRole('button', { name: /Anuluj gotowość/i })).toBeVisible({ timeout: 5000 });
+    await expect(page1.getByText('Jesteś gotowy!')).toBeVisible({ timeout: 5000 });
+    await expect(page1.getByText('Oczekiwanie na przeciwnika...')).toBeVisible({ timeout: 5000 });
 
     // Player 2 clicks ready - this triggers both players ready
     // IMPORTANT: When both players are ready, the backend immediately sends match_ready_to_load
-    // which changes status to 'loading' and hides the ReadyButton.
-    // So we need to check for either the button OR the loading state.
+    // which changes status to 'loading' and hides the ready overlay.
     await page2.getByRole('button', { name: /Jestem gotowy/i }).click();
-    
+
     // After player 2 clicks, expect either:
-    // 1. Button changed to "Anuluj gotowość" (if API response arrives before match_ready_to_load)
+    // 1. "Waiting for opponent" overlay (if API response arrives before match_ready_to_load)
     // 2. OR loading state appears (if match_ready_to_load arrives first - which is the common case)
-    const cancelButton = page2.getByRole('button', { name: /Anuluj gotowość/i });
-    const loadingText = page2.getByText(/Ładowanie gry|Obaj gracze gotowi/i);
-    
-    await expect(cancelButton.or(loadingText)).toBeVisible({ timeout: 5000 });
+    const waitingOverlay = page2.getByText('Jesteś gotowy!');
+    const loadingText = page2.getByText(/Ładowanie gry|Status: Ładowanie gry/i);
+
+    await expect(waitingOverlay.or(loadingText)).toBeVisible({ timeout: 5000 });
 
     await Promise.all([ctx1.close(), ctx2.close()]);
   });
@@ -147,7 +149,7 @@ test.describe('Match Lobby websocket readiness', () => {
     // Context for player 2 (user) - will click ready
     const ctx2 = await browser.newContext();
     const page2 = await ctx2.newPage();
-    
+
     // Monitor ready API on page2
     let readyApiStatus: number | null = null;
     page2.on('response', (res) => {
@@ -160,15 +162,15 @@ test.describe('Match Lobby websocket readiness', () => {
     await setupAuth(page2, user);
     await page2.goto(seed.lobbyUrl, { waitUntil: 'networkidle' });
 
-    // Wait for lobby to load
-    await expect(page1.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 10000 });
-    await expect(page2.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 10000 });
+    // Wait for Ready button overlay to appear (after game loads)
+    await expect(page1.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 20000 });
+    await expect(page2.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 20000 });
 
     // Player 2 clicks ready
     await page2.getByRole('button', { name: /Jestem gotowy/i }).click();
-    
-    // Wait for button change (local UI update)
-    await expect(page2.getByRole('button', { name: /Anuluj gotowość/i })).toBeVisible({ timeout: 5000 });
+
+    // Wait for "Waiting for opponent" overlay (local UI update)
+    await expect(page2.getByText('Jesteś gotowy!')).toBeVisible({ timeout: 5000 });
 
     // Give WebSocket time to deliver the message
     await page1.waitForTimeout(3000);
@@ -180,9 +182,9 @@ test.describe('Match Lobby websocket readiness', () => {
 
     // Find ready_updated message
     const readyUpdatedMsg = wsMessages.find((m) => m.type === 'ready_updated');
-    
+
     // Assert we received the event
-    expect(readyUpdatedMsg, 
+    expect(readyUpdatedMsg,
       `Expected 'ready_updated' WebSocket event.\n` +
       `WS messages: ${wsMessages.map(m => m.type).join(', ') || 'none'}\n` +
       `Ready API status: ${readyApiStatus || 'N/A'}\n` +
@@ -208,8 +210,9 @@ test.describe('Match Lobby websocket readiness', () => {
     await setupAuth(page2, user);
     await page2.goto(seed.lobbyUrl, { waitUntil: 'networkidle' });
 
-    await expect(page1.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 10000 });
-    await expect(page2.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 10000 });
+    // Wait for Ready button overlay to appear (after game loads)
+    await expect(page1.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 20000 });
+    await expect(page2.getByRole('button', { name: /Jestem gotowy/i })).toBeVisible({ timeout: 20000 });
 
     // Both click ready
     await page1.getByRole('button', { name: /Jestem gotowy/i }).click();
