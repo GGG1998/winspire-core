@@ -80,7 +80,7 @@ func main() {
 	// Initialize repositories
 	gameRepo := repository.NewGameRepository(pool)
 
-	s3Client, err := storage.NewS3Client(cfg.AWSRegion, cfg.AWSS3Bucket, cfg.AWSAccessKeyID, cfg.AWSSecretAccessKey)
+	s3Client, err := storage.NewS3Client(cfg.AWSRegion, cfg.AWSS3Bucket, cfg.AWSAccessKeyID, cfg.AWSSecretAccessKey, cfg.AWSEndpoint)
 	if err != nil {
 		logger.Error("failed to create S3 client", "error", err)
 		os.Exit(1)

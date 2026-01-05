@@ -24,6 +24,7 @@ type Config struct {
 	AWSS3Bucket        string
 	AWSAccessKeyID     string
 	AWSSecretAccessKey string
+	AWSEndpoint        string
 
 	// JWT configuration for authentication
 	HostJWTSecret   string
@@ -58,6 +59,7 @@ func Load() (Config, error) {
 		AWSS3Bucket:           valueOrDefault("AWS_S3_BUCKET", "games"),
 		AWSAccessKeyID:        valueOrDefault("AWS_ACCESS_KEY_ID", ""),
 		AWSSecretAccessKey:    valueOrDefault("AWS_SECRET_ACCESS_KEY", ""),
+		AWSEndpoint:           valueOrDefault("AWS_ENDPOINT", valueOrDefault("AWS_ENDPOINT_URL", "")),
 		InternalServiceAPIKey: valueOrDefault("GAME_MANAGEMENT_INTERNAL_API_KEY", ""),
 		LogLevel:              valueOrDefault("LOG_LEVEL", "info"),
 		CORSAllowedOrigins:    stringsFromEnv("CORS_ALLOWED_ORIGINS", []string{"*"}),

@@ -132,9 +132,6 @@ export function GameFrame({
 
         // Handle game ready signal (game finished loading)
         if (message.type === 'game_ready' || message.type === 'GAME_READY') {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/79a701eb-2b46-4fc0-9477-fca1e4d8fd71',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GameFrame.tsx:135',message:'game_ready matched',data:{gameLoadedCalled,hasOnGameLoaded:!!onGameLoaded},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-          // #endregion
           console.log('[GameFrame] Game ready signal received from iframe');
           setIsLoading(false);
           setError(null);

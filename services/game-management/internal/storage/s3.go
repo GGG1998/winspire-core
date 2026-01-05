@@ -36,6 +36,7 @@ type S3Client struct {
 	presignClient *s3.PresignClient
 	bucket        string
 	region        string
+	endpoint      string
 }
 
 // BundleFile represents a static asset stored in S3.
@@ -44,8 +45,8 @@ type BundleFile struct {
 	Content     []byte
 }
 
-// NewS3Client creates a new S3 client with the provided credentials.
-func NewS3Client(region, bucket, accessKeyID, secretAccessKey string) (*S3Client, error) {
+// NewS3Client creates a new S3 client with the provided credentials and optional endpoint.
+func NewS3Client(region, bucket, accessKeyID, secretAccessKey, endpoint string) (*S3Client, error) {
 	var cfg aws.Config
 	var err error
 
@@ -72,6 +73,10 @@ func NewS3Client(region, bucket, accessKeyID, secretAccessKey string) (*S3Client
 	s3Client := s3.NewFromConfig(cfg, func(o *s3.Options) {
 		// Allow buckets provided as access point ARNs
 		o.UseARNRegion = true
+		if endpoint != "" {
+			o.BaseEndpoint = aws.String(endpoint)
+			o.UsePathStyle = true
+		}
 	})
 
 	return &S3Client{
@@ -79,6 +84,7 @@ func NewS3Client(region, bucket, accessKeyID, secretAccessKey string) (*S3Client
 		presignClient: s3.NewPresignClient(s3Client),
 		bucket:        bucket,
 		region:        region,
+		endpoint:      endpoint,
 	}, nil
 }
 
@@ -325,6 +331,9 @@ func (c *S3Client) DeleteFolder(ctx context.Context, folderPrefix string) error 
 
 // GetPublicURL returns the public URL for a file in S3.
 func (c *S3Client) GetPublicURL(s3Path string) string {
+	if c.endpoint != "" {
+		return fmt.Sprintf("%s/%s/%s", strings.TrimSuffix(c.endpoint, "/"), c.bucket, s3Path)
+	}
 	return fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", c.bucket, c.region, s3Path)
 }
 

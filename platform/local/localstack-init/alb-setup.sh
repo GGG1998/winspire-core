@@ -21,6 +21,10 @@ until awslocal sts get-caller-identity &>/dev/null; do
 done
 echo "LocalStack is ready!"
 
+# Create S3 buckets
+echo "Creating S3 bucket: games"
+awslocal s3 mb s3://games || echo "Bucket games already exists"
+
 # Configuration
 REGION="eu-central-1"
 VPC_CIDR="10.0.0.0/16"

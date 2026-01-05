@@ -121,3 +121,53 @@ func TestGetBundleFileRequiresBasePath(t *testing.T) {
 		t.Fatal("expected error when base path is empty")
 	}
 }
+
+func TestGetPublicURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		bucket   string
+		region   string
+		endpoint string
+		path     string
+		expected string
+	}{
+		{
+			name:     "Standard AWS URL",
+			bucket:   "my-bucket",
+			region:   "us-east-1",
+			endpoint: "",
+			path:     "games/v1/app.js",
+			expected: "https://my-bucket.s3.us-east-1.amazonaws.com/games/v1/app.js",
+		},
+		{
+			name:     "LocalStack URL",
+			bucket:   "games",
+			region:   "eu-central-1",
+			endpoint: "http://localhost:4566",
+			path:     "test/index.html",
+			expected: "http://localhost:4566/games/test/index.html",
+		},
+		{
+			name:     "LocalStack URL with trailing slash in endpoint",
+			bucket:   "games",
+			region:   "eu-central-1",
+			endpoint: "http://localhost:4566/",
+			path:     "test/index.html",
+			expected: "http://localhost:4566/games/test/index.html",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &S3Client{
+				bucket:   tt.bucket,
+				region:   tt.region,
+				endpoint: tt.endpoint,
+			}
+			got := c.GetPublicURL(tt.path)
+			if got != tt.expected {
+				t.Errorf("GetPublicURL() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}

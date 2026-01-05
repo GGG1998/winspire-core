@@ -20,7 +20,7 @@ services:
       - "80:4566"             # HTTP proxy to ALB
       - "4510-4559:4510-4559" # External service ports
     environment:
-      - SERVICES=elbv2,ec2,sts
+      - SERVICES=elbv2,ec2,sts,s3
       - DEBUG=${LOCALSTACK_DEBUG:-0}
       - DOCKER_HOST=unix:///var/run/docker.sock
       - LOCALSTACK_HOST=localhost
@@ -106,6 +106,7 @@ services:
       - SERVICE_PORT=8085
       - REDIS_ADDR=redis:6379
       - POSTGRES_DSN=${POSTGRES_DSN:-postgresql://postgres:postgres@host.docker.internal:54322/postgres?sslmode=disable}
+      - AWS_ENDPOINT=http://localstack:4566
     depends_on:
       redis:
         condition: service_healthy
