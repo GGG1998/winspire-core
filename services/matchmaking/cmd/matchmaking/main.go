@@ -20,6 +20,8 @@ import (
 
 	"github.com/winspire-core/services/matchmaking/internal/application"
 	"github.com/winspire-core/services/matchmaking/internal/config"
+	"github.com/winspire-core/services/matchmaking/internal/games"
+	gamehandlers "github.com/winspire-core/services/matchmaking/internal/games/handlers"
 	httphandlers "github.com/winspire-core/services/matchmaking/internal/http"
 	"github.com/winspire-core/services/matchmaking/internal/observability"
 	"github.com/winspire-core/services/matchmaking/internal/pubsub"
@@ -115,6 +117,32 @@ func main() {
 
 	// Initialize event publisher
 	publisher := pubsub.NewEventPublisher(redisClient)
+
+	// Initialize S3 client for game bundle storage (optional - may be nil if not configured)
+	var s3Client *games.S3Client
+	if cfg.AWSS3Bucket != "" {
+		var s3Err error
+		s3Client, s3Err = games.NewS3Client(
+			cfg.AWSRegion,
+			cfg.AWSS3Bucket,
+			cfg.AWSAccessKeyID,
+			cfg.AWSSecretAccessKey,
+			cfg.AWSEndpoint, // For LocalStack
+		)
+		if s3Err != nil {
+			logger.Warn("S3 client initialization failed - game bundle features disabled", map[string]interface{}{
+				"error": s3Err.Error(),
+			})
+		} else {
+			logger.Info("S3 client initialized", map[string]interface{}{
+				"bucket": cfg.AWSS3Bucket,
+				"region": cfg.AWSRegion,
+			})
+		}
+	}
+
+	// Initialize game repository
+	gameRepo := games.NewGameRepository(queries, pool)
 
 	// Initialize repositories
 	bracketRepo := repository.NewBracketRepository(queries, pool, pool) // queries, db (DBTX), pool
@@ -220,6 +248,30 @@ func main() {
 	router.GET("/health", healthHandler.HandleHealth)
 	router.GET("/ready", healthHandler.HandleReadiness)
 	router.GET("/live", healthHandler.HandleLiveness)
+
+	// ==========================================
+	// Game Management Routes (merged from game-management service)
+	// ==========================================
+
+	// Public game routes (no auth required)
+	v1 := router.Group("/v1")
+	gamehandlers.RegisterGameRoutes(v1, gamehandlers.GameDeps{
+		Repo: gameRepo,
+	})
+
+	// Bundle streaming routes (no auth, allows iframe embedding)
+	gamehandlers.RegisterBundleRoutes(v1, gamehandlers.BundleDeps{
+		Repo:    gameRepo,
+		Storage: s3Client,
+	})
+
+	// Admin game routes (internal API key auth)
+	admin := router.Group("/v1/admin")
+	admin.Use(InternalAPIKeyMiddleware(cfg.GameManagementInternalAPIKey))
+	gamehandlers.RegisterAdminRoutes(admin, gamehandlers.AdminDeps{
+		Repo:    gameRepo,
+		Storage: s3Client,
+	})
 
 	// Initialize tournament service client (for fetching tournament info)
 	competitionClient := application.NewCompetitionClient(cfg.CompetitionServiceURL, logger)
@@ -410,4 +462,33 @@ type RedisHealthChecker struct {
 
 func (r *RedisHealthChecker) Health(ctx context.Context) error {
 	return r.client.Ping(ctx).Err()
+}
+
+// InternalAPIKeyMiddleware validates the X-Internal-API-Key header for admin routes.
+// This is used for service-to-service authentication and admin operations.
+func InternalAPIKeyMiddleware(expectedKey string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Skip auth if no key is configured (dev mode)
+		if expectedKey == "" {
+			c.Next()
+			return
+		}
+
+		apiKey := c.GetHeader("X-Internal-API-Key")
+		if apiKey == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "missing X-Internal-API-Key header",
+			})
+			return
+		}
+
+		if apiKey != expectedKey {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "invalid API key",
+			})
+			return
+		}
+
+		c.Next()
+	}
 }

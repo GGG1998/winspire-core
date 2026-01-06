@@ -100,7 +100,7 @@ CREATE TABLE prelobby_activity_feed (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tournament_id UUID NOT NULL REFERENCES prelobbies(tournament_id) ON DELETE CASCADE,
     event_type VARCHAR(50) NOT NULL CHECK (
-        event_type IN ('participant_joined', 'participant_left', 'grace_period_started', 
+        event_type IN ('participant_joined', 'participant_left', 'grace_period_started',
                        'grace_period_ended', 'bracket_generation', 'tournament_cancelled', 'system_message')
     ),
     message TEXT NOT NULL,
@@ -108,3 +108,19 @@ CREATE TABLE prelobby_activity_feed (
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+-- ============================================================================
+-- Games Table (BC: GameLibrary - merged from game-management service)
+-- ============================================================================
+CREATE TABLE games (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    game_integration_id UUID UNIQUE,
+    slug TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    logo_url TEXT,
+    storage_path TEXT NOT NULL,
+    version TEXT NOT NULL DEFAULT '1.0.0',
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);

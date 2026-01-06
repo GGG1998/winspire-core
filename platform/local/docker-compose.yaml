@@ -2,13 +2,13 @@
 # Usage: cd platform/local && docker-compose up
 #
 # Routing Configuration:
-#   http://localhost/v1/games*, /v1/g/*, /v1/admin* -> game-management:8085
+#   http://localhost/v1/games*, /v1/g/*, /v1/admin* -> matchmaking:8081 (merged from game-management)
 #   http://localhost/v1/matchmaking*                -> matchmaking:8081
 #   http://localhost/v1/* (default)                 -> tournament:8089
 #
 # Direct service access (for E2E tests):
 #   http://localhost:8089 -> tournament
-#   http://localhost:8088 -> matchmaking
+#   http://localhost:8088 -> matchmaking (includes game management APIs)
 
 services:
   # LocalStack - AWS Local Emulation (replaces Traefik)
@@ -91,39 +91,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  # Game Management Service
-  game-management:
-    build:
-      context: ../..
-      dockerfile: services/game-management/cmd/game-management/Dockerfile.dev
-    container_name: game-management
-    env_file:
-      - .env
-    ports:
-      - "8087:8085"  # Direct access for local development (8087 externally -> 8085 internally)
-    environment:
-      - GAME_MANAGEMENT_INTERNAL_API_KEY=IlikeCookies
-      - SERVICE_PORT=8085
-      - REDIS_ADDR=redis:6379
-      - POSTGRES_DSN=${POSTGRES_DSN:-postgresql://postgres:postgres@host.docker.internal:54322/postgres?sslmode=disable}
-      - AWS_ENDPOINT=http://localstack:4566
-    depends_on:
-      redis:
-        condition: service_healthy
-      localstack:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8085/healthz"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    networks:
-      - winspire-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  # Matchmaking Service
+  # Matchmaking Service (includes merged game-management functionality)
   matchmaking:
     build:
       context: ../..
@@ -142,9 +110,16 @@ services:
       - HOST_JWT_ISSUER=${HOST_JWT_ISSUER:-https://your-project.supabase.co/auth/v1}
       - HOST_JWT_AUDIENCE=${HOST_JWT_AUDIENCE:-authenticated}
       - TOURNAMENT_SERVICE_URL=http://tournament:8089
-      - GAME_MANAGEMENT_URL=http://game-management:8085
+      - GAME_MANAGEMENT_URL=http://localhost:8088
       - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      # Game Management (merged from game-management service)
+      - GAME_MANAGEMENT_INTERNAL_API_KEY=IlikeCookies
+      - AWS_REGION=${AWS_REGION:-eu-central-1}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-games}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-test}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-test}
+      - AWS_ENDPOINT=http://localstack:4566
     depends_on:
       redis:
         condition: service_healthy
@@ -185,20 +160,17 @@ services:
 
         # Get container IPs using DNS resolution
         TOURNAMENT_IP=$$(getent hosts tournament | awk '{ print $$1 }')
-        GAME_MGMT_IP=$$(getent hosts game-management | awk '{ print $$1 }')
         MATCHMAKING_IP=$$(getent hosts matchmaking | awk '{ print $$1 }')
 
         echo "Container IPs:"
         echo "  Tournament: $$TOURNAMENT_IP"
-        echo "  Game Management: $$GAME_MGMT_IP"
-        echo "  Matchmaking: $$MATCHMAKING_IP"
+        echo "  Matchmaking: $$MATCHMAKING_IP (includes game management)"
 
         # Get target group ARNs
         TG_TOURNAMENT=$$(aws --endpoint-url=http://localstack:4566 elbv2 describe-target-groups --names tournament-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
-        TG_GAME_MGMT=$$(aws --endpoint-url=http://localstack:4566 elbv2 describe-target-groups --names game-management-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
         TG_MATCHMAKING=$$(aws --endpoint-url=http://localstack:4566 elbv2 describe-target-groups --names matchmaking-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
 
-        if [ -z "$$TG_TOURNAMENT" ] || [ -z "$$TG_GAME_MGMT" ] || [ -z "$$TG_MATCHMAKING" ]; then
+        if [ -z "$$TG_TOURNAMENT" ] || [ -z "$$TG_MATCHMAKING" ]; then
             echo "ERROR: Could not find all target groups"
             exit 1
         fi
@@ -208,11 +180,6 @@ services:
         aws --endpoint-url=http://localstack:4566 elbv2 register-targets \
             --target-group-arn "$$TG_TOURNAMENT" \
             --targets Id="$$TOURNAMENT_IP",Port=8089
-
-        echo "Registering game-management ($$GAME_MGMT_IP:8085)..."
-        aws --endpoint-url=http://localstack:4566 elbv2 register-targets \
-            --target-group-arn "$$TG_GAME_MGMT" \
-            --targets Id="$$GAME_MGMT_IP",Port=8085
 
         echo "Registering matchmaking ($$MATCHMAKING_IP:8081)..."
         aws --endpoint-url=http://localstack:4566 elbv2 register-targets \
@@ -226,7 +193,7 @@ services:
         echo ""
         echo "Test routing:"
         echo "  curl http://localhost/v1/cups           # -> tournament"
-        echo "  curl http://localhost/v1/games          # -> game-management"
+        echo "  curl http://localhost/v1/games          # -> matchmaking (game management merged)"
         echo "  curl http://localhost/v1/matchmaking/health  # -> matchmaking"
         echo ""
 
@@ -241,8 +208,6 @@ services:
       localstack:
         condition: service_healthy
       tournament:
-        condition: service_healthy
-      game-management:
         condition: service_healthy
       matchmaking:
         condition: service_healthy

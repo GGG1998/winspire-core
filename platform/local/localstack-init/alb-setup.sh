@@ -3,8 +3,8 @@
 # This script runs automatically when LocalStack starts (via /etc/localstack/init/ready.d/)
 # Creates VPC, subnets, security group, ALB, target groups, and routing rules
 #
-# Routing Configuration (matches Traefik config):
-#   - /v1/games*, /v1/g*, /v1/admin* -> game-management:8085 (priority 100)
+# Routing Configuration:
+#   - /v1/games*, /v1/g*, /v1/admin* -> matchmaking:8081 (priority 100) [game-management merged]
 #   - /v1/matchmaking* -> matchmaking:8081 (priority 101)
 #   - /v1/* -> tournament:8089 (default action)
 
@@ -132,23 +132,7 @@ TG_TOURNAMENT=$(awslocal elbv2 create-target-group \
     --output text)
 echo "Created Tournament TG: $TG_TOURNAMENT"
 
-# Game Management service (/v1/games, /v1/g, /v1/admin)
-TG_GAME_MGMT=$(awslocal elbv2 create-target-group \
-    --name game-management-tg \
-    --protocol HTTP \
-    --port 8085 \
-    --vpc-id "$VPC_ID" \
-    --target-type ip \
-    --health-check-path /healthz \
-    --health-check-interval-seconds 30 \
-    --health-check-timeout-seconds 5 \
-    --healthy-threshold-count 2 \
-    --unhealthy-threshold-count 2 \
-    --query 'TargetGroups[0].TargetGroupArn' \
-    --output text)
-echo "Created Game Management TG: $TG_GAME_MGMT"
-
-# Matchmaking service (/v1/matchmaking)
+# Matchmaking service (includes merged game-management: /v1/games, /v1/g, /v1/admin, /v1/matchmaking)
 TG_MATCHMAKING=$(awslocal elbv2 create-target-group \
     --name matchmaking-tg \
     --protocol HTTP \
@@ -180,14 +164,14 @@ LISTENER_ARN=$(awslocal elbv2 create-listener \
     --output text)
 echo "Created listener: $LISTENER_ARN"
 
-# Rule 1: /v1/games*, /v1/g*, /v1/admin* -> game-management (priority 100)
+# Rule 1: /v1/games*, /v1/g*, /v1/admin* -> matchmaking (priority 100) [game-management merged]
 awslocal elbv2 create-rule \
     --listener-arn "$LISTENER_ARN" \
     --priority 100 \
     --conditions '[{"Field":"path-pattern","PathPatternConfig":{"Values":["/v1/games*","/v1/g/*","/v1/admin*"]}}]' \
-    --actions Type=forward,TargetGroupArn="$TG_GAME_MGMT" \
+    --actions Type=forward,TargetGroupArn="$TG_MATCHMAKING" \
     > /dev/null
-echo "Created rule: /v1/games*, /v1/g/*, /v1/admin* -> game-management (priority 100)"
+echo "Created rule: /v1/games*, /v1/g/*, /v1/admin* -> matchmaking (priority 100) [game-management merged]"
 
 # Rule 2: /v1/matchmaking* -> matchmaking (priority 101)
 awslocal elbv2 create-rule \
@@ -216,7 +200,6 @@ ALB_ARN=$ALB_ARN
 ALB_DNS=$ALB_DNS
 LISTENER_ARN=$LISTENER_ARN
 TG_TOURNAMENT=$TG_TOURNAMENT
-TG_GAME_MGMT=$TG_GAME_MGMT
 TG_MATCHMAKING=$TG_MATCHMAKING
 EOF
 
@@ -231,7 +214,7 @@ echo "ALB Setup Complete!"
 echo "============================================"
 echo ""
 echo "Routing Configuration:"
-echo "  /v1/games*, /v1/g/*, /v1/admin* -> game-management:8085"
+echo "  /v1/games*, /v1/g/*, /v1/admin* -> matchmaking:8081 (game-management merged)"
 echo "  /v1/matchmaking*                -> matchmaking:8081"
 echo "  /v1/* (default)                 -> tournament:8089"
 echo ""

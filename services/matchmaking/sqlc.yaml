@@ -7,6 +7,7 @@ sql:
       - "internal/store/round_queries.sql"
       - "internal/store/match_queries.sql"
       - "internal/store/prelobby_queries.sql"
+      - "internal/store/game_queries.sql"
     gen:
       go:
         package: "sqlc"

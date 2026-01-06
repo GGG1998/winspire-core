@@ -42,8 +42,17 @@ type Config struct {
 	// Tournament Service
 	CompetitionServiceURL string
 
-	// Game Management Service
-	GameManagementURL string
+	// Game Management Service (merged into matchmaking)
+	GameManagementURL            string // Kept for backward compatibility during transition
+	GameManagementInternalAPIKey string // API key for internal/admin endpoints
+
+	// AWS S3 Configuration (for game bundle storage)
+	AWSRegion          string
+	AWSS3Bucket        string
+	AWSAccessKeyID     string
+	AWSSecretAccessKey string
+	AWSEndpoint        string // For LocalStack or custom S3-compatible storage
+	BundleCacheTTL     time.Duration
 
 	// Observability
 	LogLevel            string
@@ -103,8 +112,17 @@ func Load() (*Config, error) {
 		// Tournament Service
 		CompetitionServiceURL: getEnv("TOURNAMENT_SERVICE_URL", "http://localhost:8089"),
 
-		// Game Management Service
-		GameManagementURL: getEnv("GAME_MANAGEMENT_URL", "http://localhost:8087"),
+		// Game Management Service (merged into matchmaking)
+		GameManagementURL:            getEnv("GAME_MANAGEMENT_URL", "http://localhost:8088"),
+		GameManagementInternalAPIKey: getEnv("GAME_MANAGEMENT_INTERNAL_API_KEY", ""),
+
+		// AWS S3 Configuration (for game bundle storage)
+		AWSRegion:          getEnv("AWS_REGION", "eu-central-1"),
+		AWSS3Bucket:        getEnv("AWS_S3_BUCKET", "games"),
+		AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
+		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
+		AWSEndpoint:        getEnv("AWS_ENDPOINT", ""), // Empty means use AWS default
+		BundleCacheTTL:     getEnvAsDuration("BUNDLE_CACHE_TTL", 1*time.Hour),
 
 		// Observability
 		LogLevel:            getEnv("LOG_LEVEL", "debug"),
