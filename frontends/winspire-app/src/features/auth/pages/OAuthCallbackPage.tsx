@@ -34,68 +34,88 @@ export function OAuthCallbackPage() {
     let timeoutId: ReturnType<typeof setTimeout>;
     let unsubscribe: (() => void) | null = null;
 
+    // Helper function to process session and navigate
+    const processSessionAndNavigate = async (session: NonNullable<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>) => {
+      try {
+        const result = await handleOAuthCallback();
+
+        if (result.error || !result.user) {
+          console.error('[OAuthCallbackPage] Profile processing failed:', result.error);
+          setError(result.error?.message || 'Authentication failed');
+          const loginUrl = getLoginUrl(result.user?.profileType || session?.user?.app_metadata?.provider);
+          setTimeout(() => {
+            navigate(loginUrl);
+          }, 3000);
+          return;
+        }
+
+        // Refresh the auth context with the new user
+        await refreshUser();
+
+        // Check if user has completed their profile (nickname is required)
+        if (!result.user.profile.nickname || result.user.profile.nickname.trim() === '') {
+          navigate('/auth/complete-profile', { replace: true });
+          return;
+        }
+
+        // Profile complete, redirect to profile page
+        navigate('/auth/profile', { replace: true });
+      } catch (err) {
+        console.error('[OAuthCallbackPage] Error during profile processing:', err);
+        setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+        const loginUrl = getLoginUrl(session?.user?.app_metadata?.provider);
+        setTimeout(() => {
+          navigate(loginUrl);
+        }, 3000);
+      }
+    };
+
     const handleCallback = async () => {
       try {
+        // FIRST: Check if we already have a valid session (handles StrictMode remount)
+        const { data: { session: existingSession } } = await supabase.auth.getSession();
+        if (existingSession && !handledRef.current) {
+          handledRef.current = true;
+          await processSessionAndNavigate(existingSession);
+          return;
+        }
+
+        // Extract auth code from URL BEFORE setting up listeners
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+
+        // If no code and no session, something is wrong
+        if (!code && !existingSession) {
+          console.error('[OAuthCallbackPage] No code or session found');
+          setError('Authentication failed. Please try again.');
+          setTimeout(() => {
+            navigate(getLoginUrl(undefined));
+          }, 3000);
+          return;
+        }
+
         // Set a timeout in case Supabase never fires the auth event
         timeoutId = setTimeout(async () => {
+          if (handledRef.current) return;
           console.error('[OAuthCallbackPage] Timeout waiting for session establishment');
           setError('Authentication timeout. Please try again.');
-          // Try to determine the login URL from any existing session
           const { data: { session } } = await supabase.auth.getSession();
           const provider = session?.user?.app_metadata?.provider;
           setTimeout(() => {
             navigate(getLoginUrl(provider));
           }, 3000);
-        }, 15000); // 15 second timeout
+        }, 15000);
 
         // Listen for auth state changes from Supabase
-        // Set up listener BEFORE exchanging code so we don't miss the SIGNED_IN event
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-          // Only process SIGNED_IN event (when OAuth callback is processed)
           if (event === 'SIGNED_IN' && session && !handledRef.current) {
             handledRef.current = true;
             clearTimeout(timeoutId);
-            
-            try {
-              const result = await handleOAuthCallback();
-
-              if (result.error || !result.user) {
-                console.error('[OAuthCallbackPage] Profile processing failed:', result.error);
-                setError(result.error?.message || 'Authentication failed');
-                const loginUrl = getLoginUrl(result.user?.profileType || session?.user?.app_metadata?.provider);
-                setTimeout(() => {
-                  navigate(loginUrl);
-                }, 3000);
-                return;
-              }
-
-              // Refresh the auth context with the new user
-              await refreshUser();
-
-              // Check if user has completed their profile (nickname is required)
-              if (!result.user.profile.nickname || result.user.profile.nickname.trim() === '') {
-                navigate('/auth/complete-profile');
-                return;
-              }
-
-              // Profile complete, redirect to home page
-              navigate('/');
-            } catch (err) {
-              console.error('[OAuthCallbackPage] Error during profile processing:', err);
-              setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-              const loginUrl = getLoginUrl(session?.user?.app_metadata?.provider);
-              setTimeout(() => {
-                navigate(loginUrl);
-              }, 3000);
-            }
+            await processSessionAndNavigate(session);
           }
         });
 
         unsubscribe = subscription.unsubscribe;
-
-        // PKCE flow: Extract auth code from URL query parameter and exchange it for a session
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
 
         if (code) {
           // Clean up URL to prevent issues on refresh (code can only be used once)
@@ -104,51 +124,19 @@ export function OAuthCallbackPage() {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           if (exchangeError) {
             console.error('[OAuthCallbackPage] Failed to exchange code for session:', exchangeError);
+            handledRef.current = true;
             clearTimeout(timeoutId);
             setError('Authentication failed. Please try again.');
-            // When exchange fails, we don't have session data to determine provider
-            // Default to user login (most common case for Google OAuth)
             setTimeout(() => {
               navigate(getLoginUrl(undefined));
             }, 3000);
             return;
           }
           // After successful exchange, the onAuthStateChange listener will fire SIGNED_IN
-          // and handle the rest of the flow, so we can return here
-          return;
-        }
-
-        // Check if session already exists (in case event already fired, e.g., hash fragment flow)
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session && !handledRef.current) {
-          handledRef.current = true;
-          clearTimeout(timeoutId);
-          
-          const result = await handleOAuthCallback();
-
-          if (result.error || !result.user) {
-            console.error('[OAuthCallbackPage] Profile processing failed:', result.error);
-            setError(result.error?.message || 'Authentication failed');
-            const loginUrl = getLoginUrl(result.user?.profileType || session?.user?.app_metadata?.provider);
-            setTimeout(() => {
-              navigate(loginUrl);
-            }, 3000);
-            return;
-          }
-
-          await refreshUser();
-
-          if (!result.user.profile.nickname || result.user.profile.nickname.trim() === '') {
-            navigate('/auth/complete-profile');
-            return;
-          }
-
-          navigate('/');
         }
       } catch (err) {
         console.error('[OAuthCallbackPage] Unexpected error:', err);
         setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-        // Try to get session to determine the right login URL
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         const loginUrl = getLoginUrl(currentSession?.user?.app_metadata?.provider);
         setTimeout(() => {
