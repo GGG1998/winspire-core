@@ -124,3 +124,76 @@ CREATE TABLE games (
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- ============================================================================
+-- Tournament Service Tables (Consolidated)
+-- ============================================================================
+
+-- Hosts representing organizations or individuals
+CREATE TABLE hosts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    logo_url VARCHAR(512),
+    website_url VARCHAR(512),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- User permissions for hosts
+CREATE TABLE host_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    host_id UUID NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL,
+    role VARCHAR(50) NOT NULL CHECK (role IN ('owner', 'admin', 'member')),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE(host_id, user_id)
+);
+
+-- Tournaments hosted by organizations
+CREATE TABLE tournaments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    host_id UUID NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    external_id VARCHAR(255),
+    status VARCHAR(50) NOT NULL DEFAULT 'draft' CHECK (
+        status IN ('draft', 'scheduled', 'registration_open', 'registration_closed', 'started', 'completed', 'cancelled')
+    ),
+    scheduled_start_time_at TIMESTAMP,
+    registration_window_open_at TIMESTAMP,
+    actual_start_time_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    cancelled_at TIMESTAMP,
+    minimum_team_count INTEGER DEFAULT 8,
+    maximum_team_count INTEGER,
+    team_size INTEGER NOT NULL DEFAULT 1,
+    auto_force_ready BOOLEAN DEFAULT true,
+    game_id UUID,
+    space_id UUID,
+    template_id UUID,
+    ready_window JSONB,
+    prize JSONB,
+    game_snapshot JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Participant registrations for tournaments
+CREATE TABLE tournament_registrations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tournament_id UUID NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL,
+    team_id UUID,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (
+        status IN ('pending', 'registered', 'confirmed', 'checked_in', 'withdrawn', 'disqualified')
+    ),
+    display_name VARCHAR(255) NOT NULL,
+    avatar_url TEXT,
+    checked_in_at TIMESTAMP,
+    is_ready BOOLEAN DEFAULT false,
+    registered_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE(tournament_id, user_id)
+);

@@ -4,7 +4,7 @@ interface ReadyButtonProps {
   isReady: boolean;
   isLoading?: boolean;
   disabled?: boolean;
-  onClick: () => void;
+  onClick?: () => void;
 }
 
 /**
