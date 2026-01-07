@@ -179,10 +179,9 @@ module "redis" {
   private_subnet_ids = module.vpc.private_subnet_ids
 
   # Allow ECS services to access Redis
+  # MONOLITH MODE: Only matchmaking service (includes game-management + tournament)
   allowed_security_groups = [
-    module.tournament.security_group_id,
     module.matchmaking.security_group_id,
-    module.game_management.security_group_id,
   ]
 
   # Dev settings - smallest instance
@@ -197,58 +196,11 @@ module "redis" {
   tags = { Team = "Platform" }
 }
 
-# Tournament Service
-module "tournament" {
-  source = "../../modules/ecs-service"
+# =============================================================================
+# MONOLITH MODE: Tournament + Game Management merged into Matchmaking
+# =============================================================================
 
-  environment            = "dev"
-  service_name           = "tournament"
-  ecs_cluster_id         = aws_ecs_cluster.main.id
-  ecs_cluster_name       = aws_ecs_cluster.main.name
-  vpc_id                 = module.vpc.vpc_id
-  private_subnet_ids     = module.vpc.public_subnet_ids  # Public for internet access
-  assign_public_ip       = true
-  alb_security_group_id  = module.alb.alb_security_group_id
-
-  container_image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/dev-winspire-tournament:latest"
-  container_port  = 8089
-
-  # Minimal Fargate size (0.25 vCPU, 512MB) - ~$9/month per task
-  task_cpu    = 256
-  task_memory = 512
-
-  # Scale from 1 to 10 (min 1 required for ECS API compatibility)
-  desired_count = 1
-  min_capacity  = 1
-  max_capacity  = 10
-
-  enable_sticky_sessions = true
-  sticky_session_duration = 3600
-
-  environment_variables = {
-    APP_ENV               = "production"
-    SERVICE_PORT          = "8089"
-    REDIS_ADDR            = "${module.redis.redis_endpoint}:6379"
-    MATCHMAKING_BASE_URL  = "http://matchmaking.internal:8081"
-    GAME_MANAGEMENT_URL   = "http://matchmaking.internal:8088"
-    HOST_JWT_ISSUER       = var.jwt_issuer
-    HOST_JWT_AUDIENCE     = var.jwt_audience
-    SCHEDULER_ENABLED     = "true"
-    SCHEDULER_INTERVAL    = "*/2 * * * *"
-    LOG_LEVEL             = "info"
-    HTTP_READ_TIMEOUT     = "15s"
-    HTTP_WRITE_TIMEOUT    = "15s"
-    SHUTDOWN_GRACE        = "10s"
-    POSTGRES_DSN          = var.postgres_dsn
-    HOST_JWT_SECRET       = var.jwt_secret
-    CORS_ALLOWED_ORIGINS  = "https://winspire-dev-s63lr.ondigitalocean.app,https://dev-api.gowinspire.com,https://d2mjyl2e92t3yg.cloudfront.net"
-  }
-
-  enable_execute_command = true
-  tags = { Team = "Platform" }
-}
-
-# Matchmaking Service
+# Matchmaking Service (MONOLITH: includes tournament + game-management)
 module "matchmaking" {
   source = "../../modules/ecs-service"
 
@@ -280,9 +232,9 @@ module "matchmaking" {
     REDIS_ADDR                        = "${module.redis.redis_endpoint}:6379"
     REDIS_URL                         = "redis://${module.redis.redis_endpoint}:6379/0"
     REDIS_DB                          = "0"
-    TOURNAMENT_SERVICE_URL            = "https://dev-api.gowinspire.com"
+    # MONOLITH: Tournament and game-management are now internal
     GAME_MANAGEMENT_URL               = "https://dev-api.gowinspire.com"
-    GAME_MANAGEMENT_INTERNAL_API_KEY = "dev-internal-api-key-12345"
+    GAME_MANAGEMENT_INTERNAL_API_KEY  = "dev-internal-api-key-12345"
     HOST_JWT_ISSUER                   = var.jwt_issuer
     HOST_JWT_AUDIENCE                 = var.jwt_audience
     SUPABASE_URL                      = var.supabase_url
@@ -311,50 +263,15 @@ module "matchmaking" {
     SUPABASE_SERVICE_KEY              = var.supabase_service_key
     GAME_API_KEY                      = var.game_api_key
     CORS_ALLOWED_ORIGINS              = "https://winspire-dev-s63lr.ondigitalocean.app,https://dev-api.gowinspire.com,https://d2mjyl2e92t3yg.cloudfront.net"
+    # Tournament scheduler settings (merged from tournament service)
+    SCHEDULER_ENABLED                 = "true"
+    SCHEDULER_INTERVAL                = "*/2 * * * *"
+    # S3 settings for game bundles
+    AWS_REGION                        = var.aws_region
+    AWS_S3_BUCKET                     = "gowinspire-game"
   }
 
-  enable_execute_command = true
-  tags = { Team = "Platform" }
-}
-
-# Game Management Service
-module "game_management" {
-  source = "../../modules/ecs-service"
-
-  environment            = "dev"
-  service_name           = "game-management"
-  ecs_cluster_id         = aws_ecs_cluster.main.id
-  ecs_cluster_name       = aws_ecs_cluster.main.name
-  vpc_id                 = module.vpc.vpc_id
-  private_subnet_ids     = module.vpc.public_subnet_ids
-  assign_public_ip       = true
-  alb_security_group_id  = module.alb.alb_security_group_id
-
-  container_image = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/dev-winspire-game-management:latest"
-  container_port  = 8087
-
-  task_cpu    = 256
-  task_memory = 512
-
-  desired_count = 1
-  min_capacity  = 1
-  max_capacity  = 10
-
-  environment_variables = {
-    APP_ENV                          = "production"
-    SERVICE_PORT                     = "8087"
-    REDIS_ADDR                       = "${module.redis.redis_endpoint}:6379"
-    HOST_JWT_ISSUER                  = var.jwt_issuer
-    HOST_JWT_AUDIENCE                = "authenticated"
-    POSTGRES_DSN                     = var.postgres_dsn
-    HOST_JWT_SECRET                  = var.jwt_secret
-    GAME_MANAGEMENT_INTERNAL_API_KEY = "dev-internal-api-key-12345"
-    CORS_ALLOWED_ORIGINS             = "https://winspire-dev-s63lr.ondigitalocean.app,https://dev-api.gowinspire.com,https://d2mjyl2e92t3yg.cloudfront.net"
-    AWS_REGION                       = var.aws_region
-    AWS_S3_BUCKET                    = "gowinspire-game"
-  }
-
-  # S3 permissions for game assets
+  # S3 permissions for game assets (merged from game-management service)
   task_policy_json = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -422,297 +339,85 @@ variable "environment" {
   default     = "dev"
 }
 
-# ALB Listener Rules for path-based routing
 # =============================================================================
-# Header-Based Routing (Primary Strategy)
-# Frontend adds X-Service header to route requests to correct service
+# ALB Listener Rules - MONOLITH MODE
+# All traffic routes to matchmaking service (includes tournament + game-management)
 # =============================================================================
 
-# Tournament Service - Header routing
-resource "aws_lb_listener_rule" "tournament_header" {
+# Note: The ALB module creates a default action that forwards to the first
+# registered target group. We only need specific rules for backwards compatibility
+# with X-Service header routing (frontend may still send these headers).
+
+# All services route to matchmaking (monolith) - Header routing for backwards compatibility
+resource "aws_lb_listener_rule" "all_services_header" {
   listener_arn = module.alb.http_listener_arn
   priority     = 10
 
   action {
     type             = "forward"
-    target_group_arn = module.tournament.target_group_arn
-  }
-
-  condition {
-    http_header {
-      http_header_name = "X-Service"
-      values           = ["tournament"]
-    }
-  }
-}
-
-# Matchmaking Service - Header routing
-resource "aws_lb_listener_rule" "matchmaking_header" {
-  listener_arn = module.alb.http_listener_arn
-  priority     = 11
-
-  action {
-    type             = "forward"
     target_group_arn = module.matchmaking.target_group_arn
   }
 
   condition {
     http_header {
       http_header_name = "X-Service"
-      values           = ["matchmaking"]
+      values           = ["tournament", "matchmaking", "game-management"]
     }
   }
 }
 
-# Game Management Service - Header routing
-resource "aws_lb_listener_rule" "game_management_header" {
-  listener_arn = module.alb.http_listener_arn
-  priority     = 12
-
-  action {
-    type             = "forward"
-    target_group_arn = module.game_management.target_group_arn
-  }
-
-  condition {
-    http_header {
-      http_header_name = "X-Service"
-      values           = ["game-management"]
-    }
-  }
-}
-
-# =============================================================================
-# Path-Based Routing (Fallback for health checks and legacy clients)
-# Lower priority than header-based routing
-# =============================================================================
-
-# Tournament - explicit paths (no wildcards)
-resource "aws_lb_listener_rule" "tournament_paths" {
+# All /v1/* paths route to matchmaking (HTTP)
+resource "aws_lb_listener_rule" "all_v1_paths" {
   listener_arn = module.alb.http_listener_arn
   priority     = 100
 
   action {
     type             = "forward"
-    target_group_arn = module.tournament.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/hosts", "/v1/hosts/*"]
-    }
-  }
-}
-
-# Matchmaking - explicit paths
-resource "aws_lb_listener_rule" "matchmaking_paths" {
-  listener_arn = module.alb.http_listener_arn
-  priority     = 110
-
-  action {
-    type             = "forward"
     target_group_arn = module.matchmaking.target_group_arn
   }
 
   condition {
     path_pattern {
-      values = ["/v1/matchmaking", "/v1/matchmaking/*"]
-    }
-  }
-}
-
-# Game Management - explicit paths
-resource "aws_lb_listener_rule" "game_management_paths" {
-  listener_arn = module.alb.http_listener_arn
-  priority     = 120
-
-  action {
-    type             = "forward"
-    target_group_arn = module.game_management.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/games", "/v1/games/*", "/v1/bundles", "/v1/bundles/*", "/v1/g/*"]
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "game_management_admin" {
-  listener_arn = module.alb.http_listener_arn
-  priority     = 121
-
-  action {
-    type             = "forward"
-    target_group_arn = module.game_management.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/admin/games", "/v1/admin/games/*"]
-    }
-  }
-}
-
-# Tournament internal API (for service-to-service communication)
-resource "aws_lb_listener_rule" "tournament_internal" {
-  listener_arn = module.alb.http_listener_arn
-  priority     = 130
-
-  action {
-    type             = "forward"
-    target_group_arn = module.tournament.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/internal/*"]
+      values = ["/v1/*"]
     }
   }
 }
 
 # =============================================================================
-# HTTPS Listener Rules - Header-Based Routing (Primary Strategy)
+# HTTPS Listener Rules - MONOLITH MODE
 # =============================================================================
 
-# Tournament Service - Header routing (HTTPS)
-resource "aws_lb_listener_rule" "tournament_header_https" {
+# All services route to matchmaking (monolith) - Header routing for backwards compatibility (HTTPS)
+resource "aws_lb_listener_rule" "all_services_header_https" {
   listener_arn = module.alb.https_listener_arn
   priority     = 10
 
   action {
     type             = "forward"
-    target_group_arn = module.tournament.target_group_arn
-  }
-
-  condition {
-    http_header {
-      http_header_name = "X-Service"
-      values           = ["tournament"]
-    }
-  }
-}
-
-# Matchmaking Service - Header routing (HTTPS)
-resource "aws_lb_listener_rule" "matchmaking_header_https" {
-  listener_arn = module.alb.https_listener_arn
-  priority     = 11
-
-  action {
-    type             = "forward"
     target_group_arn = module.matchmaking.target_group_arn
   }
 
   condition {
     http_header {
       http_header_name = "X-Service"
-      values           = ["matchmaking"]
+      values           = ["tournament", "matchmaking", "game-management"]
     }
   }
 }
 
-# Game Management Service - Header routing (HTTPS)
-resource "aws_lb_listener_rule" "game_management_header_https" {
-  listener_arn = module.alb.https_listener_arn
-  priority     = 12
-
-  action {
-    type             = "forward"
-    target_group_arn = module.game_management.target_group_arn
-  }
-
-  condition {
-    http_header {
-      http_header_name = "X-Service"
-      values           = ["game-management"]
-    }
-  }
-}
-
-# =============================================================================
-# HTTPS Listener Rules - Path-Based Routing (Fallback)
-# =============================================================================
-
-# Tournament - explicit paths (HTTPS)
-resource "aws_lb_listener_rule" "tournament_paths_https" {
+# All /v1/* paths route to matchmaking (HTTPS)
+resource "aws_lb_listener_rule" "all_v1_paths_https" {
   listener_arn = module.alb.https_listener_arn
   priority     = 100
 
   action {
     type             = "forward"
-    target_group_arn = module.tournament.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/hosts", "/v1/hosts/*"]
-    }
-  }
-}
-
-# Matchmaking - explicit paths (HTTPS)
-resource "aws_lb_listener_rule" "matchmaking_paths_https" {
-  listener_arn = module.alb.https_listener_arn
-  priority     = 110
-
-  action {
-    type             = "forward"
     target_group_arn = module.matchmaking.target_group_arn
   }
 
   condition {
     path_pattern {
-      values = ["/v1/matchmaking", "/v1/matchmaking/*"]
-    }
-  }
-}
-
-# Game Management - explicit paths (HTTPS)
-resource "aws_lb_listener_rule" "game_management_paths_https" {
-  listener_arn = module.alb.https_listener_arn
-  priority     = 120
-
-  action {
-    type             = "forward"
-    target_group_arn = module.game_management.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/games", "/v1/games/*", "/v1/bundles", "/v1/bundles/*", "/v1/g/*"]
-    }
-  }
-}
-
-resource "aws_lb_listener_rule" "game_management_admin_https" {
-  listener_arn = module.alb.https_listener_arn
-  priority     = 121
-
-  action {
-    type             = "forward"
-    target_group_arn = module.game_management.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/v1/admin/games", "/v1/admin/games/*"]
-    }
-  }
-}
-
-# Tournament internal API (for service-to-service communication) - HTTPS
-resource "aws_lb_listener_rule" "tournament_internal_https" {
-  listener_arn = module.alb.https_listener_arn
-  priority     = 130
-
-  action {
-    type             = "forward"
-    target_group_arn = module.tournament.target_group_arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/internal/*"]
+      values = ["/v1/*"]
     }
   }
 }
@@ -762,9 +467,8 @@ output "ecs_cluster_name" {
 output "service_log_groups" {
   description = "CloudWatch log groups for services"
   value = {
-    tournament      = module.tournament.log_group_name
-    matchmaking     = module.matchmaking.log_group_name
-    game_management = module.game_management.log_group_name
+    # MONOLITH MODE: Only matchmaking service (includes tournament + game-management)
+    matchmaking = module.matchmaking.log_group_name
   }
 }
 

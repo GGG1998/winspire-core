@@ -5,6 +5,7 @@
 package sqlc
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -64,6 +65,25 @@ type TournamentBracket struct {
 	CompletedAt  pgtype.Timestamp    `json:"completed_at"`
 }
 
+type TournamentHost struct {
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	Description pgtype.Text        `json:"description"`
+	LogoUrl     pgtype.Text        `json:"logo_url"`
+	WebsiteUrl  pgtype.Text        `json:"website_url"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TournamentHostMember struct {
+	ID        pgtype.UUID        `json:"id"`
+	HostID    pgtype.UUID        `json:"host_id"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	Role      string             `json:"role"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type TournamentMatch struct {
 	ID                     pgtype.UUID      `json:"id"`
 	RoundID                pgtype.UUID      `json:"round_id"`
@@ -92,6 +112,20 @@ type TournamentMatch struct {
 	UpdatedAt              time.Time        `json:"updated_at"`
 }
 
+type TournamentRegistration struct {
+	ID           pgtype.UUID        `json:"id"`
+	TournamentID pgtype.UUID        `json:"tournament_id"`
+	UserID       pgtype.UUID        `json:"user_id"`
+	TeamID       pgtype.UUID        `json:"team_id"`
+	Status       string             `json:"status"`
+	DisplayName  string             `json:"display_name"`
+	AvatarUrl    pgtype.Text        `json:"avatar_url"`
+	CheckedInAt  pgtype.Timestamptz `json:"checked_in_at"`
+	IsReady      pgtype.Bool        `json:"is_ready"`
+	RegisteredAt pgtype.Timestamptz `json:"registered_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type TournamentRound struct {
 	ID           pgtype.UUID      `json:"id"`
 	BracketID    pgtype.UUID      `json:"bracket_id"`
@@ -101,4 +135,30 @@ type TournamentRound struct {
 	Status       string           `json:"status"`
 	StartedAt    pgtype.Timestamp `json:"started_at"`
 	CompletedAt  pgtype.Timestamp `json:"completed_at"`
+}
+
+type TournamentTournament struct {
+	ID                       pgtype.UUID        `json:"id"`
+	HostID                   pgtype.UUID        `json:"host_id"`
+	Name                     string             `json:"name"`
+	Description              pgtype.Text        `json:"description"`
+	ExternalID               pgtype.Text        `json:"external_id"`
+	Status                   string             `json:"status"`
+	ScheduledStartTimeAt     pgtype.Timestamptz `json:"scheduled_start_time_at"`
+	RegistrationWindowOpenAt pgtype.Timestamptz `json:"registration_window_open_at"`
+	ActualStartTimeAt        pgtype.Timestamptz `json:"actual_start_time_at"`
+	CompletedAt              pgtype.Timestamptz `json:"completed_at"`
+	CancelledAt              pgtype.Timestamptz `json:"cancelled_at"`
+	MinimumTeamCount         pgtype.Int4        `json:"minimum_team_count"`
+	MaximumTeamCount         pgtype.Int4        `json:"maximum_team_count"`
+	TeamSize                 int32              `json:"team_size"`
+	AutoForceReady           pgtype.Bool        `json:"auto_force_ready"`
+	GameID                   pgtype.UUID        `json:"game_id"`
+	SpaceID                  pgtype.UUID        `json:"space_id"`
+	TemplateID               pgtype.UUID        `json:"template_id"`
+	ReadyWindow              json.RawMessage    `json:"ready_window"`
+	Prize                    json.RawMessage    `json:"prize"`
+	GameSnapshot             json.RawMessage    `json:"game_snapshot"`
+	CreatedAt                pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                pgtype.Timestamptz `json:"updated_at"`
 }

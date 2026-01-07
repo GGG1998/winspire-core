@@ -122,10 +122,14 @@ function ProfileSidebar({
   initials: string;
   displayName: string;
 }) {
+  // Base navigation items for all users
   const navigation = [
     { key: 'home', label: 'Home', href: '/', icon: HomeIcon },
     { key: 'profile', label: 'Profile Settings', href: '/auth/profile', icon: UserIcon },
-    { key: 'my-tournaments', label: 'My Tournaments', href: `/h/${user.id}/tournaments`, icon: TrophyIcon },
+    // Only show "My Tournaments" for streamers
+    ...(user.profileType === 'streamer' ? [
+      { key: 'my-tournaments', label: 'My Tournaments', href: `/h/${user.id}/tournaments`, icon: TrophyIcon },
+    ] : []),
   ];
 
   return (

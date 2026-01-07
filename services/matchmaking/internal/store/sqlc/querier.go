@@ -17,18 +17,26 @@ type Querier interface {
 	// ============================================================================
 	// Adds an event to the activity feed
 	AddActivityFeedEvent(ctx context.Context, arg AddActivityFeedEventParams) (PrelobbyActivityFeed, error)
+	AddTournamentHostMember(ctx context.Context, arg AddTournamentHostMemberParams) (TournamentHostMember, error)
 	// Assign winner to next match's participant slot
 	// Handles both NULL and uuid.Nil (00000000-0000-0000-0000-000000000000) as empty slots
 	// Later round matches are created with participant1_id = uuid.Nil (not NULL) as placeholder
 	AssignWinnerToNextMatch(ctx context.Context, arg AssignWinnerToNextMatchParams) error
+	CancelTournament(ctx context.Context, id pgtype.UUID) error
+	CheckInTournamentParticipant(ctx context.Context, arg CheckInTournamentParticipantParams) error
 	// Clear disconnected player info
 	ClearDisconnectedPlayerInfo(ctx context.Context, id pgtype.UUID) error
 	// Clear disconnect tracking when player reconnects
 	ClearMatchDisconnect(ctx context.Context, id pgtype.UUID) error
+	CompleteTournament(ctx context.Context, id pgtype.UUID) error
 	// Counts all games including inactive
 	CountAllGames(ctx context.Context) (int64, error)
+	CountConfirmedTournamentRegistrations(ctx context.Context, tournamentID pgtype.UUID) (int64, error)
 	// Counts total active games
 	CountGames(ctx context.Context) (int64, error)
+	CountReadyTournamentParticipants(ctx context.Context, tournamentID pgtype.UUID) (int64, error)
+	CountTournamentRegistrations(ctx context.Context, tournamentID pgtype.UUID) (int64, error)
+	CountTournamentRegistrationsByStatus(ctx context.Context, arg CountTournamentRegistrationsByStatusParams) (int64, error)
 	// ============================================================================
 	// Bracket Queries
 	// ============================================================================
@@ -59,6 +67,15 @@ type Querier interface {
 	// Round Queries
 	// ============================================================================
 	CreateRound(ctx context.Context, arg CreateRoundParams) (TournamentRound, error)
+	CreateTournament(ctx context.Context, arg CreateTournamentParams) (TournamentTournament, error)
+	CreateTournamentHost(ctx context.Context, arg CreateTournamentHostParams) (TournamentHost, error)
+	// Creates a host with a specific ID (used for personal hosts where host_id = user_id)
+	CreateTournamentHostWithIDAndOwner(ctx context.Context, arg CreateTournamentHostWithIDAndOwnerParams) (CreateTournamentHostWithIDAndOwnerRow, error)
+	CreateTournamentHostWithOwner(ctx context.Context, arg CreateTournamentHostWithOwnerParams) (CreateTournamentHostWithOwnerRow, error)
+	// ============================================================================
+	// TOURNAMENT REGISTRATION QUERIES
+	// ============================================================================
+	CreateTournamentRegistration(ctx context.Context, arg CreateTournamentRegistrationParams) (TournamentRegistration, error)
 	DeleteBracket(ctx context.Context, id pgtype.UUID) error
 	// Soft delete - sets is_active to false
 	DeleteGame(ctx context.Context, id pgtype.UUID) error
@@ -66,6 +83,8 @@ type Querier interface {
 	DeleteOldActivityFeedEvents(ctx context.Context, tournamentID pgtype.UUID) error
 	// Deletes a pre-lobby (cascades to snapshots and activity feed)
 	DeletePreLobby(ctx context.Context, tournamentID pgtype.UUID) error
+	DeleteTournament(ctx context.Context, id pgtype.UUID) error
+	DeleteTournamentRegistration(ctx context.Context, arg DeleteTournamentRegistrationParams) error
 	// Find matches in 'loading' status older than specified timestamp (for timeout monitoring)
 	FindLoadingMatchesOlderThan(ctx context.Context, updatedAt time.Time) ([]TournamentMatch, error)
 	// Checks if a game exists
@@ -82,6 +101,7 @@ type Querier interface {
 	GetBracketByTournamentID(ctx context.Context, tournamentID pgtype.UUID) (TournamentBracket, error)
 	// Complex join query for bracket visualization
 	GetBracketWithRoundsAndMatches(ctx context.Context, tournamentID pgtype.UUID) ([]GetBracketWithRoundsAndMatchesRow, error)
+	GetConfirmedTournamentUserIDs(ctx context.Context, tournamentID pgtype.UUID) ([]pgtype.UUID, error)
 	// Get the final match (next_match_id IS NULL)
 	GetFinalMatch(ctx context.Context, tournamentID pgtype.UUID) (TournamentMatch, error)
 	// Retrieves a game by its ID
@@ -113,21 +133,56 @@ type Querier interface {
 	GetRoundByBracketAndNumber(ctx context.Context, arg GetRoundByBracketAndNumberParams) (TournamentRound, error)
 	GetRoundByID(ctx context.Context, id pgtype.UUID) (TournamentRound, error)
 	GetRoundsByBracketID(ctx context.Context, bracketID pgtype.UUID) ([]TournamentRound, error)
+	GetTournamentByExternalID(ctx context.Context, arg GetTournamentByExternalIDParams) (TournamentTournament, error)
+	GetTournamentByHostAndID(ctx context.Context, arg GetTournamentByHostAndIDParams) (TournamentTournament, error)
+	// ============================================================================
+	// TOURNAMENT QUERIES
+	// ============================================================================
+	GetTournamentByID(ctx context.Context, id pgtype.UUID) (TournamentTournament, error)
+	// ============================================================================
+	// TOURNAMENT SCHEMA QUERIES
+	// Generated code for tournament bounded context (merged from tournament service)
+	// ============================================================================
+	// ============================================================================
+	// HOST QUERIES
+	// ============================================================================
+	GetTournamentHostByID(ctx context.Context, id pgtype.UUID) (TournamentHost, error)
+	GetTournamentHostMembers(ctx context.Context, hostID pgtype.UUID) ([]TournamentHostMember, error)
+	GetTournamentRegistration(ctx context.Context, arg GetTournamentRegistrationParams) (TournamentRegistration, error)
+	GetTournamentUserHostRole(ctx context.Context, arg GetTournamentUserHostRoleParams) (string, error)
+	GetTournamentUserHosts(ctx context.Context, userID pgtype.UUID) ([]TournamentHost, error)
+	GetTournamentUserHostsWithRole(ctx context.Context, userID pgtype.UUID) ([]GetTournamentUserHostsWithRoleRow, error)
+	GetUserTournamentRegistrations(ctx context.Context, arg GetUserTournamentRegistrationsParams) ([]TournamentRegistration, error)
 	// Hard delete - permanently removes game (use with caution)
 	HardDeleteGame(ctx context.Context, id pgtype.UUID) error
 	// Check if a participant has lost any match in the specified tournament
 	HasParticipantLostInTournament(ctx context.Context, arg HasParticipantLostInTournamentParams) (bool, error)
+	// ============================================================================
+	// HOST MEMBERS QUERIES
+	// ============================================================================
+	IsTournamentUserHostAdmin(ctx context.Context, arg IsTournamentUserHostAdminParams) (bool, error)
 	// Lists all games including inactive ones (admin use)
 	ListAllGames(ctx context.Context) ([]Game, error)
+	ListAllTournamentRegistrations(ctx context.Context, tournamentID pgtype.UUID) ([]TournamentRegistration, error)
+	ListConfirmedTournamentRegistrations(ctx context.Context, tournamentID pgtype.UUID) ([]TournamentRegistration, error)
 	// Lists all active games ordered by name
 	ListGames(ctx context.Context) ([]Game, error)
+	ListTournamentHosts(ctx context.Context, arg ListTournamentHostsParams) ([]TournamentHost, error)
+	ListTournamentRegistrations(ctx context.Context, arg ListTournamentRegistrationsParams) ([]TournamentRegistration, error)
+	ListTournamentsByHostID(ctx context.Context, hostID pgtype.UUID) ([]TournamentTournament, error)
+	ListTournamentsByHostIDWithStatus(ctx context.Context, arg ListTournamentsByHostIDWithStatusParams) ([]TournamentTournament, error)
+	ListTournamentsByStatus(ctx context.Context, dollar_1 []string) ([]TournamentTournament, error)
 	// Atomically mark game loaded and return if both are now loaded
 	// Uses idempotency check - only updates if player not already marked as loaded
 	MarkGameLoadedAndCheckBoth(ctx context.Context, arg MarkGameLoadedAndCheckBothParams) (TournamentMatch, error)
 	// Checks if a snapshot already exists for a tournament
 	ParticipantSnapshotExists(ctx context.Context, tournamentID pgtype.UUID) (bool, error)
+	RemoveTournamentHostMember(ctx context.Context, arg RemoveTournamentHostMemberParams) error
+	SaveTournament(ctx context.Context, arg SaveTournamentParams) (TournamentTournament, error)
 	// Transitions pre-lobby to grace_period status with 30-second window
 	StartGracePeriod(ctx context.Context, tournamentID pgtype.UUID) (Prelobby, error)
+	StartTournament(ctx context.Context, id pgtype.UUID) error
+	TournamentExists(ctx context.Context, id pgtype.UUID) (bool, error)
 	UpdateBracketCompletedAt(ctx context.Context, arg UpdateBracketCompletedAtParams) error
 	// Update disconnected player info without changing status
 	UpdateDisconnectedPlayerOnly(ctx context.Context, arg UpdateDisconnectedPlayerOnlyParams) error
@@ -150,6 +205,11 @@ type Querier interface {
 	// Flexible update - only updates provided (non-null) fields
 	UpdatePreLobbyWithParams(ctx context.Context, arg UpdatePreLobbyWithParamsParams) (Prelobby, error)
 	UpdateRoundStatus(ctx context.Context, arg UpdateRoundStatusParams) error
+	UpdateTournamentHost(ctx context.Context, arg UpdateTournamentHostParams) (TournamentHost, error)
+	UpdateTournamentRegistrationReady(ctx context.Context, arg UpdateTournamentRegistrationReadyParams) error
+	UpdateTournamentRegistrationStatus(ctx context.Context, arg UpdateTournamentRegistrationStatusParams) error
+	UpdateTournamentStatus(ctx context.Context, arg UpdateTournamentStatusParams) error
+	WithdrawTournamentRegistration(ctx context.Context, arg WithdrawTournamentRegistrationParams) error
 }
 
 var _ Querier = (*Queries)(nil)

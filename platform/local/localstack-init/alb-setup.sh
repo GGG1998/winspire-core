@@ -3,10 +3,10 @@
 # This script runs automatically when LocalStack starts (via /etc/localstack/init/ready.d/)
 # Creates VPC, subnets, security group, ALB, target groups, and routing rules
 #
+# MONOLITH MODE: Tournament service merged into matchmaking
+#
 # Routing Configuration:
-#   - /v1/games*, /v1/g*, /v1/admin* -> matchmaking:8081 (priority 100) [game-management merged]
-#   - /v1/matchmaking* -> matchmaking:8081 (priority 101)
-#   - /v1/* -> tournament:8089 (default action)
+#   - /v1/* -> matchmaking:8081 (all APIs - game management + tournament + matchmaking)
 
 set -e
 
@@ -116,23 +116,7 @@ echo "ALB DNS: $ALB_DNS"
 echo ""
 echo "[5/7] Creating target groups..."
 
-# Tournament service (default target - catches /v1/*)
-TG_TOURNAMENT=$(awslocal elbv2 create-target-group \
-    --name tournament-tg \
-    --protocol HTTP \
-    --port 8089 \
-    --vpc-id "$VPC_ID" \
-    --target-type ip \
-    --health-check-path /healthz \
-    --health-check-interval-seconds 30 \
-    --health-check-timeout-seconds 5 \
-    --healthy-threshold-count 2 \
-    --unhealthy-threshold-count 2 \
-    --query 'TargetGroups[0].TargetGroupArn' \
-    --output text)
-echo "Created Tournament TG: $TG_TOURNAMENT"
-
-# Matchmaking service (includes merged game-management: /v1/games, /v1/g, /v1/admin, /v1/matchmaking)
+# MONOLITH MODE: Only matchmaking service (includes game-management + tournament)
 TG_MATCHMAKING=$(awslocal elbv2 create-target-group \
     --name matchmaking-tg \
     --protocol HTTP \
@@ -146,7 +130,7 @@ TG_MATCHMAKING=$(awslocal elbv2 create-target-group \
     --unhealthy-threshold-count 2 \
     --query 'TargetGroups[0].TargetGroupArn' \
     --output text)
-echo "Created Matchmaking TG: $TG_MATCHMAKING"
+echo "Created Matchmaking TG: $TG_MATCHMAKING (monolith - all APIs)"
 
 # ==============================================================================
 # Create Listener and Routing Rules
@@ -154,35 +138,17 @@ echo "Created Matchmaking TG: $TG_MATCHMAKING"
 echo ""
 echo "[6/7] Creating listener and routing rules..."
 
-# Create default listener with tournament as default action
+# MONOLITH MODE: Create default listener with matchmaking as default action (all APIs)
 LISTENER_ARN=$(awslocal elbv2 create-listener \
     --load-balancer-arn "$ALB_ARN" \
     --protocol HTTP \
     --port 80 \
-    --default-actions Type=forward,TargetGroupArn="$TG_TOURNAMENT" \
+    --default-actions Type=forward,TargetGroupArn="$TG_MATCHMAKING" \
     --query 'Listeners[0].ListenerArn' \
     --output text)
 echo "Created listener: $LISTENER_ARN"
 
-# Rule 1: /v1/games*, /v1/g*, /v1/admin* -> matchmaking (priority 100) [game-management merged]
-awslocal elbv2 create-rule \
-    --listener-arn "$LISTENER_ARN" \
-    --priority 100 \
-    --conditions '[{"Field":"path-pattern","PathPatternConfig":{"Values":["/v1/games*","/v1/g/*","/v1/admin*"]}}]' \
-    --actions Type=forward,TargetGroupArn="$TG_MATCHMAKING" \
-    > /dev/null
-echo "Created rule: /v1/games*, /v1/g/*, /v1/admin* -> matchmaking (priority 100) [game-management merged]"
-
-# Rule 2: /v1/matchmaking* -> matchmaking (priority 101)
-awslocal elbv2 create-rule \
-    --listener-arn "$LISTENER_ARN" \
-    --priority 101 \
-    --conditions '[{"Field":"path-pattern","PathPatternConfig":{"Values":["/v1/matchmaking*"]}}]' \
-    --actions Type=forward,TargetGroupArn="$TG_MATCHMAKING" \
-    > /dev/null
-echo "Created rule: /v1/matchmaking* -> matchmaking (priority 101)"
-
-echo "Default rule: /v1/* -> tournament"
+echo "Default rule: /v1/* -> matchmaking (monolith - all APIs)"
 
 # ==============================================================================
 # Export Configuration
@@ -199,7 +165,6 @@ SG_ID=$SG_ID
 ALB_ARN=$ALB_ARN
 ALB_DNS=$ALB_DNS
 LISTENER_ARN=$LISTENER_ARN
-TG_TOURNAMENT=$TG_TOURNAMENT
 TG_MATCHMAKING=$TG_MATCHMAKING
 EOF
 
@@ -210,13 +175,16 @@ echo "Configuration saved to /tmp/alb-config.env"
 # ==============================================================================
 echo ""
 echo "============================================"
-echo "ALB Setup Complete!"
+echo "ALB Setup Complete! (Monolith Mode)"
 echo "============================================"
 echo ""
 echo "Routing Configuration:"
-echo "  /v1/games*, /v1/g/*, /v1/admin* -> matchmaking:8081 (game-management merged)"
-echo "  /v1/matchmaking*                -> matchmaking:8081"
-echo "  /v1/* (default)                 -> tournament:8089"
+echo "  /v1/* (all APIs) -> matchmaking:8081"
+echo ""
+echo "Included APIs:"
+echo "  - Game Management (/v1/games, /v1/g/*, /v1/admin)"
+echo "  - Tournament (/v1/hosts, /v1/:hostId/tournaments)"
+echo "  - Matchmaking (/v1/matchmaking/*)"
 echo ""
 echo "ALB DNS: $ALB_DNS"
 echo ""

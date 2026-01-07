@@ -85,10 +85,11 @@ function App() {
                 }
               />
               {/* Host/Streamer tournament routes - use HostLayout internally */}
+              {/* Only streamers can access these routes */}
               <Route
                 path="/h/:streamerId/tournaments"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute requiredProfileType="streamer">
                     <TournamentsProvider>
                       <TournamentPage />
                     </TournamentsProvider>
@@ -98,7 +99,7 @@ function App() {
               <Route
                 path="/h/:streamerId/tournaments/:tournamentId"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute requiredProfileType="streamer">
                     <TournamentsProvider>
                       <TournamentDetailPage />
                     </TournamentsProvider>

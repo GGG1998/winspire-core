@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -27,6 +28,9 @@ import (
 	"github.com/winspire-core/services/matchmaking/internal/pubsub"
 	"github.com/winspire-core/services/matchmaking/internal/repository"
 	"github.com/winspire-core/services/matchmaking/internal/store/sqlc"
+	tournamentapp "github.com/winspire-core/services/matchmaking/internal/tournament/application"
+	tournamenthandlers "github.com/winspire-core/services/matchmaking/internal/tournament/handlers"
+	tournamentrepo "github.com/winspire-core/services/matchmaking/internal/tournament/repository"
 	"github.com/winspire-core/services/matchmaking/internal/websocket"
 	authmiddleware "github.com/winspire/winspire-core/libs/go/auth/middleware"
 	"github.com/winspire/winspire-core/libs/go/httpx"
@@ -273,6 +277,33 @@ func main() {
 		Storage: s3Client,
 	})
 
+	// ==========================================
+	// Tournament Integration (merged from tournament service)
+	// ==========================================
+
+	// Create slog logger for tournament handlers
+	tournamentLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+
+	// Initialize tournament repositories
+	tournamentRepo := tournamentrepo.NewTournamentRepository(pool)
+	registrationRepo := tournamentrepo.NewRegistrationRepository(pool)
+	hostRepo := tournamentrepo.NewHostRepository(pool)
+
+	// Initialize tournament use cases
+	confirmParticipationUC := tournamentapp.NewConfirmParticipationUseCase(
+		tournamentRepo,
+		registrationRepo,
+		tournamentLogger,
+	)
+
+	joinTournamentUC := tournamentapp.NewJoinTournamentUseCase(
+		tournamentRepo,
+		registrationRepo,
+		tournamentLogger,
+	)
+
 	// Initialize tournament service client (for fetching tournament info)
 	competitionClient := application.NewCompetitionClient(cfg.CompetitionServiceURL, logger)
 
@@ -363,6 +394,74 @@ func main() {
 		matchmaking.GET("/tournaments/:id/lobby", preLobbyHandler.GetPreLobbyState)
 		matchmaking.GET("/tournaments/:id/lobby/ws", preLobbyWSHandler.UpgradePreLobbyConnection)
 	}
+
+	// ==========================================
+	// Tournament Routes (merged from tournament service)
+	// ==========================================
+
+	// Create StartTournament callback that integrates with preLobbyService
+	startTournamentFn := func(c gin.Context, tournamentID uuid.UUID, participantIDs []uuid.UUID) error {
+		tournamentLogger.Info("Starting tournament via direct call",
+			"tournamentId", tournamentID.String(),
+			"participantCount", len(participantIDs),
+		)
+
+		// Create pre-lobby first (minimum 2 participants for a tournament)
+		_, err := preLobbyService.GetOrCreatePreLobby(c.Request.Context(), tournamentID, 2)
+		if err != nil {
+			return fmt.Errorf("failed to create pre-lobby: %w", err)
+		}
+
+		// Create grace period callback
+		gracePeriodCallback := func(tID uuid.UUID, pIDs []uuid.UUID) {
+			tournamentLogger.Info("Grace period ended, generating bracket",
+				"tournamentId", tID.String(),
+				"participantCount", len(pIDs),
+			)
+			if len(pIDs) >= 2 {
+				if err := bracketService.GenerateBracket(context.Background(), tID, pIDs, nil); err != nil {
+					tournamentLogger.Error("Failed to generate bracket",
+						"tournamentId", tID.String(),
+						"error", err.Error(),
+					)
+				}
+			}
+		}
+
+		// Start grace period
+		if err := preLobbyService.StartGracePeriod(c.Request.Context(), tournamentID, gracePeriodCallback); err != nil {
+			return fmt.Errorf("failed to start grace period: %w", err)
+		}
+
+		return nil
+	}
+
+	// Tournament host routes (admin) - /v1/:hostId/tournaments/...
+	tournamentV1 := router.Group("/v1")
+	tournamentV1.Use(authmiddleware.ValidateJWTMiddleware(jwtConfig))
+	tournamenthandlers.RegisterTournamentHostRoutes(tournamentV1, tournamenthandlers.TournamentHostDeps{
+		HostRepo:         hostRepo,
+		TournamentRepo:   tournamentRepo,
+		RegistrationRepo: registrationRepo,
+		Logger:           tournamentLogger,
+		StartTournament:  startTournamentFn,
+	})
+
+	// Tournament user routes (player) - /v1/:hostId/tournaments/...
+	tournamenthandlers.RegisterTournamentUserRoutes(tournamentV1, tournamenthandlers.TournamentUserDeps{
+		Pool:             pool,
+		Logger:           tournamentLogger,
+		TournamentRepo:   tournamentRepo,
+		RegistrationRepo: registrationRepo,
+		ConfirmParticipationFn: func(c *gin.Context, tournamentID, userID uuid.UUID, displayName string) error {
+			return confirmParticipationUC.Execute(c.Request.Context(), tournamentID, userID, displayName)
+		},
+		JoinTournamentFn: func(c *gin.Context, tournamentID, userID, hostID uuid.UUID) (string, error) {
+			return joinTournamentUC.Execute(c.Request.Context(), tournamentID, userID, hostID)
+		},
+	})
+
+	logger.Info("Tournament routes registered", nil)
 
 	// Create HTTP server
 	addr := fmt.Sprintf(":%s", cfg.Port)

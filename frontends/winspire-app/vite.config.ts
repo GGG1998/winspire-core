@@ -18,7 +18,7 @@ export default defineConfig({
       },
       // Tournament service (matches /v1/{uuid}/tournaments)
       '^/v1/[0-9a-f-]{36}/tournaments': {
-        target: 'http://localhost:8089',
+        target: 'http://localhost:8088',
         changeOrigin: true,
       },
       // Matchmaking service

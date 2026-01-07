@@ -1,14 +1,13 @@
 # Local Development Environment with LocalStack (emulates AWS ALB)
 # Usage: cd platform/local && docker-compose up
 #
+# MONOLITH MODE: Tournament service merged into matchmaking
+#
 # Routing Configuration:
-#   http://localhost/v1/games*, /v1/g/*, /v1/admin* -> matchmaking:8081 (merged from game-management)
-#   http://localhost/v1/matchmaking*                -> matchmaking:8081
-#   http://localhost/v1/* (default)                 -> tournament:8089
+#   http://localhost/v1/* -> matchmaking:8081 (all APIs)
 #
 # Direct service access (for E2E tests):
-#   http://localhost:8089 -> tournament
-#   http://localhost:8088 -> matchmaking (includes game management APIs)
+#   http://localhost:8088 -> matchmaking (includes game management + tournament APIs)
 
 services:
   # LocalStack - AWS Local Emulation (replaces Traefik)
@@ -56,42 +55,7 @@ services:
     networks:
       - winspire-network
 
-  # Tournament Service (Tournament & Match Management)
-  tournament:
-    build:
-      context: ../..
-      dockerfile: services/tournament/cmd/tournament/Dockerfile.dev
-    container_name: tournament
-    env_file:
-      - .env
-    ports:
-      - "8089:8089"  # Direct access for E2E tests
-    environment:
-      - APP_ENV=development
-      - SERVICE_PORT=8089
-      - POSTGRES_DSN=${POSTGRES_DSN:-postgresql://postgres:postgres@host.docker.internal:54322/postgres?sslmode=disable}
-      - MATCHMAKING_BASE_URL=http://matchmaking:8081
-      - REDIS_ADDR=redis:6379
-      - HOST_JWT_SECRET=${HOST_JWT_SECRET:-your-jwt-secret-here}
-      - HOST_JWT_ISSUER=${HOST_JWT_ISSUER:-https://your-project.supabase.co/auth/v1}
-      - HOST_JWT_AUDIENCE=${HOST_JWT_AUDIENCE:-authenticated}
-    depends_on:
-      redis:
-        condition: service_healthy
-      localstack:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8089/healthz"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    networks:
-      - winspire-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  # Matchmaking Service (includes merged game-management functionality)
+  # Matchmaking Service (MONOLITH: includes merged game-management + tournament functionality)
   matchmaking:
     build:
       context: ../..
@@ -109,7 +73,6 @@ services:
       - HOST_JWT_SECRET=${HOST_JWT_SECRET:-your-jwt-secret-here}
       - HOST_JWT_ISSUER=${HOST_JWT_ISSUER:-https://your-project.supabase.co/auth/v1}
       - HOST_JWT_AUDIENCE=${HOST_JWT_AUDIENCE:-authenticated}
-      - TOURNAMENT_SERVICE_URL=http://tournament:8089
       - GAME_MANAGEMENT_URL=http://localhost:8088
       - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
@@ -123,8 +86,6 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      tournament:
-        condition: service_started
       localstack:
         condition: service_healthy
     healthcheck:
@@ -139,6 +100,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   # ALB Target Registrar - registers service IPs with LocalStack ALB
+  # MONOLITH MODE: Only matchmaking service
   alb-registrar:
     image: amazon/aws-cli:2.15.0
     container_name: alb-registrar
@@ -158,29 +120,21 @@ services:
 
         echo "ALB is ready. Registering targets..."
 
-        # Get container IPs using DNS resolution
-        TOURNAMENT_IP=$$(getent hosts tournament | awk '{ print $$1 }')
+        # Get container IP using DNS resolution (monolith - only matchmaking)
         MATCHMAKING_IP=$$(getent hosts matchmaking | awk '{ print $$1 }')
 
-        echo "Container IPs:"
-        echo "  Tournament: $$TOURNAMENT_IP"
-        echo "  Matchmaking: $$MATCHMAKING_IP (includes game management)"
+        echo "Container IP:"
+        echo "  Matchmaking: $$MATCHMAKING_IP (includes game management + tournament)"
 
-        # Get target group ARNs
-        TG_TOURNAMENT=$$(aws --endpoint-url=http://localstack:4566 elbv2 describe-target-groups --names tournament-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
+        # Get target group ARN (monolith mode - only matchmaking)
         TG_MATCHMAKING=$$(aws --endpoint-url=http://localstack:4566 elbv2 describe-target-groups --names matchmaking-tg --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "")
 
-        if [ -z "$$TG_TOURNAMENT" ] || [ -z "$$TG_MATCHMAKING" ]; then
-            echo "ERROR: Could not find all target groups"
+        if [ -z "$$TG_MATCHMAKING" ]; then
+            echo "ERROR: Could not find matchmaking target group"
             exit 1
         fi
 
-        # Register targets
-        echo "Registering tournament ($$TOURNAMENT_IP:8089)..."
-        aws --endpoint-url=http://localstack:4566 elbv2 register-targets \
-            --target-group-arn "$$TG_TOURNAMENT" \
-            --targets Id="$$TOURNAMENT_IP",Port=8089
-
+        # Register matchmaking as the only target
         echo "Registering matchmaking ($$MATCHMAKING_IP:8081)..."
         aws --endpoint-url=http://localstack:4566 elbv2 register-targets \
             --target-group-arn "$$TG_MATCHMAKING" \
@@ -188,13 +142,13 @@ services:
 
         echo ""
         echo "============================================"
-        echo "Target Registration Complete!"
+        echo "Target Registration Complete! (Monolith Mode)"
         echo "============================================"
         echo ""
         echo "Test routing:"
-        echo "  curl http://localhost/v1/cups           # -> tournament"
-        echo "  curl http://localhost/v1/games          # -> matchmaking (game management merged)"
-        echo "  curl http://localhost/v1/matchmaking/health  # -> matchmaking"
+        echo "  curl http://localhost/v1/games          # -> matchmaking (game management)"
+        echo "  curl http://localhost/v1/hosts          # -> matchmaking (tournament)"
+        echo "  curl http://localhost/v1/matchmaking/*  # -> matchmaking"
         echo ""
 
         # Keep container running for debugging
@@ -206,8 +160,6 @@ services:
       - AWS_DEFAULT_REGION=us-east-1
     depends_on:
       localstack:
-        condition: service_healthy
-      tournament:
         condition: service_healthy
       matchmaking:
         condition: service_healthy

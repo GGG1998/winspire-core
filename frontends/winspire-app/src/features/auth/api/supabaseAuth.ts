@@ -392,30 +392,34 @@ export async function getCurrentUser(): Promise<User | null> {
     // Use getSession() first - it's synchronous from localStorage cache
     // This prevents the hanging issue with getUser() which makes a network request
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
+
     if (sessionError) {
       console.error('[getCurrentUser] Session error:', sessionError);
       return null;
     }
-    
+
     if (!session?.user) {
       return null;
     }
 
     const authUser = session.user;
 
-    // Try user profile first
-    let profile = await fetchUserProfile(authUser.id, 'user');
-    let profileType: UserProfileType = 'user';
+    // Use user_type from metadata as source of truth (set during registration)
+    const userType = authUser.user_metadata?.user_type as string | undefined;
+
+    // Debug logging
+    console.log('[getCurrentUser] user_metadata:', authUser.user_metadata);
+    console.log('[getCurrentUser] user_type from metadata:', userType);
+
+    // Default to 'user' if user_type is not set (for accounts created before this field existed)
+    const profileType: UserProfileType = userType === 'streamer' ? 'streamer' : 'user';
+    console.log('[getCurrentUser] resolved profileType:', profileType);
+
+    // Fetch profile from the correct table based on user_type
+    const profile = await fetchUserProfile(authUser.id, profileType);
 
     if (!profile) {
-      // Try streamer profile
-      profile = await fetchUserProfile(authUser.id, 'streamer');
-      profileType = 'streamer';
-    }
-
-    if (!profile) {
-      console.error('[getCurrentUser] No profile found for user:', authUser.id);
+      console.error('[getCurrentUser] No profile found for user:', authUser.id, 'profileType:', profileType);
       return null;
     }
 

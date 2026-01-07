@@ -8,6 +8,7 @@ sql:
       - "internal/store/match_queries.sql"
       - "internal/store/prelobby_queries.sql"
       - "internal/store/game_queries.sql"
+      - "internal/store/tournament_queries.sql"
     gen:
       go:
         package: "sqlc"
@@ -32,3 +33,16 @@ sql:
             go_type: "github.com/winspire-core/services/matchmaking/internal/domain.GameSnapshot"
           - column: "prelobby_participant_snapshots.participants"
             go_type: "github.com/winspire-core/services/matchmaking/internal/domain.ParticipantsJSON"
+          # Tournament JSONB columns
+          - column: "tournament.tournaments.game_snapshot"
+            go_type:
+              import: "encoding/json"
+              type: "RawMessage"
+          - column: "tournament.tournaments.ready_window"
+            go_type:
+              import: "encoding/json"
+              type: "RawMessage"
+          - column: "tournament.tournaments.prize"
+            go_type:
+              import: "encoding/json"
+              type: "RawMessage"
