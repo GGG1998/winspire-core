@@ -5,6 +5,5 @@ use (
 	./libs/go/httpx
 	./libs/go/pgtype
 	./services/tournament
-	./services/game-management
 	./services/matchmaking
 )

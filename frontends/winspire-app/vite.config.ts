@@ -13,7 +13,7 @@ export default defineConfig({
     proxy: {
       // Game Management service
       '/v1/games': {
-        target: 'http://localhost:8087',
+        target: 'http://localhost:8088',
         changeOrigin: true,
       },
       // Tournament service (matches /v1/{uuid}/tournaments)

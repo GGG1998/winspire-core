@@ -309,6 +309,55 @@ func (h *MatchHandler) MarkGameLoaded(c *gin.Context) {
 	})
 }
 
+// GetGameLoadedStatus checks if the current player's game is loaded
+// GET /v1/matches/:id/game-loaded
+func (h *MatchHandler) GetGameLoadedStatus(c *gin.Context) {
+	// Parse match ID
+	matchID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid match ID", "details": err.Error()})
+		return
+	}
+
+	// Get authenticated user from JWT (set by auth middleware)
+	user := httpx.MustGetUser(c)
+	userID, err := uuid.Parse(string(user.ID))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user ID", "details": err.Error()})
+		return
+	}
+
+	// Fetch match to verify user is a participant
+	match, err := h.matchRepo.GetByID(c.Request.Context(), matchID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "match not found", "details": err.Error()})
+		return
+	}
+
+	// Verify user is a participant
+	isParticipant1 := match.Participant1ID == userID
+	isParticipant2 := match.Participant2ID != nil && *match.Participant2ID == userID
+
+	if !isParticipant1 && !isParticipant2 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied: you are not a participant in this match"})
+		return
+	}
+
+	// Determine the current player's game loaded status
+	var gameLoaded bool
+	if isParticipant1 {
+		gameLoaded = match.Participant1GameLoaded
+	} else {
+		gameLoaded = match.Participant2GameLoaded
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"game_loaded":               gameLoaded,
+		"participant1_game_loaded": match.Participant1GameLoaded,
+		"participant2_game_loaded": match.Participant2GameLoaded,
+	})
+}
+
 // ClaimWalkover allows a player to claim a walkover when opponent doesn't show (T086)
 // POST /v1/matches/:id/claim-walkover
 func (h *MatchHandler) ClaimWalkover(c *gin.Context) {

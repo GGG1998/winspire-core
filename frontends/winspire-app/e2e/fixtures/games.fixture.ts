@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Use environment variables for flexibility
-const GAME_MGMT_API_URL = process.env.GAME_MANAGEMENT_API_URL ?? 'http://localhost:8087';
+const GAME_MGMT_API_URL = process.env.GAME_MANAGEMENT_API_URL ?? 'http://localhost:8088';
 const INTERNAL_KEY = process.env.GAME_MANAGEMENT_INTERNAL_API_KEY ?? 'IlikeCookies';
 
 /**

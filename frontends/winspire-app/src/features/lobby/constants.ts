@@ -23,6 +23,9 @@ export const DOUBLE_NO_SHOW_TIMEOUT = 300000; // 5 minutes
 // Game iframe load timeout (in milliseconds)
 export const GAME_IFRAME_LOAD_TIMEOUT = 30000; // 30 seconds
 
+// Game loaded polling interval (in milliseconds)
+export const GAME_LOADED_POLL_INTERVAL = 5000; // 5 seconds
+
 // Match assigned notification display duration (in milliseconds)
 export const MATCH_ASSIGNED_NOTIFICATION_DURATION = 2000; // 2 seconds
 
@@ -119,6 +122,7 @@ export const API_ENDPOINTS = {
   GET_MATCH: (matchId: string) => `/v1/matchmaking/matches/${matchId}`,
   MARK_READY: (matchId: string) => `/v1/matchmaking/matches/${matchId}/ready`,
   MARK_GAME_LOADED: (matchId: string) => `/v1/matchmaking/matches/${matchId}/game-loaded`,
+  GET_GAME_LOADED_STATUS: (matchId: string) => `/v1/matchmaking/matches/${matchId}/game-loaded`,
   CLAIM_WALKOVER: (matchId: string) => `/v1/matchmaking/matches/${matchId}/claim-walkover`,
   WS_MATCH_LOBBY: (matchId: string) => `/v1/matchmaking/matches/${matchId}/lobby`,
 

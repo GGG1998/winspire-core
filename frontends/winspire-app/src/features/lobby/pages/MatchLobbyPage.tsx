@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth';
 import { LoadingSpinner } from '../../../shared/components/common/LoadingSpinner';
@@ -14,10 +14,12 @@ import { PostMatchModal } from '../components/PostMatchModal';
 import { useMatchLobby } from '../hooks/useMatchLobby';
 import { useReadyState } from '../hooks/useReadyState';
 import { useDisconnect } from '../hooks/useDisconnect';
+import { useGameLoadedPolling } from '../hooks/useGameLoadedPolling';
 import { LobbyLayout } from '../layouts';
 import { ERROR_MESSAGES } from '../constants';
 import { GAME_MANAGEMENT_URL } from '../../../shared/config/api';
 import { matchmakingApi } from '../api/matchmakingApi';
+import { supabase } from '../../../shared/api/supabase';
 
 /**
  * Match Lobby Page
@@ -70,13 +72,24 @@ export function MatchLobbyPage() {
   // IMPORTANT: Don't sync while isReadyLoading=true to preserve optimistic updates
   useEffect(() => {
     if (matchState && user && !isReadyLoading) {
-      const serverReady = matchState.player1?.id === user.id 
-        ? matchState.match.participant1Ready 
+      const serverReady = matchState.player1?.id === user.id
+        ? matchState.match.participant1Ready
         : matchState.match.participant2Ready;
-      
+
       setReady(serverReady);
     }
   }, [matchState, user, setReady, isReadyLoading]);
+
+  // JWT token for game iframe - use ref to avoid re-render on token refresh
+  const [jwtToken, setJwtToken] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const getToken = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setJwtToken(session?.access_token);
+    };
+    getToken();
+  }, []);
 
   // Disconnect state management
   const {
@@ -87,6 +100,16 @@ export function MatchLobbyPage() {
     setDisconnected,
     setReconnected,
   } = useDisconnect();
+
+  // Game loaded polling - polls server every 5 seconds when game is loading
+  const { isGameLoaded: serverConfirmedGameLoaded } = useGameLoadedPolling({
+    matchId: matchId || null,
+    enabled: !!(
+      matchState?.player1 &&
+      matchState?.player2 &&
+      (matchState?.status === 'pending' || matchState?.status === 'loading')
+    ),
+  });
 
   // Sync disconnect state with match state
   useEffect(() => {
@@ -368,7 +391,7 @@ export function MatchLobbyPage() {
                   : ''
               }
               matchId={matchState.match.id}
-              sessionToken={undefined} // TODO: Get session token from auth context
+              token={jwtToken}
               onGameLoaded={async () => {
                 console.log('[MatchLobbyPage] Game loaded, notifying server');
                 if (user) {
@@ -380,15 +403,11 @@ export function MatchLobbyPage() {
                   }
                 }
               }}
-              onGameComplete={(result) => {
-                console.log('[MatchLobbyPage] Game completed:', result);
-                // The match_completed WebSocket message will update the state
-              }}
               onGameError={(error) => {
                 console.error('[MatchLobbyPage] Game error:', error);
               }}
-              // Ready overlay props - show only in pending status
-              showReadyOverlay={matchState.status === 'pending'}
+              // Ready overlay props - show when game is loaded (detected via polling) and status is pending
+              showReadyOverlay={matchState.status === 'pending' && serverConfirmedGameLoaded}
               isPlayerReady={localReadyState}
               isOpponentReady={
                 user?.id === matchState.player1?.id

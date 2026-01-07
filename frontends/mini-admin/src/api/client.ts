@@ -9,7 +9,7 @@ export const apiClient = axios.create({
     'Content-Type': 'application/json',
     ...(INTERNAL_SERVICE_KEY
       ? {
-          'X-Internal-Service-Key': INTERNAL_SERVICE_KEY,
+          'X-Internal-API-Key': INTERNAL_SERVICE_KEY,
         }
       : {}),
   },

@@ -6,9 +6,8 @@ import { GAME_IFRAME_CONFIG } from '../constants';
 interface GameFrameProps {
   gameUrl: string;
   matchId: string;
-  sessionToken?: string;
-  onGameLoaded?: () => void; // Called when game finishes loading
-  onGameComplete?: (result: { winnerId: string; score?: number }) => void;
+  token?: string;                  // JWT token passed via URL parameter
+  onGameLoaded?: () => void;       // Called when game finishes loading
   onGameError?: (error: string) => void;
   // Ready overlay props
   showReadyOverlay?: boolean;      // Show ready button overlay when game loaded
@@ -20,22 +19,20 @@ interface GameFrameProps {
 
 /**
  * GameFrame Component
- * 
+ *
  * Iframe container for loading the game
  * Features:
  * - Centered iframe with proper sizing
  * - Loading state with spinner
  * - Error handling with retry button
- * - postMessage communication for game completion
  * - Session token passing via URL parameters
  * - 30-second timeout for load failure
  */
 export function GameFrame({
   gameUrl,
   matchId,
-  sessionToken,
+  token,
   onGameLoaded,
-  onGameComplete,
   onGameError,
   showReadyOverlay = false,
   isPlayerReady = false,
@@ -67,12 +64,12 @@ export function GameFrame({
       console.warn('[GameFrame] Empty gameUrl provided, cannot construct URL');
       return '';
     }
-    
+
     try {
       const url = new URL(gameUrl);
       url.searchParams.set('matchId', matchId);
-      if (sessionToken) {
-        url.searchParams.set('sessionToken', sessionToken);
+      if (token) {
+        url.searchParams.set('token', token);
       }
       const finalUrl = url.toString();
       return finalUrl;
@@ -81,7 +78,7 @@ export function GameFrame({
       setIsLoading(false);
       return '';
     }
-  }, [gameUrl, matchId, sessionToken]);
+  }, [gameUrl, matchId, token]);
 
   // Set up 30-second timeout for game load
   useEffect(() => {
@@ -113,58 +110,6 @@ export function GameFrame({
     };
   }, [fullGameUrl, onGameError]);
 
-  // Listen for postMessage from game iframe
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      // TODO: Add origin validation based on environment config
-      
-      try {
-        const message = event.data;
-
-        // Ignore messages that don't have a type (might be from other sources)
-        if (!message || typeof message !== 'object') {
-          return;
-        }
-
-        // Handle game completion signal
-        if (message.type === 'game_complete' || message.type === 'GAME_COMPLETE') {          
-          if (message.winnerId) {
-            onGameComplete?.({
-              winnerId: message.winnerId,
-              score: message.score,
-            });
-          }
-        }
-
-        // Handle game error signal
-        if (message.type === 'game_error' || message.type === 'GAME_ERROR') {
-          setError(message.error || 'Błąd gry');
-          onGameError?.(message.error);
-        }
-
-        // Handle game ready signal (game finished loading)
-        if (message.type === 'game_ready' || message.type === 'GAME_READY') {
-          console.log('[GameFrame] Game ready signal received from iframe');
-          setIsLoading(false);
-          setError(null);
-          
-          // Call onGameLoaded callback (only once)
-          if (!gameLoadedCalled && onGameLoaded) {
-            setGameLoadedCalled(true);
-            onGameLoaded();
-          }
-        }
-      } catch (err) {
-        console.error('[GameFrame] Failed to parse postMessage:', err);
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
-  }, [onGameComplete, onGameError, onGameLoaded, gameLoadedCalled]);
-
   // Handle iframe load event
   const handleIframeLoad = () => {
     // Clear timeout on successful load
@@ -173,7 +118,7 @@ export function GameFrame({
     }
 
     console.log('[GameFrame] Iframe loaded, waiting for game_ready signal from game...');
-    
+
     // For games that don't send game_ready postMessage, assume loaded after delay
     // Games that send game_ready postMessage will call onGameLoaded sooner
     setTimeout(() => {
@@ -181,7 +126,7 @@ export function GameFrame({
         console.log('[GameFrame] Game did not send ready signal, assuming loaded after timeout');
         setIsLoading(false);
         setError(null);
-        
+
         // Call onGameLoaded callback (only once)
         if (onGameLoaded) {
           setGameLoadedCalled(true);
@@ -203,7 +148,7 @@ export function GameFrame({
     setError(null);
     setIsLoading(true);
     setLoadTimeout(false);
-    
+
     // Reload iframe by changing key
     if (iframeRef.current) {
       iframeRef.current.src = fullGameUrl;
@@ -303,4 +248,3 @@ export function GameFrame({
     </div>
   );
 }
-

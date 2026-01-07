@@ -226,6 +226,27 @@ export async function markGameLoaded(
   return response;
 }
 
+// Response type for game loaded status
+export interface GetGameLoadedStatusResponse {
+  game_loaded: boolean;
+  participant1_game_loaded: boolean;
+  participant2_game_loaded: boolean;
+}
+
+/**
+ * Get game loaded status for the current player
+ * Used for polling to determine when to show ready overlay
+ */
+export async function getGameLoadedStatus(
+  matchId: string
+): Promise<ApiResponse<GetGameLoadedStatusResponse>> {
+  const response = await apiClient.get<GetGameLoadedStatusResponse>(
+    API_ENDPOINTS.GET_GAME_LOADED_STATUS(matchId)
+  );
+
+  return response;
+}
+
 /**
  * Claim walkover win due to opponent no-show
  * Awards win to present player after timeout period
@@ -315,6 +336,7 @@ export const matchmakingApi = {
   getMatch,
   markReady,
   markGameLoaded,
+  getGameLoadedStatus,
   claimWalkover,
   getPreLobbyWebSocketUrl,
   getMatchLobbyWebSocketUrl,

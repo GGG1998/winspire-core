@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import { GAME_MANAGEMENT_URL } from '../../../winspire-app/src/shared/config'
 
 export interface Game {
   id: string
@@ -131,8 +132,7 @@ export const gamesApi = {
   // Get public URL for a game (constructed from game data)
   getGameUrl: async (gameId: string): Promise<{ publicUrl: string; storagePath: string }> => {
     const game = await gamesApi.getGame(gameId)
-    const baseUrl = (import.meta as ImportMeta).env.VITE_API_URL || 'http://localhost/v1'
-    const publicUrl = `${baseUrl}/g/${game.slug}/bundle/index.html`
+    const publicUrl = `${GAME_MANAGEMENT_URL}/g/${game.slug}/bundle/index.html`
     return { publicUrl, storagePath: game.storagePath }
   },
 }
