@@ -215,6 +215,7 @@ export type ServerMessageType =
   | 'ready_updated' // Ready state changed
   | 'match_ready_to_load' // Both players ready, send game URL
   | 'game_loaded' // Player has loaded game
+  | 'both_games_loaded' // Both players have loaded game
   | 'match_starting' // Both games loaded, countdown starting
   | 'match_started' // Match is now active
   | 'player_disconnected' // Opponent disconnected
