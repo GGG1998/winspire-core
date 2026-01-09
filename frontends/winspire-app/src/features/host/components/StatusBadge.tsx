@@ -17,7 +17,7 @@ export const StatusBadge = memo(function StatusBadge({
   status, 
   size = 'md' 
 }: StatusBadgeProps) {
-  const config = TOURNAMENT_STATUS_CONFIG[status]
+  const config = TOURNAMENT_STATUS_CONFIG[status] ?? TOURNAMENT_STATUS_CONFIG.draft
   
   const sizeClasses = {
     sm: 'px-2 py-0.5 text-xs',
