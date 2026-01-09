@@ -15,8 +15,8 @@ import type { TournamentStatus, UseTournamentStatusReturn } from '../types'
 export function useTournamentStatus(
   status: TournamentStatus
 ): UseTournamentStatusReturn {
-  // Get configuration for the status
-  const config = TOURNAMENT_STATUS_CONFIG[status]
+  // Get configuration for the status with fallback to draft
+  const config = TOURNAMENT_STATUS_CONFIG[status] ?? TOURNAMENT_STATUS_CONFIG.draft
 
   return {
     status,
@@ -33,7 +33,8 @@ export function useTournamentStatus(
  * Get row background color class for tournament status
  */
 export function getStatusRowColor(status: TournamentStatus): string {
-  return TOURNAMENT_STATUS_CONFIG[status].rowBgColor
+  const config = TOURNAMENT_STATUS_CONFIG[status] ?? TOURNAMENT_STATUS_CONFIG.draft
+  return config.rowBgColor
 }
 
 

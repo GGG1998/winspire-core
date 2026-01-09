@@ -7,17 +7,16 @@ export const apiClient = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
-    ...(INTERNAL_SERVICE_KEY
-      ? {
-          'X-Internal-API-Key': INTERNAL_SERVICE_KEY,
-        }
-      : {}),
   },
 })
 
-// Request interceptor for auth token if needed
+// Request interceptor to add API key and auth token
 apiClient.interceptors.request.use(
   (config) => {
+    // Always add the internal API key header
+    if (INTERNAL_SERVICE_KEY) {
+      config.headers['X-Internal-API-Key'] = INTERNAL_SERVICE_KEY
+    }
     // Add auth token here if required
     // const token = localStorage.getItem('token')
     // if (token) {

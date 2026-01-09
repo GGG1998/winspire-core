@@ -58,7 +58,7 @@ function TournamentHeaderComponent({
 }: TournamentHeaderProps) {
   const { formatted: countdown, formattedShort } = useCountdown(tournament.startTime)
   const bannerUrl = tournament.bannerUrl || DEFAULT_BANNER
-  const statusConfig = TOURNAMENT_STATUS_CONFIG[status]
+  const statusConfig = TOURNAMENT_STATUS_CONFIG[status] ?? TOURNAMENT_STATUS_CONFIG.draft
   const labels = UI_LABELS.detail
 
   // Calculate seconds until tournament start for more precision
