@@ -1,4 +1,4 @@
-h1:iagQ705G1xvSkGLtD5lbvv4SAX5ZXWJCy4xZNXeQjww=
+h1:VWdRyIb7wbl9XGap8+SYJs/KMq3756zGhU4g67YhyXM=
 000001_create_brackets_table.sql h1:EW4GA3zAk/OCoJ1brIPXyaXcXqV3HhzgytE0eDba1+U=
 000002_create_rounds_table.sql h1:mSjsB6FZxhFk6rFU+PmGJfMt8EuckbObjNPXHw87Pcs=
 000003_create_matches_table.sql h1:J3jnJUYXSM2qWipZrlL2esNAaKsC2OnCOGIIjrSpYwE=
@@ -9,3 +9,4 @@ h1:iagQ705G1xvSkGLtD5lbvv4SAX5ZXWJCy4xZNXeQjww=
 000015_add_game_loading_tracking.sql h1:l41WlIehlvgpvlr3KKkoaafM48uQVQZojv/gXVoyyEk=
 000016_add_games_table.sql h1:evq50Zk4Jo53gytz+Mx1Sd+TlBeclLqbxqKP9gDBMpw=
 000017_create_tournament_schema.sql h1:ZQOHWe5f1mIJpH1lo02bmWo2l/R4bB/50Qest+HW3qQ=
+000018_fix_match_flow_constraint.sql h1:Tfze5PD7Ozq47znYTTj6e7243pfMw/8Qn/zFuLqgyi4=
