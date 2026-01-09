@@ -8,10 +8,7 @@ on:
         required: true
         type: choice
         options:
-          - all
-          - tournament
           - matchmaking
-          - game-management
       action:
         description: 'Migration action'
         required: true
@@ -76,11 +73,7 @@ jobs:
       - name: Check migration status
         if: inputs.action == 'status' || inputs.action == 'apply'
         run: |
-          if [ "${{ inputs.service }}" == "all" ]; then
-            SERVICES="tournament matchmaking game-management"
-          else
-            SERVICES="${{ inputs.service }}"
-          fi
+          SERVICES="${{ inputs.service }}"
 
           for SERVICE in $SERVICES; do
             echo "### Migration Status for $SERVICE" >> $GITHUB_STEP_SUMMARY
@@ -102,11 +95,7 @@ jobs:
         if: inputs.action == 'apply'
         id: apply
         run: |
-          if [ "${{ inputs.service }}" == "all" ]; then
-            SERVICES="tournament matchmaking game-management"
-          else
-            SERVICES="${{ inputs.service }}"
-          fi
+          SERVICES="${{ inputs.service }}"
 
           DRY_RUN_FLAG=""
           if [ "${{ inputs.dry_run }}" == "true" ]; then
@@ -146,11 +135,7 @@ jobs:
       - name: Rollback migrations
         if: inputs.action == 'down'
         run: |
-          if [ "${{ inputs.service }}" == "all" ]; then
-            SERVICES="tournament matchmaking game-management"
-          else
-            SERVICES="${{ inputs.service }}"
-          fi
+          SERVICES="${{ inputs.service }}"
 
           DRY_RUN_FLAG=""
           if [ "${{ inputs.dry_run }}" == "true" ]; then
@@ -211,11 +196,7 @@ jobs:
           echo "### Auto-Rollback Triggered" >> $GITHUB_STEP_SUMMARY
           echo "Migration failed, attempting to rollback last migration..." >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ inputs.service }}" == "all" ]; then
-            SERVICES="tournament matchmaking game-management"
-          else
-            SERVICES="${{ inputs.service }}"
-          fi
+          SERVICES="${{ inputs.service }}"
 
           for SERVICE in $SERVICES; do
             echo "Rolling back $SERVICE..."

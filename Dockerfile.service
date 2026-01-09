@@ -3,11 +3,11 @@
 # Builds any service from the repository root context
 #
 # Usage:
-#   docker build --build-arg SERVICE=tournament -f Dockerfile.service -t winspire-tournament:latest .
 #   docker build --build-arg SERVICE=matchmaking -f Dockerfile.service -t winspire-matchmaking:latest .
-#   docker build --build-arg SERVICE=game-management -f Dockerfile.service -t winspire-game-management:latest .
+#
+# Note: tournament and game-management have been merged into the matchmaking monolith
 
-ARG SERVICE=tournament
+ARG SERVICE=matchmaking
 
 # ==============================================================================
 # Builder Stage
