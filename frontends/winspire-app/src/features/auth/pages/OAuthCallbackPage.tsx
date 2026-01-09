@@ -1,19 +1,16 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { handleOAuthCallback } from '../api/supabaseAuth';
-import { useAuth } from '../hooks/useAuth';
-import { supabase } from '../../../shared/api/supabase';
 import { AuthLayout } from '../../../shared/components/ui/auth-layout';
 import { Heading } from '../../../shared/components/ui/heading';
 import { Text } from '../../../shared/components/ui/text';
 
 /**
- * Returns the appropriate login URL based on OAuth provider or profile type.
+ * Returns the appropriate login URL based on OAuth provider.
  * - Twitch/Discord providers → streamer login
  * - Google/unknown providers → user login
  */
-function getLoginUrl(providerOrProfileType: string | undefined): string {
-  if (providerOrProfileType === 'twitch' || providerOrProfileType === 'discord' || providerOrProfileType === 'streamer') {
+function getLoginUrl(provider: string | undefined): string {
+  if (provider === 'twitch' || provider === 'discord') {
     return '/auth/streamer/login';
   }
   return '/auth/user/login';
@@ -21,7 +18,6 @@ function getLoginUrl(providerOrProfileType: string | undefined): string {
 
 export function OAuthCallbackPage() {
   const navigate = useNavigate();
-  const { refreshUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const handledRef = useRef(false);
 
@@ -31,132 +27,43 @@ export function OAuthCallbackPage() {
       return;
     }
 
-    let timeoutId: ReturnType<typeof setTimeout>;
-    let unsubscribe: (() => void) | null = null;
-
-    // Helper function to process session and navigate
-    const processSessionAndNavigate = async (session: NonNullable<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>) => {
+    const processSession = async () => {
       try {
-        const result = await handleOAuthCallback();
+        // Check localStorage directly to avoid Supabase lock issues
+        const storageKey = 'winspire-auth';
+        const storedSession = localStorage.getItem(storageKey);
 
-        if (result.error || !result.user) {
-          console.error('[OAuthCallbackPage] Profile processing failed:', result.error);
-          setError(result.error?.message || 'Authentication failed');
-          const loginUrl = getLoginUrl(result.user?.profileType || session?.user?.app_metadata?.provider);
-          setTimeout(() => {
-            navigate(loginUrl);
-          }, 3000);
+        if (!storedSession) {
+          setError('Authentication failed. Please try again.');
+          setTimeout(() => navigate(getLoginUrl(undefined)), 3000);
           return;
         }
 
-        // Refresh the auth context with the new user
-        await refreshUser();
+        const sessionData = JSON.parse(storedSession);
+        const session = sessionData?.session || sessionData;
 
-        // Check if user has completed their profile (nickname is required)
-        if (!result.user.profile.nickname || result.user.profile.nickname.trim() === '') {
-          navigate('/auth/complete-profile', { replace: true });
+        if (!session?.access_token || !session?.user) {
+          setError('Authentication failed. Please try again.');
+          setTimeout(() => navigate(getLoginUrl(undefined)), 3000);
           return;
         }
 
-        // Profile complete, redirect to profile page
+        handledRef.current = true;
+
+        // Simply redirect to profile - AuthContext will handle loading user data
+        // The profile page will redirect to complete-profile if needed
         navigate('/auth/profile', { replace: true });
       } catch (err) {
-        console.error('[OAuthCallbackPage] Error during profile processing:', err);
         setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-        const loginUrl = getLoginUrl(session?.user?.app_metadata?.provider);
-        setTimeout(() => {
-          navigate(loginUrl);
-        }, 3000);
+        setTimeout(() => navigate(getLoginUrl(undefined)), 3000);
       }
     };
 
-    const handleCallback = async () => {
-      try {
-        // FIRST: Check if we already have a valid session (handles StrictMode remount)
-        const { data: { session: existingSession } } = await supabase.auth.getSession();
-        if (existingSession && !handledRef.current) {
-          handledRef.current = true;
-          await processSessionAndNavigate(existingSession);
-          return;
-        }
+    // Small delay to let Supabase finish processing the code from URL
+    const timeoutId = setTimeout(processSession, 100);
 
-        // Extract auth code from URL BEFORE setting up listeners
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
-
-        // If no code and no session, something is wrong
-        if (!code && !existingSession) {
-          console.error('[OAuthCallbackPage] No code or session found');
-          setError('Authentication failed. Please try again.');
-          setTimeout(() => {
-            navigate(getLoginUrl(undefined));
-          }, 3000);
-          return;
-        }
-
-        // Set a timeout in case Supabase never fires the auth event
-        timeoutId = setTimeout(async () => {
-          if (handledRef.current) return;
-          console.error('[OAuthCallbackPage] Timeout waiting for session establishment');
-          setError('Authentication timeout. Please try again.');
-          const { data: { session } } = await supabase.auth.getSession();
-          const provider = session?.user?.app_metadata?.provider;
-          setTimeout(() => {
-            navigate(getLoginUrl(provider));
-          }, 3000);
-        }, 15000);
-
-        // Listen for auth state changes from Supabase
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-          if (event === 'SIGNED_IN' && session && !handledRef.current) {
-            handledRef.current = true;
-            clearTimeout(timeoutId);
-            await processSessionAndNavigate(session);
-          }
-        });
-
-        unsubscribe = subscription.unsubscribe;
-
-        if (code) {
-          // Clean up URL to prevent issues on refresh (code can only be used once)
-          window.history.replaceState({}, '', window.location.pathname);
-
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeError) {
-            console.error('[OAuthCallbackPage] Failed to exchange code for session:', exchangeError);
-            handledRef.current = true;
-            clearTimeout(timeoutId);
-            setError('Authentication failed. Please try again.');
-            setTimeout(() => {
-              navigate(getLoginUrl(undefined));
-            }, 3000);
-            return;
-          }
-          // After successful exchange, the onAuthStateChange listener will fire SIGNED_IN
-        }
-      } catch (err) {
-        console.error('[OAuthCallbackPage] Unexpected error:', err);
-        setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        const loginUrl = getLoginUrl(currentSession?.user?.app_metadata?.provider);
-        setTimeout(() => {
-          navigate(loginUrl);
-        }, 3000);
-      }
-    };
-
-    handleCallback();
-
-    // Cleanup
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, [navigate, refreshUser]);
+    return () => clearTimeout(timeoutId);
+  }, [navigate]);
 
   if (error) {
     return (
@@ -206,7 +113,3 @@ export function OAuthCallbackPage() {
     </AuthLayout>
   );
 }
-
-
-
-

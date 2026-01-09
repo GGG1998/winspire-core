@@ -146,3 +146,4 @@ src/
 - Each service has its own database - no shared tables between services
 - Inter-service communication uses events (Redis pub/sub), not direct DB queries
 - JWT auth middleware from `libs/go/auth/middleware`
+- Supabase auth best practices documented in `.claude/rules/supabase_auth.md`

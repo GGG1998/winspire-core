@@ -21,8 +21,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     // Persist session across page refreshes
     persistSession: true,
-    // Disable debug logging (set to true for troubleshooting auth issues)
+    // Debug logging disabled in production (enable for troubleshooting auth issues)
     debug: false,
+    // Disable navigator.locks to prevent deadlock issues
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    lock: async (name: string, acquireTimeout: number, fn: () => Promise<any>) => {
+      return await fn();
+    },
   },
 });
 

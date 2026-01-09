@@ -389,12 +389,19 @@ export async function registerStreamer(data: StreamerRegisterData): Promise<{ us
 
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    // Use getSession() first - it's synchronous from localStorage cache
-    // This prevents the hanging issue with getUser() which makes a network request
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    // Read session directly from localStorage to avoid Supabase lock issues
+    const storageKey = 'winspire-auth';
+    const storedSession = localStorage.getItem(storageKey);
 
-    if (sessionError) {
-      console.error('[getCurrentUser] Session error:', sessionError);
+    if (!storedSession) {
+      return null;
+    }
+
+    let session;
+    try {
+      const sessionData = JSON.parse(storedSession);
+      session = sessionData?.session || sessionData;
+    } catch {
       return null;
     }
 
@@ -404,22 +411,64 @@ export async function getCurrentUser(): Promise<User | null> {
 
     const authUser = session.user;
 
-    // Use user_type from metadata as source of truth (set during registration)
-    const userType = authUser.user_metadata?.user_type as string | undefined;
+    // Determine profile type from user metadata or provider
+    const userType = authUser.user_metadata?.user_type;
+    const provider = authUser.app_metadata?.provider;
+    let profileType: UserProfileType;
 
-    // Debug logging
-    console.log('[getCurrentUser] user_metadata:', authUser.user_metadata);
-    console.log('[getCurrentUser] user_type from metadata:', userType);
+    if (userType === 'streamer' || provider === 'twitch' || provider === 'discord') {
+      profileType = 'streamer';
+    } else {
+      profileType = 'user';
+    }
 
-    // Default to 'user' if user_type is not set (for accounts created before this field existed)
-    const profileType: UserProfileType = userType === 'streamer' ? 'streamer' : 'user';
-    console.log('[getCurrentUser] resolved profileType:', profileType);
+    // Fetch profile using direct REST API to avoid Supabase client lock issues
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const tableName = profileType === 'user' ? 'user_profiles' : 'streamer_profiles';
 
-    // Fetch profile from the correct table based on user_type
-    const profile = await fetchUserProfile(authUser.id, profileType);
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/${tableName}?id=eq.${authUser.id}&select=*`,
+      {
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const profiles = await response.json();
+    let profile = profiles?.[0] || null;
+
+    // If primary profile type not found, try the other type
+    if (!profile) {
+      const altTableName = profileType === 'user' ? 'streamer_profiles' : 'user_profiles';
+      const altResponse = await fetch(
+        `${supabaseUrl}/rest/v1/${altTableName}?id=eq.${authUser.id}&select=*`,
+        {
+          headers: {
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (altResponse.ok) {
+        const altProfiles = await altResponse.json();
+        profile = altProfiles?.[0] || null;
+        if (profile) {
+          profileType = profileType === 'user' ? 'streamer' : 'user';
+        }
+      }
+    }
 
     if (!profile) {
-      console.error('[getCurrentUser] No profile found for user:', authUser.id, 'profileType:', profileType);
       return null;
     }
 
@@ -429,8 +478,7 @@ export async function getCurrentUser(): Promise<User | null> {
       profileType,
       profile,
     };
-  } catch (error) {
-    console.error('[getCurrentUser] Error getting current user:', error);
+  } catch {
     return null;
   }
 }
@@ -550,7 +598,6 @@ export async function handleOAuthCallback(): Promise<{ user: User | null; error:
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (sessionError) {
-      console.error('[handleOAuthCallback] Session error:', sessionError);
       return {
         user: null,
         error: {
@@ -561,7 +608,6 @@ export async function handleOAuthCallback(): Promise<{ user: User | null; error:
     }
 
     if (!session?.user) {
-      console.error('[handleOAuthCallback] No session found');
       return {
         user: null,
         error: {
@@ -576,7 +622,7 @@ export async function handleOAuthCallback(): Promise<{ user: User | null; error:
     // Determine profile type based on OAuth provider
     const provider = authUser.app_metadata.provider;
     let profileType: UserProfileType;
-    
+
     if (provider === 'twitch' || provider === 'discord') {
       profileType = 'streamer';
     } else if (provider === 'google') {
@@ -585,6 +631,15 @@ export async function handleOAuthCallback(): Promise<{ user: User | null; error:
       // Default to user for unknown providers
       profileType = 'user';
     }
+
+    // Update user_metadata with user_type so getCurrentUser() can determine profile type
+    // This is needed because OAuth sign-in doesn't set user_type like email/password registration does
+    // NOTE: Fire-and-forget to avoid hanging on Supabase lock issues
+    supabase.auth.updateUser({
+      data: { user_type: profileType }
+    }).catch(() => {
+      // Silently ignore - profile will still work without this metadata update
+    });
 
     // Try to fetch existing profile
     let profile = await fetchUserProfile(authUser.id, profileType);
@@ -626,6 +681,7 @@ export async function handleOAuthCallback(): Promise<{ user: User | null; error:
         };
       }
     }
+
     return {
       user: {
         id: authUser.id,
