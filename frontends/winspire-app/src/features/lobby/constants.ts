@@ -139,7 +139,7 @@ export const API_ENDPOINTS = {
 // ============================================================================
 
 export const GAME_IFRAME_CONFIG = {
-  LOAD_TIMEOUT_MS: 30000, // 30 seconds
+  LOAD_TIMEOUT_MS: 300000, // 5 minutes
   ASPECT_RATIO: '16:9',
   ALLOW_PERMISSIONS: 'fullscreen; gamepad; microphone',
   SANDBOX_FLAGS: 'allow-scripts allow-same-origin allow-forms allow-popups',
