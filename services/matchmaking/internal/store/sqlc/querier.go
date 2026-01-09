@@ -172,7 +172,8 @@ type Querier interface {
 	ListTournamentsByHostID(ctx context.Context, hostID pgtype.UUID) ([]TournamentTournament, error)
 	ListTournamentsByHostIDWithStatus(ctx context.Context, arg ListTournamentsByHostIDWithStatusParams) ([]TournamentTournament, error)
 	ListTournamentsByStatus(ctx context.Context, dollar_1 []string) ([]TournamentTournament, error)
-	// Atomically mark game loaded and return if both are now loaded
+	// Atomically mark game loaded and transition to loading state if pending
+	// New flow: pending → loading → ready → started
 	// Uses idempotency check - only updates if player not already marked as loaded
 	MarkGameLoadedAndCheckBoth(ctx context.Context, arg MarkGameLoadedAndCheckBothParams) (TournamentMatch, error)
 	// Checks if a snapshot already exists for a tournament

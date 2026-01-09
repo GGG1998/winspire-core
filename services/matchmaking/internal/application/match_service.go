@@ -563,40 +563,15 @@ func (s *MatchService) OnPlayerReady(ctx context.Context, matchID, playerID uuid
 
 // OnGameLoaded handles when a player's game has loaded
 // New flow: pending → loading → ready → started
-// Players can call game-loaded from pending state (first call transitions to loading)
+// SQL atomically handles both status transition (pending→loading) and marking game loaded
 func (s *MatchService) OnGameLoaded(ctx context.Context, matchID, playerID uuid.UUID) error {
 	s.logger.Info("Player game loaded", map[string]interface{}{
 		"match_id":  matchID.String(),
 		"player_id": playerID.String(),
 	})
 
-	// Fetch match first to validate status
-	match, err := s.matchRepo.GetByID(ctx, matchID)
-	if err != nil {
-		return fmt.Errorf("get match: %w", err)
-	}
-
-	// Validate match is in pending or loading state (new flow: pending → loading → ready → started)
-	if match.Status != domain.MatchStatusPending && match.Status != domain.MatchStatusLoading {
-		s.logger.Warn("Game loaded callback for invalid match state", map[string]interface{}{
-			"match_id": matchID.String(),
-			"status":   match.Status,
-		})
-		return fmt.Errorf("match is not in pending or loading state, current status: %s", match.Status)
-	}
-
-	// If pending, transition to loading state first
-	if match.Status == domain.MatchStatusPending {
-		err = s.matchRepo.UpdateStatus(ctx, matchID, domain.MatchStatusLoading)
-		if err != nil {
-			return fmt.Errorf("transition to loading: %w", err)
-		}
-		s.logger.Info("Match transitioned from pending to loading", map[string]interface{}{
-			"match_id": matchID.String(),
-		})
-	}
-
-	// Atomically mark game as loaded and get updated match
+	// Atomically mark game as loaded and transition to loading state if pending
+	// SQL handles: status IN ('pending', 'loading') check and sets status='loading'
 	updatedMatch, err := s.matchRepo.UpdateGameLoadedAtomic(ctx, matchID, playerID)
 	if err != nil {
 		errMsg := err.Error()

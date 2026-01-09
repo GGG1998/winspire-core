@@ -174,24 +174,26 @@ SET disconnected_player_id = NULL, disconnected_at = NULL, updated_at = NOW()
 WHERE id = $1;
 
 -- name: MarkGameLoadedAndCheckBoth :one
--- Atomically mark game loaded and return if both are now loaded
+-- Atomically mark game loaded and transition to loading state if pending
+-- New flow: pending → loading → ready → started
 -- Uses idempotency check - only updates if player not already marked as loaded
 UPDATE tournament_matches
-SET 
-    participant1_game_loaded = CASE 
-        WHEN participant1_id = $2 THEN true 
-        ELSE participant1_game_loaded 
+SET
+    status = 'loading',
+    participant1_game_loaded = CASE
+        WHEN participant1_id = $2 THEN true
+        ELSE participant1_game_loaded
     END,
-    participant2_game_loaded = CASE 
-        WHEN participant2_id = $2 THEN true 
-        ELSE participant2_game_loaded 
+    participant2_game_loaded = CASE
+        WHEN participant2_id = $2 THEN true
+        ELSE participant2_game_loaded
     END,
     updated_at = NOW()
 WHERE id = $1
-  AND status = 'loading'
+  AND status IN ('pending', 'loading')
   AND (
-    (participant1_id = $2 AND NOT participant1_game_loaded) 
-    OR 
+    (participant1_id = $2 AND NOT participant1_game_loaded)
+    OR
     (participant2_id = $2 AND NOT participant2_game_loaded)
   )
 RETURNING 
