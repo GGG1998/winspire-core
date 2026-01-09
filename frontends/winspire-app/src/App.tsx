@@ -99,7 +99,7 @@ function App() {
               <Route
                 path="/h/:streamerId/tournaments/:tournamentId"
                 element={
-                  <ProtectedRoute requiredProfileType="streamer">
+                  <ProtectedRoute>
                     <TournamentsProvider>
                       <TournamentDetailPage />
                     </TournamentsProvider>
