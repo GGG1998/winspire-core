@@ -88,7 +88,7 @@ export function GameFrame({
     }
 
     // Reset states
-    setIsLoading(true);
+    // setIsLoading(true);
     setError(null);
     setLoadTimeout(false);
     setGameLoadedCalled(false);
