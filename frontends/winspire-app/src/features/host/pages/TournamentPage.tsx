@@ -7,6 +7,7 @@
 
 import { useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../auth'
 import { useTournaments } from '../hooks/useTournaments'
 import { TournamentTable } from '../components/TournamentTable'
 import { CreateTournamentModal } from '../components/CreateTournamentModal'
@@ -23,6 +24,7 @@ import { PlusIcon } from '@heroicons/react/20/solid'
 export function TournamentPage() {
   const { streamerId } = useParams<{ streamerId: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const { tournaments, isLoading, error, refreshTournaments } = useTournaments()
   
   // Modal states
@@ -81,13 +83,15 @@ export function TournamentPage() {
               {UI_LABELS.page.subtitle}
             </p>
           </div>
-          <Button
-            color="cyan"
-            onClick={() => setIsCreateModalOpen(true)}
-          >
-            <PlusIcon />
-            {UI_LABELS.page.createButton}
-          </Button>
+          {user?.profileType === 'streamer' && (
+            <Button
+              color="cyan"
+              onClick={() => setIsCreateModalOpen(true)}
+            >
+              <PlusIcon />
+              {UI_LABELS.page.createButton}
+            </Button>
+          )}
         </header>
 
         {/* Error display */}
