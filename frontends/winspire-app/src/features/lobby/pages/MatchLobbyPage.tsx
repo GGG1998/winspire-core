@@ -406,8 +406,8 @@ export function MatchLobbyPage() {
               onGameError={(error) => {
                 console.error('[MatchLobbyPage] Game error:', error);
               }}
-              // Ready overlay props - show when game is loaded (detected via polling) and status is pending
-              showReadyOverlay={matchState.status === 'pending' && serverConfirmedGameLoaded}
+              // Ready overlay props - show when both games are loaded and status is loading
+              showReadyOverlay={matchState.status === 'loading' && matchState.match.participant1GameLoaded && matchState.match.participant2GameLoaded}
               isPlayerReady={localReadyState}
               isOpponentReady={
                 user?.id === matchState.player1?.id

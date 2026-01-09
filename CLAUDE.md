@@ -147,3 +147,4 @@ src/
 - Inter-service communication uses events (Redis pub/sub), not direct DB queries
 - JWT auth middleware from `libs/go/auth/middleware`
 - Supabase auth best practices documented in `.claude/rules/supabase_auth.md`
+- **Debugging state machines** (multi-layer fixes) documented in `.claude/rules/debugging_state_machines.md`

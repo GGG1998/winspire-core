@@ -454,6 +454,24 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
     });
   }, []);
 
+  // Handle both_games_loaded message (both players loaded the game)
+  const handleBothGamesLoaded = useCallback((payload: { message: string }) => {
+    console.log('[useMatchLobby] Both games loaded:', payload.message);
+
+    setMatchState((prev) => {
+      if (!prev) return null;
+
+      return {
+        ...prev,
+        match: {
+          ...prev.match,
+          participant1GameLoaded: true,
+          participant2GameLoaded: true,
+        },
+      };
+    });
+  }, []);
+
   // WebSocket message handler (memoized to prevent stale closures)
   const handleWebSocketMessage = useCallback((event: MessageEvent) => {
     try {
@@ -510,6 +528,9 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
           setServerRestarting(true);
           setError(null); // Clear any existing errors
           break;
+        case 'both_games_loaded':
+          handleBothGamesLoaded(message.payload as { message: string });
+          break;
         default:
           console.warn('[useMatchLobby] Unknown message type:', messageType);
       }
@@ -532,6 +553,7 @@ export function useMatchLobby(matchId: string | null): UseMatchLobbyReturn {
     handleReturnToPreLobby,
     handlePlayerEliminatedNotify,
     handleTournamentChampion,
+    handleBothGamesLoaded,
   ]);
 
   // Initialize WebSocket connection using our custom hook
