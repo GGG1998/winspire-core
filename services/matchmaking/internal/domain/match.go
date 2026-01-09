@@ -21,10 +21,11 @@ const (
 )
 
 // validTransitions defines the allowed state transitions for a match
+// Flow: pending → loading → ready → started
 var validTransitions = map[MatchStatus][]MatchStatus{
-	MatchStatusPending:   {MatchStatusReady, MatchStatusCancelled},
-	MatchStatusReady:     {MatchStatusLoading, MatchStatusCancelled},
-	MatchStatusLoading:   {MatchStatusStarted, MatchStatusCancelled},
+	MatchStatusPending:   {MatchStatusLoading, MatchStatusCancelled},
+	MatchStatusLoading:   {MatchStatusReady, MatchStatusCancelled},
+	MatchStatusReady:     {MatchStatusStarted, MatchStatusCancelled},
 	MatchStatusStarted:   {MatchStatusPaused, MatchStatusCompleted},
 	MatchStatusPaused:    {MatchStatusStarted, MatchStatusCompleted},
 	MatchStatusCompleted: {},
@@ -94,9 +95,10 @@ func (m *Match) IsBye() bool {
 }
 
 // MarkPlayerReady marks a player as ready
+// In the new flow (pending → loading → ready → started), ready is marked after game is loaded
 func (m *Match) MarkPlayerReady(playerID uuid.UUID) error {
-	if m.Status != MatchStatusPending {
-		return fmt.Errorf("can only mark ready in pending state, current status: %s", m.Status)
+	if m.Status != MatchStatusLoading {
+		return fmt.Errorf("can only mark ready in loading state, current status: %s", m.Status)
 	}
 
 	if playerID == m.Participant1ID {
@@ -143,13 +145,10 @@ func (m *Match) CanTransitionTo(target MatchStatus) bool {
 }
 
 // TransitionToLoading transitions the match to loading state
+// In the new flow, this happens from pending when first player loads game
 func (m *Match) TransitionToLoading() error {
 	if !m.CanTransitionTo(MatchStatusLoading) {
 		return fmt.Errorf("cannot transition from %s to loading", m.Status)
-	}
-
-	if !m.BothPlayersReady() {
-		return fmt.Errorf("cannot transition to loading: both players must be ready")
 	}
 
 	m.Status = MatchStatusLoading
@@ -159,9 +158,17 @@ func (m *Match) TransitionToLoading() error {
 }
 
 // MarkGameLoaded marks a player's game as loaded
+// In the new flow: pending → loading → ready → started
+// First player to load transitions match from pending to loading
 func (m *Match) MarkGameLoaded(playerID uuid.UUID) error {
-	if m.Status != MatchStatusLoading {
-		return fmt.Errorf("can only mark game loaded in loading state, current status: %s", m.Status)
+	// Allow marking game loaded from pending (transitions to loading) or loading state
+	if m.Status != MatchStatusPending && m.Status != MatchStatusLoading {
+		return fmt.Errorf("can only mark game loaded in pending or loading state, current status: %s", m.Status)
+	}
+
+	// Transition to loading if currently pending
+	if m.Status == MatchStatusPending {
+		m.Status = MatchStatusLoading
 	}
 
 	if playerID == m.Participant1ID {

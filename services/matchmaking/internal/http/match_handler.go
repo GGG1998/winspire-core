@@ -4,6 +4,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -210,6 +211,16 @@ func (h *MatchHandler) MarkPlayerReady(c *gin.Context) {
 	if !isParticipant1 && !isParticipant2 {
 		// FR-024: Deny access if user not in match participants
 		c.JSON(http.StatusForbidden, gin.H{"error": "access denied: you are not a participant in this match"})
+		return
+	}
+
+	// Validate match is in loading state (new flow: pending → loading → ready → started)
+	// Players can only mark ready after their games are loaded
+	if match.Status != domain.MatchStatusLoading {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "cannot mark ready in current state",
+			"details": fmt.Sprintf("match must be in loading state, current status: %s", match.Status),
+		})
 		return
 	}
 

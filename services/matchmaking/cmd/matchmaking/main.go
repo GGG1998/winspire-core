@@ -21,6 +21,7 @@ import (
 
 	"github.com/winspire-core/services/matchmaking/internal/application"
 	"github.com/winspire-core/services/matchmaking/internal/config"
+	"github.com/winspire-core/services/matchmaking/internal/domain"
 	"github.com/winspire-core/services/matchmaking/internal/games"
 	gamehandlers "github.com/winspire-core/services/matchmaking/internal/games/handlers"
 	httphandlers "github.com/winspire-core/services/matchmaking/internal/http"
@@ -406,8 +407,33 @@ func main() {
 			"participantCount", len(participantIDs),
 		)
 
+		// Fetch tournament to get gameSnapshot for bracket generation
+		tournament, err := tournamentRepo.GetByID(c.Request.Context(), tournamentID)
+		if err != nil {
+			return fmt.Errorf("failed to get tournament: %w", err)
+		}
+
+		// Convert tournament domain GameSnapshot to matchmaking domain GameSnapshot
+		var gameSnapshot *domain.GameSnapshot
+		if tournament.GameSnapshot != nil {
+			gs := tournament.GameSnapshot
+			gameSnapshot = &domain.GameSnapshot{
+				ID:          gs.ID,
+				Slug:        gs.Slug,
+				Name:        gs.Name,
+				Version:     gs.Version,
+				StoragePath: gs.StoragePath,
+			}
+			if gs.LogoURL != "" {
+				gameSnapshot.LogoURL = &gs.LogoURL
+			}
+			if gs.Description != "" {
+				gameSnapshot.Description = &gs.Description
+			}
+		}
+
 		// Create pre-lobby first (minimum 2 participants for a tournament)
-		_, err := preLobbyService.GetOrCreatePreLobby(c.Request.Context(), tournamentID, 2)
+		_, err = preLobbyService.GetOrCreatePreLobby(c.Request.Context(), tournamentID, 2)
 		if err != nil {
 			return fmt.Errorf("failed to create pre-lobby: %w", err)
 		}
@@ -419,7 +445,7 @@ func main() {
 				"participantCount", len(pIDs),
 			)
 			if len(pIDs) >= 2 {
-				if err := bracketService.GenerateBracket(context.Background(), tID, pIDs, nil); err != nil {
+				if err := bracketService.GenerateBracket(context.Background(), tID, pIDs, gameSnapshot); err != nil {
 					tournamentLogger.Error("Failed to generate bracket",
 						"tournamentId", tID.String(),
 						"error", err.Error(),

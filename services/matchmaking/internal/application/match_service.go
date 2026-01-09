@@ -512,12 +512,29 @@ func (s *MatchService) StartMatch(ctx context.Context, matchID uuid.UUID) error 
 }
 
 // OnPlayerReady handles when a player marks themselves as ready (T072, T073)
+// New flow: pending → loading → ready → started
 // This is called after updating the ready status in the database
+// In the new flow, players mark ready AFTER their games are loaded
 func (s *MatchService) OnPlayerReady(ctx context.Context, matchID, playerID uuid.UUID) error {
 	s.logger.Info("Player marked ready", map[string]interface{}{
 		"match_id":  matchID.String(),
 		"player_id": playerID.String(),
 	})
+
+	// Fetch match to check status
+	match, err := s.matchRepo.GetByID(ctx, matchID)
+	if err != nil {
+		return fmt.Errorf("get match: %w", err)
+	}
+
+	// In new flow, ready can only be marked from loading state (after games loaded)
+	if match.Status != domain.MatchStatusLoading {
+		s.logger.Warn("Player trying to mark ready in invalid state", map[string]interface{}{
+			"match_id": matchID.String(),
+			"status":   match.Status,
+		})
+		return fmt.Errorf("can only mark ready in loading state, current status: %s", match.Status)
+	}
 
 	// Check if both players are now ready
 	bothReady, err := s.CheckBothPlayersReady(ctx, matchID)
@@ -525,72 +542,28 @@ func (s *MatchService) OnPlayerReady(ctx context.Context, matchID, playerID uuid
 		return fmt.Errorf("check ready status: %w", err)
 	}
 
-	// If both players are ready, transition to loading state
+	// If both players are ready, transition to ready state and start match
 	if bothReady {
-		s.logger.Info("Both players ready, transitioning to loading", map[string]interface{}{
+		s.logger.Info("Both players ready, transitioning to ready and starting match", map[string]interface{}{
 			"match_id": matchID.String(),
 		})
 
-		// Fetch match to get tournament info
-		match, err := s.matchRepo.GetByID(ctx, matchID)
+		// Transition to ready state
+		err = s.matchRepo.UpdateStatus(ctx, matchID, domain.MatchStatusReady)
 		if err != nil {
-			return fmt.Errorf("get match: %w", err)
+			return fmt.Errorf("update status to ready: %w", err)
 		}
 
-		// Fetch round to get bracket ID
-		round, err := s.roundRepo.GetByID(ctx, match.RoundID)
-		if err != nil {
-			return fmt.Errorf("get round: %w", err)
-		}
-
-		// Fetch bracket to get game snapshot and tournament ID
-		bracket, err := s.bracketRepo.GetByID(ctx, round.BracketID)
-		if err != nil {
-			return fmt.Errorf("get bracket: %w", err)
-		}
-
-		// Transition to loading state
-		err = s.matchRepo.UpdateStatus(ctx, matchID, domain.MatchStatusLoading)
-		if err != nil {
-			return fmt.Errorf("update status to loading: %w", err)
-		}
-
-		// Construct game URL
-		var gameURL string
-		if bracket.GameSnapshot != nil {
-			gameURL = fmt.Sprintf("%s/v1/g/%s/bundle/", s.getGameManagementURL(), bracket.GameSnapshot.Slug)
-		} else {
-			s.logger.Warn("No game snapshot in bracket", map[string]interface{}{
-				"match_id":      matchID.String(),
-				"tournament_id": bracket.TournamentID.String(),
-			})
-			// For now, continue without game URL - this will be handled better later
-			gameURL = ""
-		}
-
-		// Broadcast match_ready_to_load via WebSocket with game URL
-		if s.hub != nil {
-			msg := map[string]interface{}{
-				"type":      "match_ready_to_load",
-				"timestamp": time.Now(),
-				"payload": map[string]interface{}{
-					"gameUrl":       gameURL,
-					"gameSessionId": matchID.String(),
-				},
-			}
-			s.hub.BroadcastToMatch(matchID, msg)
-
-			s.logger.Info("Broadcasted match_ready_to_load message", map[string]interface{}{
-				"match_id": matchID.String(),
-				"game_url": gameURL,
-			})
-		}
+		// Start countdown and match in a goroutine
+		go s.startCountdownAndMatch(matchID)
 	}
 
 	return nil
 }
 
 // OnGameLoaded handles when a player's game has loaded
+// New flow: pending → loading → ready → started
+// Players can call game-loaded from pending state (first call transitions to loading)
 func (s *MatchService) OnGameLoaded(ctx context.Context, matchID, playerID uuid.UUID) error {
 	s.logger.Info("Player game loaded", map[string]interface{}{
 		"match_id":  matchID.String(),
@@ -603,13 +576,24 @@ func (s *MatchService) OnGameLoaded(ctx context.Context, matchID, playerID uuid.
 		return fmt.Errorf("get match: %w", err)
 	}
 
-	// Validate match is in loading state
-	if match.Status != domain.MatchStatusLoading {
-		s.logger.Warn("Game loaded callback for non-loading match", map[string]interface{}{
+	// Validate match is in pending or loading state (new flow: pending → loading → ready → started)
+	if match.Status != domain.MatchStatusPending && match.Status != domain.MatchStatusLoading {
+		s.logger.Warn("Game loaded callback for invalid match state", map[string]interface{}{
 			"match_id": matchID.String(),
 			"status":   match.Status,
 		})
-		return fmt.Errorf("match is not in loading state, current status: %s", match.Status)
+		return fmt.Errorf("match is not in pending or loading state, current status: %s", match.Status)
+	}
+
+	// If pending, transition to loading state first
+	if match.Status == domain.MatchStatusPending {
+		err = s.matchRepo.UpdateStatus(ctx, matchID, domain.MatchStatusLoading)
+		if err != nil {
+			return fmt.Errorf("transition to loading: %w", err)
+		}
+		s.logger.Info("Match transitioned from pending to loading", map[string]interface{}{
+			"match_id": matchID.String(),
+		})
 	}
 
 	// Atomically mark game as loaded and get updated match
@@ -651,13 +635,22 @@ func (s *MatchService) OnGameLoaded(ctx context.Context, matchID, playerID uuid.
 			}
 
 			// Check if both games are loaded (idempotent path)
+			// In new flow: just broadcast, don't start countdown - wait for ready
 			if currentMatch.BothGamesLoaded() {
-				fmt.Printf("[H17] Idempotent path: both games loaded, starting countdown\n")
-				s.logger.Info("Both games loaded (idempotent path), starting countdown", map[string]interface{}{
+				s.logger.Info("Both games loaded (idempotent path), waiting for ready", map[string]interface{}{
 					"match_id": matchID.String(),
 				})
-				// Start countdown in a goroutine
-				go s.startCountdownAndMatch(matchID)
+				// Broadcast both_games_loaded event
+				if s.hub != nil {
+					msg := map[string]interface{}{
+						"type":      "both_games_loaded",
+						"timestamp": time.Now(),
+						"payload": map[string]interface{}{
+							"message": "Both players have loaded the game. Mark ready to start the match.",
+						},
+					}
+					s.hub.BroadcastToMatch(matchID, msg)
+				}
 			}
 
 			return nil
@@ -681,14 +674,23 @@ func (s *MatchService) OnGameLoaded(ctx context.Context, matchID, playerID uuid.
 	}
 
 	// Check if both games are loaded AFTER atomic update
-	// Only ONE thread will see both=true for the first time
+	// In new flow: after both games loaded, wait for players to mark ready
 	if updatedMatch.BothGamesLoaded() {
-		s.logger.Info("Both games loaded (atomic check), starting countdown", map[string]interface{}{
+		s.logger.Info("Both games loaded, waiting for players to mark ready", map[string]interface{}{
 			"match_id": matchID.String(),
 		})
 
-		// Start countdown in a goroutine to avoid blocking the HTTP request
-		go s.startCountdownAndMatch(matchID)
+		// Broadcast both_games_loaded event so clients know they can mark ready
+		if s.hub != nil {
+			msg := map[string]interface{}{
+				"type":      "both_games_loaded",
+				"timestamp": time.Now(),
+				"payload": map[string]interface{}{
+					"message": "Both players have loaded the game. Mark ready to start the match.",
+				},
+			}
+			s.hub.BroadcastToMatch(matchID, msg)
+		}
 	}
 
 	return nil
