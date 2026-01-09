@@ -14,7 +14,6 @@ import { PostMatchModal } from '../components/PostMatchModal';
 import { useMatchLobby } from '../hooks/useMatchLobby';
 import { useReadyState } from '../hooks/useReadyState';
 import { useDisconnect } from '../hooks/useDisconnect';
-import { useGameLoadedPolling } from '../hooks/useGameLoadedPolling';
 import { LobbyLayout } from '../layouts';
 import { ERROR_MESSAGES } from '../constants';
 import { GAME_MANAGEMENT_URL } from '../../../shared/config/api';
@@ -100,16 +99,6 @@ export function MatchLobbyPage() {
     setDisconnected,
     setReconnected,
   } = useDisconnect();
-
-  // Game loaded polling - polls server every 5 seconds when game is loading
-  const { isGameLoaded: serverConfirmedGameLoaded } = useGameLoadedPolling({
-    matchId: matchId || null,
-    enabled: !!(
-      matchState?.player1 &&
-      matchState?.player2 &&
-      (matchState?.status === 'pending' || matchState?.status === 'loading')
-    ),
-  });
 
   // Sync disconnect state with match state
   useEffect(() => {
@@ -393,13 +382,13 @@ export function MatchLobbyPage() {
               matchId={matchState.match.id}
               token={jwtToken}
               onGameLoaded={async () => {
-                console.log('[MatchLobbyPage] Game loaded, notifying server');
+                console.log('[MatchLobbyPage] Game iframe loaded, marking as loading');
                 if (user) {
                   try {
-                    await matchmakingApi.markGameLoaded(matchState.match.id, user.id);
-                    console.log('[MatchLobbyPage] Server notified of game load');
+                    await matchmakingApi.markGameLoading(matchState.match.id, user.id);
+                    console.log('[MatchLobbyPage] Server notified - status changed to loading');
                   } catch (err) {
-                    console.error('[MatchLobbyPage] Failed to notify server of game load:', err);
+                    console.error('[MatchLobbyPage] Failed to mark game loading:', err);
                   }
                 }
               }}

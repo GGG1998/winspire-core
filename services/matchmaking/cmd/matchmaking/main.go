@@ -382,6 +382,7 @@ func main() {
 		matchmaking.GET("/me", matchHandler.GetCurrentUserMatch)
 		matchmaking.GET("/matches/:id", matchHandler.GetMatch)
 		matchmaking.POST("/matches/:id/ready", matchHandler.MarkPlayerReady)
+		matchmaking.POST("/matches/:id/game-loading", matchHandler.MarkGameLoading)
 		matchmaking.POST("/matches/:id/game-loaded", matchHandler.MarkGameLoaded)
 		matchmaking.GET("/matches/:id/game-loaded", matchHandler.GetGameLoadedStatus)
 		matchmaking.POST("/matches/:id/claim-walkover", matchHandler.ClaimWalkover)

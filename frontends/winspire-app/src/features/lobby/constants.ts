@@ -121,6 +121,7 @@ export const API_ENDPOINTS = {
   // Match Lobby (Matchmaking Service)
   GET_MATCH: (matchId: string) => `/v1/matchmaking/matches/${matchId}`,
   MARK_READY: (matchId: string) => `/v1/matchmaking/matches/${matchId}/ready`,
+  MARK_GAME_LOADING: (matchId: string) => `/v1/matchmaking/matches/${matchId}/game-loading`,
   MARK_GAME_LOADED: (matchId: string) => `/v1/matchmaking/matches/${matchId}/game-loaded`,
   GET_GAME_LOADED_STATUS: (matchId: string) => `/v1/matchmaking/matches/${matchId}/game-loaded`,
   CLAIM_WALKOVER: (matchId: string) => `/v1/matchmaking/matches/${matchId}/claim-walkover`,

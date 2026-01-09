@@ -264,6 +264,66 @@ func (h *MatchHandler) MarkPlayerReady(c *gin.Context) {
 	})
 }
 
+// MarkGameLoading marks that the player's game is starting to load (status: pending -> loading)
+// POST /v1/matches/:id/game-loading
+func (h *MatchHandler) MarkGameLoading(c *gin.Context) {
+	// Parse match ID
+	matchID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid match ID", "details": err.Error()})
+		return
+	}
+
+	// Get authenticated user from JWT (set by auth middleware)
+	user := httpx.MustGetUser(c)
+	userID, err := uuid.Parse(string(user.ID))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user ID", "details": err.Error()})
+		return
+	}
+
+	// Fetch match to verify user is a participant
+	match, err := h.matchRepo.GetByID(c.Request.Context(), matchID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "match not found", "details": err.Error()})
+		return
+	}
+
+	// Verify user is a participant
+	isParticipant1 := match.Participant1ID == userID
+	isParticipant2 := match.Participant2ID != nil && *match.Participant2ID == userID
+
+	if !isParticipant1 && !isParticipant2 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied: you are not a participant in this match"})
+		return
+	}
+
+	// Only transition from pending to loading (idempotent - already loading is OK)
+	if match.Status != domain.MatchStatusPending && match.Status != domain.MatchStatusLoading {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "cannot mark loading in current state",
+			"details": fmt.Sprintf("match must be in pending or loading state, current status: %s", match.Status),
+		})
+		return
+	}
+
+	// Update status to loading (idempotent - skip if already loading)
+	if match.Status == domain.MatchStatusPending {
+		err = h.matchRepo.UpdateStatus(c.Request.Context(), matchID, domain.MatchStatusLoading)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update match status", "details": err.Error()})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "game loading started",
+		"match_id":  matchID,
+		"player_id": userID,
+		"status":    "loading",
+	})
+}
+
 // MarkGameLoaded marks that the player's game has loaded successfully
 // POST /v1/matches/:id/game-loaded
 func (h *MatchHandler) MarkGameLoaded(c *gin.Context) {

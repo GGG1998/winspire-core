@@ -209,6 +209,24 @@ export async function markReady(
 }
 
 /**
+ * Mark player's game as starting to load (status: pending -> loading)
+ * Called when the game iframe starts loading
+ */
+export async function markGameLoading(
+  matchId: string,
+  playerId: string
+): Promise<ApiResponse<{ message: string; match_id: string; player_id: string; status: string }>> {
+  const response = await apiClient.post<{ message: string; match_id: string; player_id: string; status: string }>(
+    API_ENDPOINTS.MARK_GAME_LOADING(matchId),
+    {
+      player_id: playerId,
+    }
+  );
+
+  return response;
+}
+
+/**
  * Mark player's game as loaded
  * Notifies server that the game has finished loading for this player
  */
@@ -335,6 +353,7 @@ export const matchmakingApi = {
   getPreLobbyState,
   getMatch,
   markReady,
+  markGameLoading,
   markGameLoaded,
   getGameLoadedStatus,
   claimWalkover,
