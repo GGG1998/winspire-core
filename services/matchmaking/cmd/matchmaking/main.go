@@ -305,7 +305,8 @@ func main() {
 	)
 
 	// Initialize tournament service client (for fetching tournament info)
-	competitionClient := application.NewCompetitionClient(cfg.CompetitionServiceURL, logger)
+	// Uses direct database access since tournament is merged into matchmaking
+	competitionClient := application.NewDirectCompetitionClient(tournamentRepo, registrationRepo, logger)
 
 	// Set hub on pre-lobby service (after hub is created)
 	preLobbyService.SetHub(hub)
@@ -348,7 +349,6 @@ func main() {
 		matchAssignmentService,
 		publisher,
 		logger,
-		competitionClient,
 		cfg.GameManagementURL,
 		hub,
 	)

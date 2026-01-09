@@ -21,7 +21,6 @@ type EventHandler struct {
 	matchAssignmentService *MatchAssignmentService
 	publisher              *pubsub.EventPublisher
 	logger                 *observability.Logger
-	competitionClient      *CompetitionClient
 	gameManagementURL      string
 	hub                    *websocket.Hub
 }
@@ -33,7 +32,6 @@ func NewEventHandler(
 	matchAssignmentService *MatchAssignmentService,
 	publisher *pubsub.EventPublisher,
 	logger *observability.Logger,
-	competitionClient *CompetitionClient,
 	gameManagementURL string,
 	hub *websocket.Hub,
 ) *EventHandler {
@@ -43,7 +41,6 @@ func NewEventHandler(
 		matchAssignmentService: matchAssignmentService,
 		publisher:              publisher,
 		logger:                 logger,
-		competitionClient:      competitionClient,
 		gameManagementURL:      gameManagementURL,
 		hub:                    hub,
 	}
