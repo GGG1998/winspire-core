@@ -493,11 +493,12 @@ func main() {
 	// Create HTTP server
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	srv := &http.Server{
-		Addr:           addr,
-		Handler:        router,
-		ReadTimeout:    15 * time.Second,
-		WriteTimeout:   15 * time.Second,
-		MaxHeaderBytes: 1 << 20, // 1MB
+		Addr:              addr,
+		Handler:           router,
+		ReadHeaderTimeout: 15 * time.Second, // Only limit header reading (prevents slowloris)
+		WriteTimeout:      5 * time.Minute,  // Allow time for large file uploads
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1MB
 	}
 
 	// Start HTTP server in goroutine
