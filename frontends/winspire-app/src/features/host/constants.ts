@@ -250,6 +250,7 @@ export const UI_LABELS = {
     openRegistration: 'Otwórz rejestrację',
     start: 'Rozpocznij turniej',
     cancel: 'Anuluj turniej',
+    rewards: 'Nagrody',
     confirmPublish: 'Czy na pewno chcesz opublikować turniej? Turniej będzie widoczny, ale rejestracja nie będzie jeszcze aktywna.',
     confirmOpenRegistration: 'Czy na pewno chcesz otworzyć rejestrację? Gracze będą mogli się zapisywać.',
     confirmStart: 'Czy na pewno chcesz rozpocząć turniej?',
@@ -262,6 +263,31 @@ export const UI_LABELS = {
     openRegistrationError: 'Nie udało się otworzyć rejestracji',
     startError: 'Nie udało się rozpocząć turnieju',
     cancelError: 'Nie udało się anulować turnieju'
+  },
+  // Rewards modal labels
+  rewards: {
+    modalTitle: 'Konfiguracja nagród',
+    modalDescription: 'Ustaw nagrody dla zwycięzców turnieju. Ukryta wartość (np. kod aktywacyjny) zostanie pokazana tylko zwycięzcy.',
+    firstPlace: '1. Miejsce',
+    secondPlace: '2. Miejsce',
+    thirdPlace: '3. Miejsce',
+    titleLabel: 'Nazwa nagrody',
+    titlePlaceholder: 'np. Klucz do gry, Skin do broni',
+    descriptionLabel: 'Opis publiczny',
+    descriptionPlaceholder: 'Opis widoczny dla wszystkich uczestników',
+    hiddenValueLabel: 'Ukryta wartość (kod/link)',
+    hiddenValuePlaceholder: 'np. XXXX-XXXX-XXXX lub link do Discord',
+    hiddenValueHint: 'Ta wartość będzie widoczna tylko dla zwycięzcy',
+    saveButton: 'Zapisz nagrody',
+    saveSuccess: 'Nagrody zostały zapisane',
+    saveError: 'Nie udało się zapisać nagród',
+    // Reward card labels
+    cardLocked: 'Nagroda zablokowana',
+    cardUnlocked: 'Twoja nagroda',
+    cardClaimed: 'Odebrano',
+    cardPending: 'Do odebrania',
+    copyCode: 'Kopiuj kod',
+    codeCopied: 'Skopiowano!'
   }
 } as const
 

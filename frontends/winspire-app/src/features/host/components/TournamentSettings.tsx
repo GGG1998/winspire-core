@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react'
-import { Cog6ToothIcon, PencilIcon, PlayIcon, XMarkIcon, RocketLaunchIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/20/solid'
+import { Cog6ToothIcon, PencilIcon, PlayIcon, XMarkIcon, RocketLaunchIcon, ClipboardDocumentCheckIcon, GiftIcon } from '@heroicons/react/20/solid'
 import {
   Dropdown,
   DropdownButton,
@@ -20,7 +20,8 @@ import { Dialog, DialogActions, DialogBody, DialogDescription, DialogTitle } fro
 import { Button } from '../../../shared/components/ui/button'
 import { tournamentApi } from '../api/tournamentApi'
 import { UI_LABELS } from '../constants'
-import type { Tournament, TournamentStatus } from '../types'
+import { RewardsModal } from './RewardsModal'
+import type { Tournament, TournamentStatus, RewardFormData } from '../types'
 
 interface TournamentSettingsProps {
   tournament: Tournament
@@ -46,6 +47,7 @@ export function TournamentSettings({
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isRewardsModalOpen, setIsRewardsModalOpen] = useState(false)
 
   const labels = UI_LABELS.settings
 
@@ -59,6 +61,8 @@ export function TournamentSettings({
   const canCancel = status !== 'completed'
   // Can edit if tournament is not completed or cancelled
   const canEdit = status !== 'completed' && status !== 'cancelled'
+  // Can manage rewards if tournament is not completed or cancelled
+  const canManageRewards = status !== 'completed' && status !== 'cancelled'
 
   const handlePublish = async () => {
     setIsLoading(true)
@@ -130,8 +134,17 @@ export function TournamentSettings({
     }
   }
 
+  const handleSaveRewards = async (rewards: RewardFormData): Promise<void> => {
+    // MVP: For now, just log the rewards - backend integration will come later
+    console.log('Saving rewards for tournament:', tournament.id, rewards)
+    // Simulate API call delay for UX
+    await new Promise(resolve => setTimeout(resolve, 500))
+    // TODO: Integrate with backend API when ready
+    // await tournamentApi.saveRewards(tournament.id, rewards)
+  }
+
   // Check if there are any available actions
-  const hasActions = canPublish || canOpenRegistration || canEdit || canStart || canCancel
+  const hasActions = canPublish || canOpenRegistration || canEdit || canStart || canCancel || canManageRewards
 
   if (!hasActions) {
     return null
@@ -165,13 +178,19 @@ export function TournamentSettings({
               <DropdownLabel>{labels.edit}</DropdownLabel>
             </DropdownItem>
           )}
+          {canManageRewards && (
+            <DropdownItem onClick={() => setIsRewardsModalOpen(true)}>
+              <GiftIcon data-slot="icon" className="text-amber-500" />
+              <DropdownLabel>{labels.rewards}</DropdownLabel>
+            </DropdownItem>
+          )}
           {canStart && (
             <DropdownItem onClick={() => setConfirmAction('start')}>
               <PlayIcon data-slot="icon" className="text-emerald-500" />
               <DropdownLabel>{labels.start}</DropdownLabel>
             </DropdownItem>
           )}
-          {(canPublish || canOpenRegistration || canEdit || canStart) && canCancel && <DropdownDivider />}
+          {(canPublish || canOpenRegistration || canEdit || canManageRewards || canStart) && canCancel && <DropdownDivider />}
           {canCancel && (
             <DropdownItem onClick={() => setConfirmAction('cancel')}>
               <XMarkIcon data-slot="icon" className="text-red-500" />
@@ -228,6 +247,14 @@ export function TournamentSettings({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Rewards Modal */}
+      <RewardsModal
+        isOpen={isRewardsModalOpen}
+        onClose={() => setIsRewardsModalOpen(false)}
+        tournament={tournament}
+        onSave={handleSaveRewards}
+      />
     </>
   )
 }

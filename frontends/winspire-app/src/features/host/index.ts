@@ -45,6 +45,10 @@ export { MatchesView } from './components/MatchesView'
 export { PlayersListView } from './components/PlayersListView'
 export { ResultsView } from './components/ResultsView'
 
+// Reward Components
+export { RewardsModal } from './components/RewardsModal'
+export { RewardCard, RewardCardsGrid } from './components/RewardCard'
+
 // Pages
 export { TournamentPage } from './pages/TournamentPage'
 export { TournamentDetailPage } from './pages/TournamentDetailPage'

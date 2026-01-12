@@ -63,6 +63,85 @@ export interface TournamentPrize {
   currency?: string
 }
 
+// ============================================================================
+// Reward System Types
+// ============================================================================
+
+/**
+ * Placement position for rewards
+ */
+export type RewardPlacement = 1 | 2 | 3
+
+/**
+ * Single reward configuration for a placement
+ */
+export interface TournamentReward {
+  /** Unique reward identifier */
+  id?: string
+  /** Tournament ID this reward belongs to */
+  tournamentId: string
+  /** Placement position (1st, 2nd, 3rd) */
+  placement: RewardPlacement
+  /** Public reward title (e.g., "Klucz do gry", "Skin do broni") */
+  title: string
+  /** Public description visible to all participants */
+  description: string
+  /** Hidden value - the actual reward (e.g., activation code, Discord link) */
+  hiddenValue: string
+  /** Whether the reward has been claimed by winner */
+  isClaimed: boolean
+  /** User ID of the winner who claimed the reward */
+  claimedById?: string
+  /** Timestamp when reward was claimed */
+  claimedAt?: Date
+}
+
+/**
+ * Reward form data for creating/editing rewards
+ */
+export interface RewardFormData {
+  /** 1st place reward */
+  first: {
+    title: string
+    description: string
+    hiddenValue: string
+  }
+  /** 2nd place reward */
+  second: {
+    title: string
+    description: string
+    hiddenValue: string
+  }
+  /** 3rd place reward */
+  third: {
+    title: string
+    description: string
+    hiddenValue: string
+  }
+}
+
+/**
+ * Props for RewardsModal component
+ */
+export interface RewardsModalProps {
+  isOpen: boolean
+  onClose: () => void
+  tournament: Tournament
+  existingRewards?: TournamentReward[]
+  onSave: (rewards: RewardFormData) => Promise<void>
+}
+
+/**
+ * Props for RewardCard component
+ */
+export interface RewardCardProps {
+  reward: TournamentReward
+  /** Whether current user is the winner who can see hidden value */
+  isWinner?: boolean
+  /** Whether to show the hidden value (unlocked) */
+  isUnlocked?: boolean
+}
+
 /**
  * Organization/Host info
  */
