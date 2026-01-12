@@ -92,7 +92,7 @@ const initialRewardData = {
 export function RewardsModal({
   isOpen,
   onClose,
-  tournament,
+  tournament: _tournament,
   existingRewards = [],
   onSave
 }: RewardsModalProps) {

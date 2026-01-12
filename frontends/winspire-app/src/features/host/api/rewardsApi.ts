@@ -29,24 +29,6 @@ interface RewardRow {
 }
 
 /**
- * Transform database row to domain model
- * Note: hidden_value is NOT decrypted here - use getDecryptedReward for that
- */
-function rowToReward(row: RewardRow): TournamentReward {
-  return {
-    id: row.id,
-    tournamentId: row.tournament_id,
-    placement: row.placement as RewardPlacement,
-    title: row.title,
-    description: row.description || '',
-    hiddenValue: '', // Never expose encrypted value directly
-    isClaimed: row.is_claimed,
-    claimedById: row.claimed_by_user_id || undefined,
-    claimedAt: row.claimed_at ? new Date(row.claimed_at) : undefined
-  }
-}
-
-/**
  * Get all rewards for a tournament (public metadata only)
  */
 export async function getRewardsForTournament(tournamentId: string): Promise<TournamentReward[]> {
