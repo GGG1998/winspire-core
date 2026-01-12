@@ -1,6 +1,6 @@
 /**
  * Game Management Types
- * 
+ *
  * Shared types for game-related data across the application
  */
 
@@ -9,18 +9,17 @@
  * Represents a complete game entity with all metadata
  */
 export interface Game {
-  id: string;
-  slug: string;
-  name: string;
-  version: string;
-  logoUrl?: string;
-  description?: string;
-  storagePath?: string;
-  // Full Game model fields
-  gameIntegrationId?: string;
-  isActive?: boolean;
-  createdAt?: string;
-  updatedAt?: string;
+  id: string
+  slug: string
+  name: string
+  version: string
+  storagePath: string
+  logoUrl?: string
+  description?: string
+  gameIntegrationId?: string
+  isActive?: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 /**
@@ -28,13 +27,7 @@ export interface Game {
  * Lightweight snapshot of game data stored with brackets/matches
  * Contains only the essential fields needed for gameplay
  */
-export type GameSnapshot = Pick<Game, 'id' | 'slug' | 'name' | 'version' | 'logoUrl' | 'description' | 'storagePath'>;
-
-
-
-
-
-
-
-
-
+export type GameSnapshot = Pick<
+  Game,
+  'id' | 'slug' | 'name' | 'version' | 'logoUrl' | 'description' | 'storagePath'
+>

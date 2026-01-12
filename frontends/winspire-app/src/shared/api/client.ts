@@ -7,8 +7,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
  * Determine which service should handle a request based on the endpoint path.
  * This is used for header-based routing at the ALB level.
  */
-function getServiceForEndpoint(endpoint: string): 'tournament' | 'matchmaking' | 'game-management' | null {
-  // Matchmaking service endpoints (check first - more specific)
+function getServiceForEndpoint(endpoint: string): 'tournament' | 'matchmaking' | null {
+  // Matchmaking service endpoints
   if (endpoint.startsWith('/v1/matchmaking')) {
     return 'matchmaking';
   }
@@ -16,10 +16,10 @@ function getServiceForEndpoint(endpoint: string): 'tournament' | 'matchmaking' |
     return 'matchmaking';
   }
 
-  // Game management service endpoints
-  if (endpoint.startsWith('/v1/games') || endpoint.startsWith('/v1/bundles') ||
-      endpoint.startsWith('/v1/g/') || endpoint.startsWith('/v1/admin/games')) {
-    return 'game-management';
+  // Game bundle streaming and admin endpoints (merged into matchmaking)
+  // NOTE: Public game listing (/v1/games) removed - frontend uses Supabase directly
+  if (endpoint.startsWith('/v1/g/') || endpoint.startsWith('/v1/admin/games')) {
+    return 'matchmaking';
   }
 
   // Tournament service endpoints (hosts, registrations, and dynamic host paths)

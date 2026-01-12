@@ -109,21 +109,10 @@ CREATE TABLE prelobby_activity_feed (
 );
 
 -- ============================================================================
--- Games Table (BC: GameLibrary - merged from game-management service)
+-- NOTE: Games table has been moved to Supabase
+-- Frontend fetches games directly from Supabase using supabase-js
+-- Backend admin operations connect to Supabase PostgreSQL via SUPABASE_DATABASE_URL
 -- ============================================================================
-CREATE TABLE games (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    game_integration_id UUID UNIQUE,
-    slug TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT,
-    logo_url TEXT,
-    storage_path TEXT NOT NULL,
-    version TEXT NOT NULL DEFAULT '1.0.0',
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
 
 -- ============================================================================
 -- Tournament Service Tables (tournament schema - merged from tournament service)

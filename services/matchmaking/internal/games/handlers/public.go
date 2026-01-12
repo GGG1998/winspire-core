@@ -1,82 +1,30 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 
 	"github.com/winspire-core/services/matchmaking/internal/games"
 )
 
 // GameDeps contains dependencies for game handlers.
+// Note: Public game listing endpoints have been removed.
+// Frontend now fetches games directly from Supabase.
 type GameDeps struct {
 	Repo *games.GameRepository
 }
 
 // RegisterGameRoutes registers public game routes.
-func RegisterGameRoutes(group *gin.RouterGroup, deps GameDeps) {
-	// List all active games
-	group.GET("/games", func(c *gin.Context) {
-		gamesList, err := deps.Repo.List(c.Request.Context())
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to list games", Details: err.Error()})
-			return
-		}
-
-		response := GamesListResponse{
-			Games: make([]GameResponse, 0, len(gamesList)),
-			Total: len(gamesList),
-		}
-
-		for _, game := range gamesList {
-			response.Games = append(response.Games, gameToResponse(game))
-		}
-
-		c.JSON(http.StatusOK, response)
-	})
-
-	// Get game by ID
-	group.GET("/games/:gameId", func(c *gin.Context) {
-		gameID, err := uuid.Parse(c.Param("gameId"))
-		if err != nil {
-			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid game ID"})
-			return
-		}
-
-		game, err := deps.Repo.GetByID(c.Request.Context(), gameID)
-		if err != nil {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: "game not found"})
-			return
-		}
-
-		// Only return active games for public API
-		if !game.IsActive {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: "game not found"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gameToResponse(*game))
-	})
-
-	// Get game by slug
-	group.GET("/g/:slug", func(c *gin.Context) {
-		slug := c.Param("slug")
-		if slug == "" {
-			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "slug is required"})
-			return
-		}
-
-		game, err := deps.Repo.GetBySlug(c.Request.Context(), slug)
-		if err != nil {
-			c.JSON(http.StatusNotFound, ErrorResponse{Error: "game not found"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gameToResponse(*game))
-	})
+// Note: Public game listing endpoints (GET /games, GET /games/:gameId, GET /g/:slug)
+// have been removed. Frontend fetches games directly from Supabase.
+// Only bundle streaming routes remain for serving game assets from S3.
+func RegisterGameRoutes(_ *gin.RouterGroup, _ GameDeps) {
+	// No public game routes - frontend uses Supabase directly
+	// Bundle streaming is handled by RegisterBundleRoutes
+	// Admin operations are handled by RegisterAdminRoutes
 }
 
+// gameToResponse converts a Game domain model to API response.
+// Used by admin handlers.
 func gameToResponse(game games.Game) GameResponse {
 	resp := GameResponse{
 		ID:          game.ID.String(),

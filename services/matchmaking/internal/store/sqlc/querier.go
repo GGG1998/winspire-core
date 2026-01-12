@@ -29,11 +29,7 @@ type Querier interface {
 	// Clear disconnect tracking when player reconnects
 	ClearMatchDisconnect(ctx context.Context, id pgtype.UUID) error
 	CompleteTournament(ctx context.Context, id pgtype.UUID) error
-	// Counts all games including inactive
-	CountAllGames(ctx context.Context) (int64, error)
 	CountConfirmedTournamentRegistrations(ctx context.Context, tournamentID pgtype.UUID) (int64, error)
-	// Counts total active games
-	CountGames(ctx context.Context) (int64, error)
 	CountReadyTournamentParticipants(ctx context.Context, tournamentID pgtype.UUID) (int64, error)
 	CountTournamentRegistrations(ctx context.Context, tournamentID pgtype.UUID) (int64, error)
 	CountTournamentRegistrationsByStatus(ctx context.Context, arg CountTournamentRegistrationsByStatusParams) (int64, error)
@@ -41,12 +37,6 @@ type Querier interface {
 	// Bracket Queries
 	// ============================================================================
 	CreateBracket(ctx context.Context, arg CreateBracketParams) (TournamentBracket, error)
-	// ============================================================================
-	// GAME QUERIES (BC: GameLibrary - merged from game-management service)
-	// Generated code will be used by internal/games/repository.go
-	// ============================================================================
-	// Creates a new game and returns the created record
-	CreateGame(ctx context.Context, arg CreateGameParams) (Game, error)
 	// ============================================================================
 	// Match Queries
 	// ============================================================================
@@ -77,8 +67,6 @@ type Querier interface {
 	// ============================================================================
 	CreateTournamentRegistration(ctx context.Context, arg CreateTournamentRegistrationParams) (TournamentRegistration, error)
 	DeleteBracket(ctx context.Context, id pgtype.UUID) error
-	// Soft delete - sets is_active to false
-	DeleteGame(ctx context.Context, id pgtype.UUID) error
 	// Deletes activity feed events older than a certain threshold (cleanup)
 	DeleteOldActivityFeedEvents(ctx context.Context, tournamentID pgtype.UUID) error
 	// Deletes a pre-lobby (cascades to snapshots and activity feed)
@@ -87,10 +75,6 @@ type Querier interface {
 	DeleteTournamentRegistration(ctx context.Context, arg DeleteTournamentRegistrationParams) error
 	// Find matches in 'loading' status older than specified timestamp (for timeout monitoring)
 	FindLoadingMatchesOlderThan(ctx context.Context, updatedAt time.Time) ([]TournamentMatch, error)
-	// Checks if a game exists
-	GameExists(ctx context.Context, id pgtype.UUID) (bool, error)
-	// Checks if a slug is already taken
-	GameSlugExists(ctx context.Context, slug string) (bool, error)
 	// Gets all pre-lobbies currently in grace period (for recovery on startup)
 	GetActiveGracePeriods(ctx context.Context) ([]Prelobby, error)
 	// Get all active rounds (in_progress status)
@@ -104,12 +88,6 @@ type Querier interface {
 	GetConfirmedTournamentUserIDs(ctx context.Context, tournamentID pgtype.UUID) ([]pgtype.UUID, error)
 	// Get the final match (next_match_id IS NULL)
 	GetFinalMatch(ctx context.Context, tournamentID pgtype.UUID) (TournamentMatch, error)
-	// Retrieves a game by its ID
-	GetGameByID(ctx context.Context, id pgtype.UUID) (Game, error)
-	// Retrieves an active game by its game integration ID
-	GetGameByIntegrationID(ctx context.Context, gameIntegrationID pgtype.UUID) (Game, error)
-	// Retrieves an active game by its slug
-	GetGameBySlug(ctx context.Context, slug string) (Game, error)
 	// Get the latest (highest round_number) round for a tournament
 	GetLatestRoundByTournamentID(ctx context.Context, tournamentID pgtype.UUID) (GetLatestRoundByTournamentIDRow, error)
 	GetMatchByID(ctx context.Context, id pgtype.UUID) (TournamentMatch, error)
@@ -153,20 +131,14 @@ type Querier interface {
 	GetTournamentUserHosts(ctx context.Context, userID pgtype.UUID) ([]TournamentHost, error)
 	GetTournamentUserHostsWithRole(ctx context.Context, userID pgtype.UUID) ([]GetTournamentUserHostsWithRoleRow, error)
 	GetUserTournamentRegistrations(ctx context.Context, arg GetUserTournamentRegistrationsParams) ([]TournamentRegistration, error)
-	// Hard delete - permanently removes game (use with caution)
-	HardDeleteGame(ctx context.Context, id pgtype.UUID) error
 	// Check if a participant has lost any match in the specified tournament
 	HasParticipantLostInTournament(ctx context.Context, arg HasParticipantLostInTournamentParams) (bool, error)
 	// ============================================================================
 	// HOST MEMBERS QUERIES
 	// ============================================================================
 	IsTournamentUserHostAdmin(ctx context.Context, arg IsTournamentUserHostAdminParams) (bool, error)
-	// Lists all games including inactive ones (admin use)
-	ListAllGames(ctx context.Context) ([]Game, error)
 	ListAllTournamentRegistrations(ctx context.Context, tournamentID pgtype.UUID) ([]TournamentRegistration, error)
 	ListConfirmedTournamentRegistrations(ctx context.Context, tournamentID pgtype.UUID) ([]TournamentRegistration, error)
-	// Lists all active games ordered by name
-	ListGames(ctx context.Context) ([]Game, error)
 	ListTournamentHosts(ctx context.Context, arg ListTournamentHostsParams) ([]TournamentHost, error)
 	ListTournamentRegistrations(ctx context.Context, arg ListTournamentRegistrationsParams) ([]TournamentRegistration, error)
 	ListTournamentsByHostID(ctx context.Context, hostID pgtype.UUID) ([]TournamentTournament, error)
@@ -187,8 +159,6 @@ type Querier interface {
 	UpdateBracketCompletedAt(ctx context.Context, arg UpdateBracketCompletedAtParams) error
 	// Update disconnected player info without changing status
 	UpdateDisconnectedPlayerOnly(ctx context.Context, arg UpdateDisconnectedPlayerOnlyParams) error
-	// Updates a game's information using optional parameters
-	UpdateGame(ctx context.Context, arg UpdateGameParams) error
 	// Track player disconnect for CS:GO-style handling
 	UpdateMatchDisconnect(ctx context.Context, arg UpdateMatchDisconnectParams) error
 	// Track Game API polling attempts

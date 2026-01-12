@@ -123,6 +123,34 @@ func main() {
 	// Initialize event publisher
 	publisher := pubsub.NewEventPublisher(redisClient)
 
+	// Initialize Supabase connection pool for games table (moved from local DB)
+	var supabasePool *pgxpool.Pool
+	if cfg.SupabaseDatabaseURL != "" {
+		supabaseConfig, err := pgxpool.ParseConfig(cfg.SupabaseDatabaseURL)
+		if err != nil {
+			log.Fatalf("Failed to parse Supabase database URL: %v", err)
+		}
+		supabaseConfig.MaxConns = 10
+		supabaseConfig.MinConns = 2
+		// Use simple protocol for Supabase PgBouncer compatibility
+		supabaseConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+
+		supabasePool, err = pgxpool.NewWithConfig(ctx, supabaseConfig)
+		if err != nil {
+			log.Fatalf("Failed to create Supabase database pool: %v", err)
+		}
+		defer supabasePool.Close()
+
+		if err := supabasePool.Ping(ctx); err != nil {
+			log.Fatalf("Failed to connect to Supabase database: %v", err)
+		}
+		logger.Info("Supabase database connected (for games table)", nil)
+	} else {
+		// Fallback to main pool if Supabase URL not configured (dev mode)
+		logger.Warn("SUPABASE_DATABASE_URL not set, using main database pool for games", nil)
+		supabasePool = pool
+	}
+
 	// Initialize S3 client for game bundle storage (optional - may be nil if not configured)
 	var s3Client *games.S3Client
 	if cfg.AWSS3Bucket != "" {
@@ -146,8 +174,8 @@ func main() {
 		}
 	}
 
-	// Initialize game repository
-	gameRepo := games.NewGameRepository(queries, pool)
+	// Initialize game repository (uses Supabase pool)
+	gameRepo := games.NewGameRepository(supabasePool)
 
 	// Initialize repositories
 	bracketRepo := repository.NewBracketRepository(queries, pool, pool) // queries, db (DBTX), pool

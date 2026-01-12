@@ -12,20 +12,6 @@ import (
 	"github.com/winspire-core/services/matchmaking/internal/domain"
 )
 
-type Game struct {
-	ID                pgtype.UUID `json:"id"`
-	GameIntegrationID pgtype.UUID `json:"game_integration_id"`
-	Slug              string      `json:"slug"`
-	Name              string      `json:"name"`
-	Description       pgtype.Text `json:"description"`
-	LogoUrl           pgtype.Text `json:"logo_url"`
-	StoragePath       string      `json:"storage_path"`
-	Version           string      `json:"version"`
-	IsActive          bool        `json:"is_active"`
-	CreatedAt         time.Time   `json:"created_at"`
-	UpdatedAt         time.Time   `json:"updated_at"`
-}
-
 type Prelobby struct {
 	ID               pgtype.UUID      `json:"id"`
 	TournamentID     pgtype.UUID      `json:"tournament_id"`

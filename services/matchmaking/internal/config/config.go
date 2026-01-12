@@ -46,6 +46,9 @@ type Config struct {
 	GameManagementURL            string // Kept for backward compatibility during transition
 	GameManagementInternalAPIKey string // API key for internal/admin endpoints
 
+	// Supabase Database (for games table - moved from local DB)
+	SupabaseDatabaseURL string
+
 	// AWS S3 Configuration (for game bundle storage)
 	AWSRegion          string
 	AWSS3Bucket        string
@@ -115,6 +118,9 @@ func Load() (*Config, error) {
 		// Game Management Service (merged into matchmaking)
 		GameManagementURL:            getEnv("GAME_MANAGEMENT_URL", "http://localhost:8088"),
 		GameManagementInternalAPIKey: getEnv("GAME_MANAGEMENT_INTERNAL_API_KEY", ""),
+
+		// Supabase Database (for games table)
+		SupabaseDatabaseURL: getEnv("SUPABASE_DATABASE_URL", ""),
 
 		// AWS S3 Configuration (for game bundle storage)
 		AWSRegion:          getEnv("AWS_REGION", "eu-central-1"),

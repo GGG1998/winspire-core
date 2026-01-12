@@ -7,8 +7,8 @@ sql:
       - "internal/store/round_queries.sql"
       - "internal/store/match_queries.sql"
       - "internal/store/prelobby_queries.sql"
-      - "internal/store/game_queries.sql"
       - "internal/store/tournament_queries.sql"
+      # NOTE: game_queries.sql removed - games table moved to Supabase
     gen:
       go:
         package: "sqlc"

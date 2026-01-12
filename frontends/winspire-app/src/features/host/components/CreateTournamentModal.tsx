@@ -27,7 +27,7 @@ import {
   VALIDATION_MESSAGES
 } from '../constants'
 import type { CreateTournamentModalProps } from '../types'
-import { gameManagementApi, type Game } from '../../../shared/api/gameManagementApi'
+import { gameManagementApi, type Game } from '../../game-management'
 
 /**
  * Get default start time (now + 1 hour)
