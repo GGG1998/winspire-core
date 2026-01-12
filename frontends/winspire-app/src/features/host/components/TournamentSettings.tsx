@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react'
-import { Cog6ToothIcon, PencilIcon, PlayIcon, XMarkIcon, RocketLaunchIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/20/solid'
+import { Cog6ToothIcon, PencilIcon, PlayIcon, XMarkIcon, RocketLaunchIcon, ClipboardDocumentCheckIcon, GiftIcon } from '@heroicons/react/20/solid'
 import {
   Dropdown,
   DropdownButton,
@@ -19,8 +19,10 @@ import {
 import { Dialog, DialogActions, DialogBody, DialogDescription, DialogTitle } from '../../../shared/components/ui/dialog'
 import { Button } from '../../../shared/components/ui/button'
 import { tournamentApi } from '../api/tournamentApi'
+import { rewardsApi } from '../api/rewardsApi'
 import { UI_LABELS } from '../constants'
-import type { Tournament, TournamentStatus } from '../types'
+import { RewardsModal } from './RewardsModal'
+import type { Tournament, TournamentStatus, RewardFormData, TournamentReward } from '../types'
 
 interface TournamentSettingsProps {
   tournament: Tournament
@@ -46,6 +48,8 @@ export function TournamentSettings({
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isRewardsModalOpen, setIsRewardsModalOpen] = useState(false)
+  const [existingRewards, setExistingRewards] = useState<TournamentReward[]>([])
 
   const labels = UI_LABELS.settings
 
@@ -59,6 +63,8 @@ export function TournamentSettings({
   const canCancel = status !== 'completed'
   // Can edit if tournament is not completed or cancelled
   const canEdit = status !== 'completed' && status !== 'cancelled'
+  // Can manage rewards if tournament is not completed or cancelled
+  const canManageRewards = status !== 'completed' && status !== 'cancelled'
 
   const handlePublish = async () => {
     setIsLoading(true)
@@ -130,8 +136,26 @@ export function TournamentSettings({
     }
   }
 
+  const handleSaveRewards = async (rewards: RewardFormData): Promise<void> => {
+    await rewardsApi.saveRewards(tournament.id, rewards)
+    // Refresh existing rewards after save
+    const updatedRewards = await rewardsApi.getRewardsForTournament(tournament.id)
+    setExistingRewards(updatedRewards)
+  }
+
+  const handleOpenRewardsModal = async () => {
+    // Load existing rewards when opening modal
+    try {
+      const rewards = await rewardsApi.getRewardsForTournament(tournament.id)
+      setExistingRewards(rewards)
+    } catch (err) {
+      console.error('Failed to load existing rewards:', err)
+    }
+    setIsRewardsModalOpen(true)
+  }
+
   // Check if there are any available actions
-  const hasActions = canPublish || canOpenRegistration || canEdit || canStart || canCancel
+  const hasActions = canPublish || canOpenRegistration || canEdit || canStart || canCancel || canManageRewards
 
   if (!hasActions) {
     return null
@@ -165,13 +189,19 @@ export function TournamentSettings({
               <DropdownLabel>{labels.edit}</DropdownLabel>
             </DropdownItem>
           )}
+          {canManageRewards && (
+            <DropdownItem onClick={handleOpenRewardsModal}>
+              <GiftIcon data-slot="icon" className="text-amber-500" />
+              <DropdownLabel>{labels.rewards}</DropdownLabel>
+            </DropdownItem>
+          )}
           {canStart && (
             <DropdownItem onClick={() => setConfirmAction('start')}>
               <PlayIcon data-slot="icon" className="text-emerald-500" />
               <DropdownLabel>{labels.start}</DropdownLabel>
             </DropdownItem>
           )}
-          {(canPublish || canOpenRegistration || canEdit || canStart) && canCancel && <DropdownDivider />}
+          {(canPublish || canOpenRegistration || canEdit || canManageRewards || canStart) && canCancel && <DropdownDivider />}
           {canCancel && (
             <DropdownItem onClick={() => setConfirmAction('cancel')}>
               <XMarkIcon data-slot="icon" className="text-red-500" />
@@ -228,6 +258,15 @@ export function TournamentSettings({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Rewards Modal */}
+      <RewardsModal
+        isOpen={isRewardsModalOpen}
+        onClose={() => setIsRewardsModalOpen(false)}
+        tournament={tournament}
+        existingRewards={existingRewards}
+        onSave={handleSaveRewards}
+      />
     </>
   )
 }

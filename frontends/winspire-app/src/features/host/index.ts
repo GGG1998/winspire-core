@@ -16,6 +16,7 @@ export * from './constants'
 
 // API
 export { tournamentApi, apiToUiTournament, formToApiInput } from './api/tournamentApi'
+export { rewardsApi } from './api/rewardsApi'
 
 // Hooks
 export { useTournaments } from './hooks/useTournaments'
@@ -44,6 +45,10 @@ export { BracketView } from './components/BracketView'
 export { MatchesView } from './components/MatchesView'
 export { PlayersListView } from './components/PlayersListView'
 export { ResultsView } from './components/ResultsView'
+
+// Reward Components
+export { RewardsModal } from './components/RewardsModal'
+export { RewardCard, RewardCardsGrid } from './components/RewardCard'
 
 // Pages
 export { TournamentPage } from './pages/TournamentPage'
