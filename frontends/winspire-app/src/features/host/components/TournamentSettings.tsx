@@ -19,9 +19,10 @@ import {
 import { Dialog, DialogActions, DialogBody, DialogDescription, DialogTitle } from '../../../shared/components/ui/dialog'
 import { Button } from '../../../shared/components/ui/button'
 import { tournamentApi } from '../api/tournamentApi'
+import { rewardsApi } from '../api/rewardsApi'
 import { UI_LABELS } from '../constants'
 import { RewardsModal } from './RewardsModal'
-import type { Tournament, TournamentStatus, RewardFormData } from '../types'
+import type { Tournament, TournamentStatus, RewardFormData, TournamentReward } from '../types'
 
 interface TournamentSettingsProps {
   tournament: Tournament
@@ -48,6 +49,7 @@ export function TournamentSettings({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isRewardsModalOpen, setIsRewardsModalOpen] = useState(false)
+  const [existingRewards, setExistingRewards] = useState<TournamentReward[]>([])
 
   const labels = UI_LABELS.settings
 
@@ -135,12 +137,21 @@ export function TournamentSettings({
   }
 
   const handleSaveRewards = async (rewards: RewardFormData): Promise<void> => {
-    // MVP: For now, just log the rewards - backend integration will come later
-    console.log('Saving rewards for tournament:', tournament.id, rewards)
-    // Simulate API call delay for UX
-    await new Promise(resolve => setTimeout(resolve, 500))
-    // TODO: Integrate with backend API when ready
-    // await tournamentApi.saveRewards(tournament.id, rewards)
+    await rewardsApi.saveRewards(tournament.id, rewards)
+    // Refresh existing rewards after save
+    const updatedRewards = await rewardsApi.getRewardsForTournament(tournament.id)
+    setExistingRewards(updatedRewards)
+  }
+
+  const handleOpenRewardsModal = async () => {
+    // Load existing rewards when opening modal
+    try {
+      const rewards = await rewardsApi.getRewardsForTournament(tournament.id)
+      setExistingRewards(rewards)
+    } catch (err) {
+      console.error('Failed to load existing rewards:', err)
+    }
+    setIsRewardsModalOpen(true)
   }
 
   // Check if there are any available actions
@@ -179,7 +190,7 @@ export function TournamentSettings({
             </DropdownItem>
           )}
           {canManageRewards && (
-            <DropdownItem onClick={() => setIsRewardsModalOpen(true)}>
+            <DropdownItem onClick={handleOpenRewardsModal}>
               <GiftIcon data-slot="icon" className="text-amber-500" />
               <DropdownLabel>{labels.rewards}</DropdownLabel>
             </DropdownItem>
@@ -253,6 +264,7 @@ export function TournamentSettings({
         isOpen={isRewardsModalOpen}
         onClose={() => setIsRewardsModalOpen(false)}
         tournament={tournament}
+        existingRewards={existingRewards}
         onSave={handleSaveRewards}
       />
     </>

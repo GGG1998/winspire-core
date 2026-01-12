@@ -16,6 +16,7 @@ export * from './constants'
 
 // API
 export { tournamentApi, apiToUiTournament, formToApiInput } from './api/tournamentApi'
+export { rewardsApi } from './api/rewardsApi'
 
 // Hooks
 export { useTournaments } from './hooks/useTournaments'
