@@ -263,7 +263,6 @@ export function TournamentSettings({
       <RewardsModal
         isOpen={isRewardsModalOpen}
         onClose={() => setIsRewardsModalOpen(false)}
-        tournament={tournament}
         existingRewards={existingRewards}
         onSave={handleSaveRewards}
       />

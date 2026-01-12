@@ -126,7 +126,6 @@ export interface RewardFormData {
 export interface RewardsModalProps {
   isOpen: boolean
   onClose: () => void
-  tournament: Tournament
   existingRewards?: TournamentReward[]
   onSave: (rewards: RewardFormData) => Promise<void>
 }

@@ -13,12 +13,11 @@ import { Input } from '../../../shared/components/ui/input'
 import { Textarea } from '../../../shared/components/ui/textarea'
 import { Field, Label, Description } from '../../../shared/components/ui/fieldset'
 import { UI_LABELS } from '../constants'
-import type { Tournament, RewardFormData, TournamentReward } from '../types'
+import type { RewardFormData, TournamentReward } from '../types'
 
 interface RewardsModalProps {
   isOpen: boolean
   onClose: () => void
-  tournament: Tournament
   existingRewards?: TournamentReward[]
   onSave: (rewards: RewardFormData) => Promise<void>
 }
@@ -92,7 +91,6 @@ const initialRewardData = {
 export function RewardsModal({
   isOpen,
   onClose,
-  tournament: _tournament,
   existingRewards = [],
   onSave
 }: RewardsModalProps) {

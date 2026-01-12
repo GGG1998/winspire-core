@@ -13,7 +13,7 @@ describe('formToApiInput', () => {
       name: '  Test Tournament  ',
       startTime: '2024-12-31T20:00',
       game: 'Packman',
-      gameSnapshot: { id: 'game-1', name: 'Packman', slug: 'packman', version: '1.0.0' },
+      gameSnapshot: { id: 'game-1', name: 'Packman', slug: 'packman', version: '1.0.0', storagePath: '/games/packman' },
       teamMode: '1v1',
       minPlayers: 2,
       maxPlayers: 16
@@ -41,7 +41,7 @@ describe('formToApiInput', () => {
         name: 'Test',
         startTime: '2024-12-31T20:00',
         game: 'Packman',
-        gameSnapshot: { id: 'game-1', name: 'Packman', slug: 'packman', version: '1.0.0' },
+        gameSnapshot: { id: 'game-1', name: 'Packman', slug: 'packman', version: '1.0.0', storagePath: '/games/packman' },
         teamMode,
         minPlayers: 2,
         maxPlayers: 16
@@ -57,7 +57,7 @@ describe('formToApiInput', () => {
       name: 'Test Tournament',
       startTime: '',
       game: '',
-      gameSnapshot: { id: '', name: '', slug: '', version: '' },
+      gameSnapshot: { id: '', name: '', slug: '', version: '', storagePath: '' },
       teamMode: '1v1',
       minPlayers: 2,
       maxPlayers: 8
@@ -76,7 +76,7 @@ describe('formToApiInput', () => {
       name: '   Spaced Tournament   ',
       startTime: '2024-12-31T20:00',
       game: 'Packman',
-      gameSnapshot: { id: 'game-1', name: 'Packman', slug: 'packman', version: '1.0.0' },
+      gameSnapshot: { id: 'game-1', name: 'Packman', slug: 'packman', version: '1.0.0', storagePath: '/games/packman' },
       teamMode: '1v1',
       minPlayers: 2,
       maxPlayers: 16
@@ -91,7 +91,7 @@ describe('formToApiInput', () => {
       name: 'Test',
       startTime: '2024-12-31T20:00',
       game: 'PACKMAN',
-      gameSnapshot: { id: 'game-1', name: 'PACKMAN', slug: 'packman', version: '1.0.0' },
+      gameSnapshot: { id: 'game-1', name: 'PACKMAN', slug: 'packman', version: '1.0.0', storagePath: '/games/packman' },
       teamMode: '1v1',
       minPlayers: 2,
       maxPlayers: 16
