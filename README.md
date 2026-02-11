@@ -16,9 +16,7 @@ you can see events and soap way.
 
 # What I've done so far
 
-Here is video demo:
-
-<video src="https://github.com/GGG1998/winspire-core/raw/main/docs/overview.mp4" controls width="100%"></video>
+Here is video demo: [![](https://github.com/GGG1998/winspire-core/raw/main/docs/overview.mp4)]
 
 - Auth using supabase
 - Two types user: Host and Player
