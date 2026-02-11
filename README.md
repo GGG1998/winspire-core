@@ -1,3 +1,38 @@
+# Disclaimer
+
+This repository is a mirror of the original Winspire Core repository. The original repository is located at https://github.com/winspire-core/winspire-core.
+
+MVP was created in rapid environment so most code wasn't updated and clear and is full of security leaks.
+Most important fact we tested our hipotesis and decided it's not worth to continue.
+
+- Hard cooperation with streamers
+- Development of games is time and money consuming
+- People is easier engaged to visit venue without gaming
+
+# What I've done so far
+
+Here is video demo: ![](./docs/overview.mp4)
+
+- Auth using supabase
+- Two types user: Host and Player
+- CRUD for tournament(
+    states: draft, 
+    registration_open, 
+    registration_closed, 
+    started, 
+    completed,
+    cancelled
+)
+- Event-Driven architecture for managing tournament state
+    - Generating brackets
+    - Swap players between match
+    - lobby, pre-lobby
+    - Selection of the winner
+- Loading games from S3
+- Mini-panel for managing games(uploading to S3)
+- Not sure wheter CI/CD fully work but something should
+- Terraform for deploying infrastructure
+
 # Winspire Core
 
 Global loyalty & engagement platform — connecting brands, creators and consumers through games and rewards.
