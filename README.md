@@ -16,7 +16,9 @@ you can see events and soap way.
 
 # What I've done so far
 
-Here is video demo: ![](./docs/overview.mp4)
+Here is video demo:
+
+<video src="./docs/overview.mp4" controls width="100%"></video>
 
 - Auth using supabase
 - Two types user: Host and Player
