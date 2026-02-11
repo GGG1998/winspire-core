@@ -18,7 +18,7 @@ you can see events and soap way.
 
 Here is video demo:
 
-<video src="./docs/overview.mp4" controls width="100%"></video>
+<video src="https://github.com/GGG1998/winspire-core/raw/main/docs/overview.mp4" controls width="100%"></video>
 
 - Auth using supabase
 - Two types user: Host and Player
