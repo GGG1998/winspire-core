@@ -3,11 +3,16 @@
 This repository is a mirror of the original Winspire Core repository. The original repository is located at https://github.com/winspire-core/winspire-core.
 
 MVP was created in rapid environment so most code wasn't updated and clear and is full of security leaks.
-Most important fact we tested our hipotesis and decided it's not worth to continue.
+
+I left code as a proof of evidence of rapid hypothesis testing in a startup environment. Most important is the fact we tested our hipotesis and decided it's not worth to continue.
 
 - Hard cooperation with streamers
 - Development of games is time and money consuming
 - People is easier engaged to visit venue without gaming
+
+According to effort maintaining microservices and work with transactions between events
+I dicided to move to monolith architecture and make a mad, so in the code
+you can see events and soap way.
 
 # What I've done so far
 
@@ -23,7 +28,7 @@ Here is video demo: ![](./docs/overview.mp4)
     completed,
     cancelled
 )
-- Event-Driven architecture for managing tournament state
+- (The part still exist) Event-Driven architecture for managing tournament state
     - Generating brackets
     - Swap players between match
     - lobby, pre-lobby
